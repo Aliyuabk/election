@@ -15,7 +15,7 @@
     <!-- Contact -->
     <a href="contact.php" class="nav-item"><i class="fas fa-envelope"></i> Contact</a>
     
-    <a href="login.php" class="btn btn-primary" style="text-align:center;">Login</a>
+    <a href="auth/login.php" class="btn btn-primary" style="text-align:center;">Login</a>
     <div class="sidebar-footer">
         <p>© 2026 KowaGuru Technology</p>
         <p style="font-size:0.75rem;">5G Election Guru · v1.0</p>
@@ -34,7 +34,7 @@
             <li><a href="security.php">Security</a></li>
             <li><a href="documentation.php">Documentation</a></li>
             <li><a href="contact.php">Contact</a></li>
-            <li><a href="login.php" class="btn btn-primary">Login</a></li>
+            <li><a href="auth/login.php" class="btn btn-primary">Login</a></li>
         </ul>
     </div>
 </nav>

@@ -300,3 +300,91 @@
                 align-items: flex-start;
             }
         } 
+        /* Additional styles for login pages */
+.error-message {
+    background: #FEF2F2;
+    color: #DC2626;
+    padding: 12px 16px;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid #FECACA;
+}
+.error-message i { font-size: 1.1rem; }
+
+.success-message {
+    background: #ECFDF5;
+    color: #065F46;
+    padding: 12px 16px;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid #A7F3D0;
+}
+.success-message i { font-size: 1.1rem; }
+
+/* Password strength indicator */
+.password-strength {
+    height: 4px;
+    border-radius: 4px;
+    margin-top: 8px;
+    background: #E2E8F0;
+    transition: all 0.3s ease;
+}
+.password-strength.weak { background: #EF4444; width: 25%; }
+.password-strength.medium { background: #F59E0B; width: 50%; }
+.password-strength.strong { background: #10B981; width: 75%; }
+.password-strength.very-strong { background: #059669; width: 100%; }
+
+/* Trusted devices section */
+.device-list {
+    margin: 20px 0;
+}
+.device-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: #F8FAFC;
+    border-radius: 12px;
+    margin-bottom: 8px;
+    border: 1px solid #E2E8F0;
+}
+.device-item .device-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.device-item .device-info i { font-size: 1.2rem; color: #0F4C81; }
+.device-item .device-status {
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+.device-item .device-status.current { color: #10B981; }
+.device-item .device-status.trusted { color: #2563EB; }
+.device-item .device-status.unknown { color: #F59E0B; }
+
+/* Login history table */
+.login-history {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+.login-history th {
+    text-align: left;
+    padding: 8px 12px;
+    background: #F1F5F9;
+    font-weight: 600;
+}
+.login-history td {
+    padding: 8px 12px;
+    border-bottom: 1px solid #E2E8F0;
+}
+.login-history .status-success { color: #10B981; }
+.login-history .status-failed { color: #EF4444; }
