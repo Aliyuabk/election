@@ -1,8 +1,34 @@
 <?php
-
 $page_title = "Manage Tenants";
 require_once 'includes/db.php';
 $db = Database::getInstance()->getConnection();
+
+// ============================================================
+// HELPER: GET FULL IMAGE URL
+// ============================================================
+function getTenantImageUrl($logo_url) {
+    if (empty($logo_url)) {
+        return null;
+    }
+    
+    // If it's already a full URL
+    if (preg_match('/^https?:\/\//', $logo_url)) {
+        return $logo_url;
+    }
+    
+    // If it starts with /uploads/
+    if (strpos($logo_url, '/uploads/') === 0) {
+        return $logo_url;
+    }
+    
+    // If it starts with uploads/ (no leading slash)
+    if (strpos($logo_url, 'uploads/') === 0) {
+        return '/' . $logo_url;
+    }
+    
+    // Default: assume it's in the tenants directory
+    return '/uploads/tenants/' . ltrim($logo_url, '/');
+}
 
 // ============================================================
 // HANDLE ACTIONS
@@ -16,27 +42,27 @@ $message_type = '';
 // Handle POST actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $post_action = $_POST['action'] ?? '';
-    $tenant_id = $_POST['tenant_id'] ?? 0;
+    $tenant_id = (int)($_POST['tenant_id'] ?? 0);
     
     try {
         switch ($post_action) {
             case 'suspend':
-                $db->prepare("UPDATE tenants SET subscription_status = 'suspended', updated_at = NOW() WHERE id = ? AND deleted_at IS NULL")
-                   ->execute([$tenant_id]);
+                $stmt = $db->prepare("UPDATE tenants SET subscription_status = 'suspended', updated_at = NOW() WHERE id = ? AND deleted_at IS NULL");
+                $stmt->execute([$tenant_id]);
                 $message = "Tenant suspended successfully.";
                 $message_type = 'success';
                 break;
                 
             case 'activate':
-                $db->prepare("UPDATE tenants SET subscription_status = 'active', updated_at = NOW() WHERE id = ? AND deleted_at IS NULL")
-                   ->execute([$tenant_id]);
+                $stmt = $db->prepare("UPDATE tenants SET subscription_status = 'active', updated_at = NOW() WHERE id = ? AND deleted_at IS NULL");
+                $stmt->execute([$tenant_id]);
                 $message = "Tenant activated successfully.";
                 $message_type = 'success';
                 break;
                 
             case 'delete':
-                $db->prepare("UPDATE tenants SET deleted_at = NOW(), updated_at = NOW() WHERE id = ?")
-                   ->execute([$tenant_id]);
+                $stmt = $db->prepare("UPDATE tenants SET deleted_at = NOW(), updated_at = NOW() WHERE id = ?");
+                $stmt->execute([$tenant_id]);
                 $message = "Tenant deleted successfully.";
                 $message_type = 'success';
                 break;
@@ -45,14 +71,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $new_password = bin2hex(random_bytes(8));
                 $password_hash = password_hash($new_password, PASSWORD_DEFAULT);
                 
-                // Update user password
                 $stmt = $db->prepare("UPDATE users SET password_hash = ? WHERE tenant_id = ? AND role_id = (SELECT id FROM roles WHERE slug = 'client_admin' LIMIT 1)");
                 $stmt->execute([$password_hash, $tenant_id]);
-                
-                // Log the reset
-                $stmt = $db->prepare("INSERT INTO activity_logs (user_id, tenant_id, activity_type, description, ip_address, created_at) 
-                             VALUES (?, ?, 'password_reset', 'Admin password reset for tenant', ?, NOW())");
-                $stmt->execute([$_SESSION['user_id'] ?? 1, $tenant_id, $_SERVER['REMOTE_ADDR']]);
                 
                 $message = "Password reset successfully. New password: <strong>{$new_password}</strong>";
                 $message_type = 'info';
@@ -67,20 +87,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     switch ($bulk_action) {
                         case 'activate':
-                            $db->prepare("UPDATE tenants SET subscription_status = 'active', updated_at = NOW() WHERE id IN ($placeholders) AND deleted_at IS NULL")
-                               ->execute($tenant_ids);
+                            $stmt = $db->prepare("UPDATE tenants SET subscription_status = 'active', updated_at = NOW() WHERE id IN ($placeholders) AND deleted_at IS NULL");
+                            $stmt->execute($tenant_ids);
                             $message = count($tenant_ids) . " tenants activated successfully.";
                             $message_type = 'success';
                             break;
                         case 'suspend':
-                            $db->prepare("UPDATE tenants SET subscription_status = 'suspended', updated_at = NOW() WHERE id IN ($placeholders) AND deleted_at IS NULL")
-                               ->execute($tenant_ids);
+                            $stmt = $db->prepare("UPDATE tenants SET subscription_status = 'suspended', updated_at = NOW() WHERE id IN ($placeholders) AND deleted_at IS NULL");
+                            $stmt->execute($tenant_ids);
                             $message = count($tenant_ids) . " tenants suspended successfully.";
                             $message_type = 'success';
                             break;
                         case 'delete':
-                            $db->prepare("UPDATE tenants SET deleted_at = NOW(), updated_at = NOW() WHERE id IN ($placeholders)")
-                               ->execute($tenant_ids);
+                            $stmt = $db->prepare("UPDATE tenants SET deleted_at = NOW(), updated_at = NOW() WHERE id IN ($placeholders)");
+                            $stmt->execute($tenant_ids);
                             $message = count($tenant_ids) . " tenants deleted successfully.";
                             $message_type = 'success';
                             break;
@@ -285,17 +305,6 @@ include 'includes/base.php';
     letter-spacing: 0.3px;
 }
 
-.stat-card .stat-trend {
-    font-size: 0.65rem;
-    padding: 2px 10px;
-    border-radius: 30px;
-    font-weight: 500;
-    margin-left: 8px;
-}
-
-.stat-card .stat-trend.up { background: #d1fae5; color: #065f46; }
-.stat-card .stat-trend.down { background: #fee2e2; color: #991b1b; }
-
 /* Filter Bar */
 .filter-bar {
     background: white;
@@ -450,12 +459,6 @@ include 'includes/base.php';
     z-index: 2;
 }
 
-.data-table thead th .th-content {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
 .data-table thead th a {
     color: inherit;
     text-decoration: none;
@@ -509,6 +512,14 @@ include 'includes/base.php';
     display: flex;
     align-items: center;
     gap: 12px;
+    min-width: 200px;
+}
+
+.tenant-cell .tenant-avatar-wrapper {
+    position: relative;
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
 }
 
 .tenant-cell .tenant-avatar {
@@ -517,7 +528,8 @@ include 'includes/base.php';
     border-radius: 10px;
     object-fit: cover;
     border: 2px solid #eef3f8;
-    flex-shrink: 0;
+    display: block;
+    background: #f0f4fa;
 }
 
 .tenant-cell .tenant-avatar-placeholder {
@@ -552,6 +564,7 @@ include 'includes/base.php';
     gap: 8px;
     font-size: 0.7rem;
     color: #8b9bb5;
+    flex-wrap: wrap;
 }
 
 .tenant-cell .tenant-meta .tenant-slug {
@@ -718,11 +731,6 @@ include 'includes/base.php';
 .pagination .pagination-links a.active {
     background: #4f9cf7;
     color: white;
-}
-
-.pagination .pagination-links a.disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
 }
 
 .pagination .pagination-links .ellipsis {
@@ -892,6 +900,50 @@ include 'includes/base.php';
     margin-bottom: 16px;
 }
 
+/* Dropdown Menu */
+.btn-group {
+    position: relative;
+}
+
+.dropdown-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+    border: 1px solid #eef3f8;
+    min-width: 180px;
+    padding: 8px 0;
+    z-index: 100;
+    margin-top: 4px;
+}
+
+.dropdown-menu.show {
+    display: block;
+}
+
+.dropdown-menu a {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 16px;
+    color: #1f3149;
+    text-decoration: none;
+    font-size: 0.85rem;
+    transition: background 0.15s;
+}
+
+.dropdown-menu a:hover {
+    background: #f8faff;
+}
+
+.dropdown-menu a i {
+    width: 20px;
+    color: #6d83a5;
+}
+
 /* Animations */
 @keyframes fadeIn {
     from { opacity: 0; }
@@ -1042,7 +1094,6 @@ include 'includes/base.php';
             </h1>
             <p class="subtitle">Manage all client organizations using the platform</p>
         </div>
-        <!-- In the header actions section -->
         <div class="header-actions">
             <div class="btn-group">
                 <button class="btn-secondary dropdown-toggle" onclick="toggleExportDropdown()">
@@ -1242,7 +1293,11 @@ include 'includes/base.php';
                 </tr>
                 <?php endif; ?>
                 
-                <?php foreach ($tenants as $tenant): ?>
+                <?php foreach ($tenants as $tenant): 
+                    $imageUrl = getTenantImageUrl($tenant['logo_url']);
+                    $hasImage = !empty($imageUrl);
+                    $initials = strtoupper(substr($tenant['name'], 0, 2));
+                ?>
                 <tr>
                     <td>
                         <div class="checkbox-wrapper">
@@ -1252,13 +1307,22 @@ include 'includes/base.php';
                     <td><span class="tenant-id" style="font-weight:600; color:#4f9cf7;">#<?php echo $tenant['id']; ?></span></td>
                     <td>
                         <div class="tenant-cell">
-                            <?php if ($tenant['logo_url']): ?>
-                            <img src="<?php echo htmlspecialchars($tenant['logo_url']); ?>" alt="" class="tenant-avatar">
-                            <?php else: ?>
-                            <div class="tenant-avatar-placeholder">
-                                <?php echo strtoupper(substr($tenant['name'], 0, 2)); ?>
+                            <div class="tenant-avatar-wrapper">
+                                <?php if ($hasImage): ?>
+                                <img src="<?php echo htmlspecialchars($imageUrl); ?>" 
+                                     alt="<?php echo htmlspecialchars($tenant['name']); ?>" 
+                                     class="tenant-avatar"
+                                     loading="lazy"
+                                     onerror="this.style.display='none'; this.parentElement.querySelector('.tenant-avatar-placeholder').style.display='flex';">
+                                <div class="tenant-avatar-placeholder" style="display:none;">
+                                    <?php echo $initials; ?>
+                                </div>
+                                <?php else: ?>
+                                <div class="tenant-avatar-placeholder">
+                                    <?php echo $initials; ?>
+                                </div>
+                                <?php endif; ?>
                             </div>
-                            <?php endif; ?>
                             <div class="tenant-info">
                                 <div class="tenant-name"><?php echo htmlspecialchars($tenant['name']); ?></div>
                                 <div class="tenant-meta">
@@ -1299,10 +1363,10 @@ include 'includes/base.php';
                     <td><?php echo date('M d, Y', strtotime($tenant['created_at'])); ?></td>
                     <td>
                         <?php if ($tenant['subscription_end']): ?>
-                        <span class="expiry-date <?php echo strtotime($tenant['subscription_end']) < time() ? 'expired' : ''; ?>" style="font-size:0.85rem;">
+                        <span style="font-size:0.85rem; <?php echo strtotime($tenant['subscription_end']) < time() ? 'color:#ef4444;' : ''; ?>">
                             <?php echo date('M d, Y', strtotime($tenant['subscription_end'])); ?>
                             <?php if (strtotime($tenant['subscription_end']) < time()): ?>
-                            <span class="expiry-warning" style="display:block; font-size:0.6rem; color:#ef4444;">(Expired)</span>
+                            <span style="display:block; font-size:0.6rem; color:#ef4444;">(Expired)</span>
                             <?php endif; ?>
                         </span>
                         <?php else: ?>
@@ -1445,12 +1509,22 @@ function viewTenant(tenantId) {
     const body = document.getElementById('tenantModalBody');
     
     modal.classList.add('active');
-    body.innerHTML = '<div class="loading-spinner" style="text-align:center; padding:40px; color:#6d83a5;"><i class="fas fa-spinner fa-spin" style="font-size:2rem; display:block; margin-bottom:12px;"></i> Loading tenant details...</div>';
+    body.innerHTML = '<div style="text-align:center; padding:40px; color:#6d83a5;"><i class="fas fa-spinner fa-spin" style="font-size:2rem; display:block; margin-bottom:12px;"></i> Loading tenant details...</div>';
     
     fetch(`tenant-details.php?id=${tenantId}`)
         .then(response => response.text())
         .then(html => {
             body.innerHTML = html;
+            // Re-initialize image error handlers for modal
+            document.querySelectorAll('#tenantModalBody .tenant-avatar, #tenantModalBody .tenant-detail-avatar').forEach(img => {
+                img.addEventListener('error', function() {
+                    this.style.display = 'none';
+                    const placeholder = this.parentElement.querySelector('.tenant-avatar-placeholder, .tenant-detail-avatar-placeholder');
+                    if (placeholder) {
+                        placeholder.style.display = 'flex';
+                    }
+                });
+            });
         })
         .catch(error => {
             body.innerHTML = '<div style="text-align:center; padding:40px; color:#ef4444;"><i class="fas fa-exclamation-circle" style="font-size:2rem; display:block; margin-bottom:12px;"></i> Failed to load tenant details</div>';
@@ -1536,37 +1610,6 @@ function confirmBulkAction() {
 // ============================================================
 // EXPORT DATA
 // ============================================================
-function exportData() {
-    const search = document.querySelector('input[name="search"]')?.value || '';
-    const plan = document.querySelector('select[name="plan"]')?.value || '';
-    const status = document.querySelector('select[name="status"]')?.value || '';
-    
-    window.location.href = `tenant-export.php?search=${encodeURIComponent(search)}&plan=${encodeURIComponent(plan)}&status=${encodeURIComponent(status)}`;
-}
-
-// ============================================================
-// AUTO-SUBMIT ON FILTER CHANGE
-// ============================================================
-document.querySelectorAll('select[name="plan"], select[name="status"]').forEach(select => {
-    select.addEventListener('change', function() {
-        document.getElementById('filterForm').submit();
-    });
-});
-
-// ============================================================
-// KEYBOARD SHORTCUTS
-// ============================================================
-document.addEventListener('keydown', function(e) {
-    // Ctrl+F for focus search
-    if (e.ctrlKey && e.key === 'f') {
-        e.preventDefault();
-        document.querySelector('input[name="search"]')?.focus();
-    }
-});
-
-// ============================================================
-// EXPORT DATA WITH FORMAT OPTIONS
-// ============================================================
 function exportData(format = 'csv') {
     const search = document.querySelector('input[name="search"]')?.value || '';
     const plan = document.querySelector('select[name="plan"]')?.value || '';
@@ -1590,6 +1633,45 @@ document.addEventListener('click', function(e) {
     if (dropdown && !dropdown.contains(e.target) && !btn.contains(e.target)) {
         dropdown.classList.remove('show');
     }
+});
+
+// ============================================================
+// AUTO-SUBMIT ON FILTER CHANGE
+// ============================================================
+document.querySelectorAll('select[name="plan"], select[name="status"]').forEach(select => {
+    select.addEventListener('change', function() {
+        document.getElementById('filterForm').submit();
+    });
+});
+
+// ============================================================
+// KEYBOARD SHORTCUTS
+// ============================================================
+document.addEventListener('keydown', function(e) {
+    // Ctrl+F for focus search
+    if (e.ctrlKey && e.key === 'f') {
+        e.preventDefault();
+        document.querySelector('input[name="search"]')?.focus();
+    }
+});
+
+// ============================================================
+// IMAGE ERROR HANDLING - Global handler for dynamically loaded images
+// ============================================================
+document.addEventListener('DOMContentLoaded', function() {
+    // Handle all tenant avatar images
+    document.querySelectorAll('.tenant-avatar, .tenant-detail-avatar').forEach(img => {
+        img.addEventListener('error', function() {
+            this.style.display = 'none';
+            const wrapper = this.closest('.tenant-avatar-wrapper');
+            if (wrapper) {
+                const placeholder = wrapper.querySelector('.tenant-avatar-placeholder');
+                if (placeholder) {
+                    placeholder.style.display = 'flex';
+                }
+            }
+        });
+    });
 });
 </script>
 

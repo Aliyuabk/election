@@ -1,972 +1,171 @@
 /* ============================================================
-   TENANT MANAGEMENT - COMPLETE STYLES
+   SETTINGS - COMPLETE STYLES
    ============================================================ */
 
 /* ============================================================
-   1. PAGE HEADER
+   1. SETTINGS CONTAINER
    ============================================================ */
-.tenant-page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 28px;
-    flex-wrap: wrap;
-    gap: 16px;
-}
-
-.tenant-page-header .header-left h1 {
-    font-size: 1.8rem;
-    font-weight: 600;
-    color: #0b1a33;
-    margin: 0;
-}
-
-.tenant-page-header .header-left .subtitle {
-    color: #6d83a5;
-    font-size: 0.95rem;
-    margin-top: 4px;
-}
-
-.tenant-page-header .header-actions {
-    display: flex;
-    gap: 12px;
-    align-items: center;
-    flex-wrap: wrap;
-}
-
-/* ============================================================
-   2. STATS BAR
-   ============================================================ */
-.tenant-stats-bar {
+.settings-container {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-    gap: 12px;
-    padding: 16px 20px;
-    background: white;
-    border-radius: 16px;
-    margin-bottom: 24px;
-    border: 1px solid #eef3f8;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.03);
-}
-
-.tenant-stats-bar .stat-item {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 8px 4px;
-    border-radius: 10px;
-    transition: background 0.15s;
-}
-
-.tenant-stats-bar .stat-item:hover {
-    background: #f8faff;
-}
-
-.tenant-stats-bar .stat-number {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: #0b1a33;
-    line-height: 1.2;
-}
-
-.tenant-stats-bar .stat-label {
-    font-size: 0.7rem;
-    color: #8b9bb5;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-top: 2px;
-}
-
-.tenant-stats-bar .stat-item.total .stat-number { color: #4f9cf7; }
-.tenant-stats-bar .stat-item.active .stat-number { color: #10b981; }
-.tenant-stats-bar .stat-item.suspended .stat-number { color: #f59e0b; }
-.tenant-stats-bar .stat-item.trial .stat-number { color: #8b5cf6; }
-.tenant-stats-bar .stat-item.expired .stat-number { color: #ef4444; }
-
-.tenant-stats-bar .stat-item .stat-icon {
-    font-size: 0.8rem;
-    margin-bottom: 4px;
-    opacity: 0.6;
+    grid-template-columns: 260px 1fr;
+    gap: 24px;
+    margin-top: 0;
 }
 
 /* ============================================================
-   3. FILTER BAR
+   2. SETTINGS SIDEBAR
    ============================================================ */
-.tenant-filter-bar {
+.settings-sidebar {
     background: white;
-    border-radius: 16px;
-    padding: 16px 20px;
-    margin-bottom: 24px;
+    border-radius: 14px;
+    padding: 20px;
     border: 1px solid #eef3f8;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.03);
-}
-
-.tenant-filter-bar .filter-form {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    align-items: center;
-}
-
-.tenant-filter-bar .filter-group {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: #f8faff;
-    border: 1px solid #e8edf4;
-    border-radius: 10px;
-    padding: 0 14px;
-    transition: 0.15s;
-    flex: 1;
-    min-width: 160px;
-}
-
-.tenant-filter-bar .filter-group:focus-within {
-    border-color: #4f9cf7;
-    box-shadow: 0 0 0 3px rgba(79, 156, 247, 0.1);
-    background: white;
-}
-
-.tenant-filter-bar .filter-group i {
-    color: #8b9bb5;
-    font-size: 0.85rem;
-}
-
-.tenant-filter-bar .filter-group input,
-.tenant-filter-bar .filter-group select {
-    border: none;
-    padding: 10px 0;
-    background: transparent;
-    font-size: 0.85rem;
-    color: #1f3149;
-    width: 100%;
-    min-width: 120px;
-    outline: none;
-}
-
-.tenant-filter-bar .filter-group select {
-    cursor: pointer;
-    appearance: none;
-    padding-right: 20px;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238b9bb5' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right center;
-}
-
-.tenant-filter-bar .filter-actions {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    flex-wrap: wrap;
-}
-
-.tenant-filter-bar .filter-actions .btn-primary,
-.tenant-filter-bar .filter-actions .btn-secondary {
-    padding: 8px 18px;
-    font-size: 0.85rem;
-    white-space: nowrap;
-}
-
-/* ============================================================
-   4. TABLE CONTAINER
-   ============================================================ */
-.tenant-table-container {
-    background: white;
-    border-radius: 16px;
-    overflow: hidden;
-    border: 1px solid #eef3f8;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.03);
-}
-
-.tenant-table-container .table-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 16px 20px;
-    border-bottom: 1px solid #f0f4fa;
-    flex-wrap: wrap;
-    gap: 12px;
-}
-
-.tenant-table-container .table-header .table-title {
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: #1b293e;
-}
-
-.tenant-table-container .table-header .table-title span {
-    color: #8b9bb5;
-    font-weight: 400;
-}
-
-.tenant-table-container .table-header .table-actions {
-    display: flex;
-    gap: 8px;
-}
-
-/* ============================================================
-   5. DATA TABLE
-   ============================================================ */
-.tenant-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.9rem;
-}
-
-.tenant-table thead {
-    background: #f8faff;
-    border-bottom: 1px solid #eef3f8;
-}
-
-.tenant-table thead th {
-    padding: 12px 16px;
-    text-align: left;
-    font-weight: 600;
-    color: #405473;
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+    height: fit-content;
     position: sticky;
-    top: 0;
-    background: #f8faff;
-    z-index: 2;
+    top: 80px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+    transition: all 0.3s ease;
 }
 
-.tenant-table thead th a {
-    color: inherit;
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
+.settings-sidebar:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
 }
 
-.tenant-table thead th a:hover {
-    color: #4f9cf7;
-}
-
-.tenant-table thead th a i {
-    font-size: 0.6rem;
-    opacity: 0.6;
-}
-
-.tenant-table tbody tr {
-    transition: background 0.1s;
-    border-bottom: 1px solid #f5f8fc;
-}
-
-.tenant-table tbody tr:last-child {
-    border-bottom: none;
-}
-
-.tenant-table tbody tr:hover {
-    background: #f8faff;
-}
-
-.tenant-table tbody td {
-    padding: 12px 16px;
-    vertical-align: middle;
-    color: #1f3149;
-}
-
-/* ============================================================
-   6. TENANT CELL
-   ============================================================ */
-.tenant-cell {
+.settings-sidebar .nav-item {
     display: flex;
     align-items: center;
     gap: 12px;
-}
-
-.tenant-cell .tenant-logo {
-    width: 40px;
-    height: 40px;
+    padding: 10px 14px;
     border-radius: 10px;
-    object-fit: cover;
-    border: 2px solid #eef3f8;
-    flex-shrink: 0;
-}
-
-.tenant-cell .tenant-logo-placeholder {
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
-    background: linear-gradient(135deg, #4f9cf7, #3b82d6);
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 600;
-    font-size: 0.9rem;
-    flex-shrink: 0;
-}
-
-.tenant-cell .tenant-info {
-    min-width: 0;
-}
-
-.tenant-cell .tenant-name {
+    color: #6d83a5;
+    text-decoration: none;
+    font-size: 0.85rem;
     font-weight: 500;
-    color: #0b1a33;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    transition: all 0.25s ease;
+    cursor: pointer;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+    position: relative;
 }
 
-.tenant-cell .tenant-slug {
-    font-size: 0.7rem;
-    color: #8b9bb5;
+.settings-sidebar .nav-item::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%) scaleY(0);
+    width: 3px;
+    height: 24px;
+    background: #4f9cf7;
+    border-radius: 0 3px 3px 0;
+    transition: all 0.25s ease;
 }
 
-/* ============================================================
-   7. BADGES
-   ============================================================ */
-/* Plan Badges */
-.plan-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 0.7rem;
-    padding: 3px 12px;
-    border-radius: 30px;
-    font-weight: 500;
-    text-transform: capitalize;
+.settings-sidebar .nav-item.active::before {
+    transform: translateY(-50%) scaleY(1);
 }
 
-.plan-badge.free {
-    background: #f3f4f6;
-    color: #4b5563;
+.settings-sidebar .nav-item:hover {
+    background: #f8faff;
+    color: #1f3149;
 }
 
-.plan-badge.basic {
-    background: #dbeafe;
-    color: #1e40af;
-}
-
-.plan-badge.standard {
-    background: #d1fae5;
-    color: #065f46;
-}
-
-.plan-badge.premium {
-    background: #fef3c7;
-    color: #92400e;
-}
-
-.plan-badge.enterprise {
-    background: #ede9fe;
-    color: #5b21b6;
-}
-
-/* Status Badges */
-.status-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 0.7rem;
-    padding: 3px 12px;
-    border-radius: 30px;
-    font-weight: 500;
-    text-transform: capitalize;
-}
-
-.status-badge.active {
-    background: #d1fae5;
-    color: #065f46;
-}
-
-.status-badge.active i {
-    color: #10b981;
-}
-
-.status-badge.suspended {
-    background: #fef3c7;
-    color: #92400e;
-}
-
-.status-badge.suspended i {
-    color: #f59e0b;
-}
-
-.status-badge.trial {
-    background: #dbeafe;
-    color: #1e40af;
-}
-
-.status-badge.trial i {
+.settings-sidebar .nav-item.active {
+    background: #e8f0fe;
     color: #4f9cf7;
 }
 
-.status-badge.expired {
-    background: #fee2e2;
-    color: #991b1b;
+.settings-sidebar .nav-item i {
+    width: 20px;
+    font-size: 1rem;
+    text-align: center;
+    transition: all 0.25s ease;
 }
 
-.status-badge.expired i {
-    color: #ef4444;
+.settings-sidebar .nav-item.active i {
+    color: #4f9cf7;
 }
 
-.status-badge.cancelled {
-    background: #f3f4f6;
-    color: #4b5563;
-}
-
-.status-badge.cancelled i {
-    color: #6b7280;
-}
-
-/* ============================================================
-   8. ACTION BUTTONS
-   ============================================================ */
-.tenant-actions {
-    display: flex;
-    gap: 2px;
-    flex-wrap: wrap;
-}
-
-.tenant-actions .btn-icon {
-    width: 32px;
-    height: 32px;
-    border: none;
-    background: transparent;
-    border-radius: 8px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    color: #6d83a5;
-    cursor: pointer;
-    transition: 0.15s;
-    font-size: 0.85rem;
-    text-decoration: none;
-    position: relative;
-}
-
-.tenant-actions .btn-icon:hover {
-    background: #f0f5fe;
-    color: #1f3d6b;
-    transform: translateY(-1px);
-}
-
-.tenant-actions .btn-icon .tooltip {
-    display: none;
-    position: absolute;
-    bottom: calc(100% + 8px);
-    left: 50%;
-    transform: translateX(-50%);
-    background: #0b1a33;
+.settings-sidebar .nav-item .nav-badge {
+    margin-left: auto;
+    background: #4f9cf7;
     color: white;
-    padding: 4px 10px;
-    border-radius: 6px;
-    font-size: 0.65rem;
-    white-space: nowrap;
-    z-index: 10;
+    font-size: 0.6rem;
+    padding: 0 8px;
+    border-radius: 30px;
+    line-height: 18px;
 }
 
-.tenant-actions .btn-icon:hover .tooltip {
-    display: block;
+.settings-sidebar .nav-item .nav-badge.warning {
+    background: #f59e0b;
 }
 
-.tenant-actions .btn-icon.view { color: #4f9cf7; }
-.tenant-actions .btn-icon.edit { color: #8b5cf6; }
-.tenant-actions .btn-icon.activate { color: #10b981; }
-.tenant-actions .btn-icon.suspend { color: #f59e0b; }
-.tenant-actions .btn-icon.reset { color: #8b5cf6; }
-.tenant-actions .btn-icon.impersonate { color: #4f9cf7; }
-.tenant-actions .btn-icon.delete { color: #ef4444; }
+.settings-sidebar .nav-item .nav-badge.danger {
+    background: #ef4444;
+}
 
-.tenant-actions .btn-icon.view:hover { background: #e8f0fe; }
-.tenant-actions .btn-icon.edit:hover { background: #ede9fe; }
-.tenant-actions .btn-icon.activate:hover { background: #d1fae5; }
-.tenant-actions .btn-icon.suspend:hover { background: #fef3c7; }
-.tenant-actions .btn-icon.reset:hover { background: #ede9fe; }
-.tenant-actions .btn-icon.impersonate:hover { background: #dbeafe; }
-.tenant-actions .btn-icon.delete:hover { background: #fee2e2; }
+.settings-sidebar .sidebar-divider {
+    border: none;
+    border-top: 1px solid #eef3f8;
+    margin: 12px 0;
+}
 
 /* ============================================================
-   9. MODAL
+   3. SETTINGS CONTENT
    ============================================================ */
-.tenant-modal {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 1000;
-}
-
-.tenant-modal.active {
-    display: block;
-}
-
-.tenant-modal .modal-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(11, 26, 51, 0.6);
-    backdrop-filter: blur(4px);
-    animation: fadeIn 0.2s ease;
-}
-
-.tenant-modal .modal-content {
-    position: relative;
-    max-width: 720px;
-    margin: 60px auto;
+.settings-content {
     background: white;
-    border-radius: 20px;
-    box-shadow: 0 32px 64px rgba(0,0,0,0.2);
-    max-height: calc(100vh - 120px);
-    overflow: hidden;
-    animation: slideUp 0.3s ease;
+    border-radius: 14px;
+    padding: 28px;
+    border: 1px solid #eef3f8;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+    transition: all 0.3s ease;
 }
 
-.tenant-modal .modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 20px 24px;
-    border-bottom: 1px solid #eef3f8;
-    background: #f8faff;
+.settings-content:hover {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
 }
 
-.tenant-modal .modal-header h2 {
+.settings-content h2 {
     font-size: 1.2rem;
     font-weight: 600;
     color: #0b1a33;
+    margin-bottom: 4px;
     display: flex;
     align-items: center;
     gap: 10px;
 }
 
-.tenant-modal .modal-header h2 i {
+.settings-content h2 i {
     color: #4f9cf7;
 }
 
-.tenant-modal .modal-close {
-    background: none;
-    border: none;
-    font-size: 1.5rem;
-    color: #8b9bb5;
-    cursor: pointer;
-    padding: 4px 8px;
-    border-radius: 8px;
-    transition: 0.15s;
-}
-
-.tenant-modal .modal-close:hover {
-    background: #f0f4fa;
-    color: #1f3149;
-}
-
-.tenant-modal .modal-body {
-    padding: 24px;
-    overflow-y: auto;
-    max-height: calc(100vh - 200px);
-}
-
-.tenant-modal .modal-footer {
-    padding: 16px 24px;
-    border-top: 1px solid #eef3f8;
-    display: flex;
-    justify-content: flex-end;
-    gap: 12px;
-    background: #f8faff;
-}
-
-/* ============================================================
-   10. TENANT DETAIL VIEW
-   ============================================================ */
-.tenant-detail .detail-header {
-    display: flex;
-    align-items: center;
-    gap: 16px;
+.settings-content .section-desc {
+    color: #6d83a5;
+    font-size: 0.9rem;
     margin-bottom: 24px;
     padding-bottom: 16px;
-    border-bottom: 1px solid #eef3f8;
-    flex-wrap: wrap;
+    border-bottom: 1px solid #f0f4fa;
 }
 
-.tenant-detail .detail-logo {
-    width: 64px;
-    height: 64px;
-    border-radius: 14px;
-    overflow: hidden;
-    border: 2px solid #eef3f8;
-    flex-shrink: 0;
+/* ============================================================
+   4. SETTINGS SECTIONS
+   ============================================================ */
+.settings-section {
+    display: none;
+    animation: settingsFadeIn 0.4s ease;
 }
 
-.tenant-detail .detail-logo img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
-.tenant-detail .detail-logo-placeholder {
-    width: 64px;
-    height: 64px;
-    border-radius: 14px;
-    background: linear-gradient(135deg, #4f9cf7, #3b82d6);
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.5rem;
-    font-weight: 700;
-}
-
-.tenant-detail .detail-title {
-    flex: 1;
-}
-
-.tenant-detail .detail-title h3 {
-    font-size: 1.2rem;
-    font-weight: 600;
-    color: #0b1a33;
-    margin: 0;
-}
-
-.tenant-detail .detail-title .detail-slug {
-    font-size: 0.8rem;
-    color: #8b9bb5;
-}
-
-.tenant-detail .detail-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    margin-bottom: 20px;
-}
-
-.tenant-detail .detail-item {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: 10px 14px;
-    background: #f8faff;
-    border-radius: 10px;
-    border: 1px solid #f0f4fa;
-}
-
-.tenant-detail .detail-item .detail-label {
-    font-size: 0.65rem;
-    color: #8b9bb5;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.tenant-detail .detail-item .detail-value {
-    font-size: 0.95rem;
-    color: #1f3149;
-    font-weight: 500;
-}
-
-.tenant-detail .detail-contact {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-    margin-bottom: 20px;
-    padding: 16px;
-    background: #f8faff;
-    border-radius: 12px;
-    border: 1px solid #f0f4fa;
-}
-
-.tenant-detail .detail-contact .detail-item {
-    background: white;
-    padding: 8px 12px;
-}
-
-.tenant-detail .detail-stats {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 12px;
-    padding-top: 16px;
-    border-top: 1px solid #eef3f8;
-}
-
-.tenant-detail .detail-stats .stat-item {
-    text-align: center;
-    padding: 12px;
-    background: #f8faff;
-    border-radius: 10px;
-    border: 1px solid #f0f4fa;
-}
-
-.tenant-detail .detail-stats .stat-number {
-    font-size: 1.3rem;
-    font-weight: 700;
-    color: #0b1a33;
+.settings-section.active {
     display: block;
 }
 
-.tenant-detail .detail-stats .stat-label {
-    font-size: 0.7rem;
-    color: #8b9bb5;
-    margin-top: 2px;
-    display: block;
-}
-
-/* ============================================================
-   11. ALERTS
-   ============================================================ */
-.tenant-alert {
-    padding: 14px 20px;
-    border-radius: 12px;
-    margin-bottom: 20px;
-    font-size: 0.9rem;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    animation: slideDown 0.3s ease;
-}
-
-.tenant-alert i {
-    font-size: 1.2rem;
-    flex-shrink: 0;
-}
-
-.tenant-alert.success {
-    background: #d1fae5;
-    color: #065f46;
-    border: 1px solid #a7f3d0;
-}
-
-.tenant-alert.success i {
-    color: #10b981;
-}
-
-.tenant-alert.error {
-    background: #fee2e2;
-    color: #991b1b;
-    border: 1px solid #fecaca;
-}
-
-.tenant-alert.error i {
-    color: #ef4444;
-}
-
-.tenant-alert.warning {
-    background: #fef3c7;
-    color: #92400e;
-    border: 1px solid #fde68a;
-}
-
-.tenant-alert.warning i {
-    color: #f59e0b;
-}
-
-.tenant-alert.info {
-    background: #dbeafe;
-    color: #1e40af;
-    border: 1px solid #bfdbfe;
-}
-
-.tenant-alert.info i {
-    color: #4f9cf7;
-}
-
-.tenant-alert .alert-close {
-    margin-left: auto;
-    background: none;
-    border: none;
-    color: inherit;
-    opacity: 0.6;
-    cursor: pointer;
-    font-size: 1.1rem;
-    padding: 4px;
-}
-
-.tenant-alert .alert-close:hover {
-    opacity: 1;
-}
-
-/* ============================================================
-   12. EMPTY STATE
-   ============================================================ */
-.tenant-empty-state {
-    text-align: center;
-    padding: 60px 20px;
-    color: #8b9bb5;
-}
-
-.tenant-empty-state i {
-    font-size: 3rem;
-    color: #dce6f0;
-    margin-bottom: 16px;
-    display: block;
-}
-
-.tenant-empty-state h3 {
-    font-size: 1.1rem;
-    color: #1f3149;
-    margin-bottom: 8px;
-}
-
-.tenant-empty-state p {
-    font-size: 0.9rem;
-    margin-bottom: 16px;
-}
-
-/* ============================================================
-   13. LOADING STATES
-   ============================================================ */
-.tenant-loading {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 40px;
-    gap: 12px;
-    color: #8b9bb5;
-}
-
-.tenant-loading .spinner {
-    width: 24px;
-    height: 24px;
-    border: 3px solid #eef3f8;
-    border-top-color: #4f9cf7;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-}
-
-/* ============================================================
-   14. RESPONSIVE
-   ============================================================ */
-@media (max-width: 1024px) {
-    .tenant-detail .detail-stats {
-        grid-template-columns: repeat(2, 1fr);
-    }
-}
-
-@media (max-width: 768px) {
-    .tenant-page-header {
-        flex-direction: column;
-        align-items: stretch;
-    }
-    
-    .tenant-page-header .header-actions {
-        width: 100%;
-    }
-    
-    .tenant-page-header .header-actions .btn-primary,
-    .tenant-page-header .header-actions .btn-secondary {
-        flex: 1;
-        justify-content: center;
-    }
-    
-    .tenant-stats-bar {
-        grid-template-columns: repeat(3, 1fr);
-    }
-    
-    .tenant-filter-bar .filter-form {
-        flex-direction: column;
-        align-items: stretch;
-    }
-    
-    .tenant-filter-bar .filter-group {
-        width: 100%;
-        min-width: unset;
-    }
-    
-    .tenant-filter-bar .filter-actions {
-        flex-direction: column;
-    }
-    
-    .tenant-filter-bar .filter-actions .btn-primary,
-    .tenant-filter-bar .filter-actions .btn-secondary {
-        width: 100%;
-        justify-content: center;
-    }
-    
-    .tenant-table-container {
-        overflow-x: auto;
-    }
-    
-    .tenant-table {
-        font-size: 0.8rem;
-        min-width: 800px;
-    }
-    
-    .tenant-table thead th,
-    .tenant-table tbody td {
-        padding: 10px 12px;
-    }
-    
-    .tenant-modal .modal-content {
-        margin: 20px;
-        max-height: calc(100vh - 40px);
-    }
-    
-    .tenant-detail .detail-grid,
-    .tenant-detail .detail-contact {
-        grid-template-columns: 1fr;
-    }
-    
-    .tenant-detail .detail-stats {
-        grid-template-columns: 1fr 1fr;
-    }
-}
-
-@media (max-width: 480px) {
-    .tenant-stats-bar {
-        grid-template-columns: 1fr 1fr;
-        gap: 8px;
-        padding: 12px 16px;
-    }
-    
-    .tenant-stats-bar .stat-number {
-        font-size: 1.2rem;
-    }
-    
-    .tenant-cell .tenant-logo,
-    .tenant-cell .tenant-logo-placeholder {
-        width: 32px;
-        height: 32px;
-    }
-    
-    .tenant-actions .btn-icon {
-        width: 28px;
-        height: 28px;
-        font-size: 0.75rem;
-    }
-    
-    .tenant-modal .modal-content {
-        margin: 10px;
-        border-radius: 16px;
-    }
-    
-    .tenant-modal .modal-header {
-        padding: 16px 18px;
-    }
-    
-    .tenant-modal .modal-body {
-        padding: 16px 18px;
-    }
-}
-
-/* ============================================================
-   15. ANIMATIONS
-   ============================================================ */
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-
-@keyframes slideUp {
+@keyframes settingsFadeIn {
     from {
         opacity: 0;
-        transform: translateY(20px) scale(0.98);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
-}
-
-@keyframes slideDown {
-    from {
-        opacity: 0;
-        transform: translateY(-10px);
+        transform: translateY(10px);
     }
     to {
         opacity: 1;
@@ -974,200 +173,884 @@
     }
 }
 
+/* ============================================================
+   5. FORM ELEMENTS
+   ============================================================ */
+.settings-content .form-group {
+    margin-bottom: 20px;
+}
+
+.settings-content .form-group:last-child {
+    margin-bottom: 0;
+}
+
+.settings-content .form-group label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #1f3149;
+    margin-bottom: 6px;
+}
+
+.settings-content .form-group .required {
+    color: #ef4444;
+    margin-left: 2px;
+}
+
+.settings-content .form-group .form-control {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1.5px solid #dce6f0;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    background: white;
+    color: #1f3149;
+    transition: all 0.25s ease;
+    font-family: inherit;
+}
+
+.settings-content .form-group .form-control:focus {
+    outline: none;
+    border-color: #4f9cf7;
+    box-shadow: 0 0 0 4px rgba(79, 156, 247, 0.08);
+}
+
+.settings-content .form-group .form-control:hover:not(:disabled):not([readonly]) {
+    border-color: #b0c8e8;
+}
+
+.settings-content .form-group .form-control:disabled {
+    background: #f8faff;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.settings-content .form-group .form-control[readonly] {
+    background: #f8faff;
+    color: #6d83a5;
+}
+
+.settings-content .form-group .form-control.is-invalid {
+    border-color: #ef4444;
+    box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.08);
+}
+
+.settings-content .form-group .form-control.is-valid {
+    border-color: #10b981;
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.08);
+}
+
+.settings-content .form-group textarea.form-control {
+    resize: vertical;
+    min-height: 80px;
+    font-family: inherit;
+    line-height: 1.5;
+}
+
+.settings-content .form-group select.form-control {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238b9bb5' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 36px;
+    cursor: pointer;
+}
+
+.settings-content .form-group select.form-control option {
+    padding: 8px;
+}
+
+.settings-content .form-group input[type="color"].form-control {
+    padding: 4px;
+    height: 44px;
+    cursor: pointer;
+}
+
+.settings-content .form-group input[type="file"].form-control {
+    padding: 8px;
+    cursor: pointer;
+}
+
+.settings-content .form-group small {
+    display: block;
+    font-size: 0.7rem;
+    color: #8b9bb5;
+    margin-top: 4px;
+    line-height: 1.4;
+}
+
+.settings-content .form-group .helper-text {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.7rem;
+    color: #8b9bb5;
+    margin-top: 4px;
+}
+
+.settings-content .form-group .helper-text i {
+    font-size: 0.8rem;
+}
+
+/* ============================================================
+   6. FORM ROWS
+   ============================================================ */
+.settings-content .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.settings-content .form-row .form-group {
+    margin-bottom: 0;
+}
+
+.settings-content .form-row-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+}
+
+.settings-content .form-row-3 .form-group {
+    margin-bottom: 0;
+}
+
+/* ============================================================
+   7. FILE UPLOAD
+   ============================================================ */
+.file-upload-wrapper {
+    position: relative;
+}
+
+.file-upload-area {
+    border: 2px dashed #dce6f0;
+    border-radius: 10px;
+    padding: 24px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: #fafcff;
+    position: relative;
+}
+
+.file-upload-area:hover {
+    border-color: #4f9cf7;
+    background: #f8faff;
+    transform: translateY(-1px);
+}
+
+.file-upload-area.dragover {
+    border-color: #4f9cf7;
+    background: #e8f0fe;
+    transform: scale(1.01);
+}
+
+.file-upload-area .file-input {
+    display: none;
+}
+
+.file-upload-area i {
+    font-size: 2.5rem;
+    color: #8b9bb5;
+    display: block;
+    margin-bottom: 8px;
+    transition: all 0.3s ease;
+}
+
+.file-upload-area:hover i {
+    color: #4f9cf7;
+    transform: translateY(-2px);
+}
+
+.file-upload-area .file-text {
+    font-size: 0.9rem;
+    color: #1f3149;
+    font-weight: 500;
+}
+
+.file-upload-area .file-hint {
+    font-size: 0.7rem;
+    color: #8b9bb5;
+    margin-top: 4px;
+}
+
+.file-upload-area .file-size-info {
+    font-size: 0.7rem;
+    color: #10b981;
+    margin-top: 4px;
+}
+
+.file-upload-area.file-selected {
+    border-color: #10b981;
+    background: #d1fae5;
+}
+
+.file-upload-area.file-selected i {
+    color: #10b981;
+}
+
+.current-file {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 12px;
+    padding: 10px 16px;
+    background: #f8faff;
+    border-radius: 10px;
+    border: 1px solid #eef3f8;
+    transition: all 0.3s ease;
+}
+
+.current-file:hover {
+    background: #f0f6fe;
+}
+
+.current-file img {
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
+    object-fit: cover;
+    border: 1px solid #eef3f8;
+}
+
+.current-file .file-info {
+    flex: 1;
+}
+
+.current-file .file-name {
+    font-weight: 500;
+    color: #0b1a33;
+    font-size: 0.85rem;
+}
+
+.current-file .file-size {
+    font-size: 0.7rem;
+    color: #8b9bb5;
+}
+
+.current-file .file-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.current-file .file-actions .btn-icon {
+    width: 30px;
+    height: 30px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #8b9bb5;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.current-file .file-actions .btn-icon:hover {
+    background: #fee2e2;
+    color: #ef4444;
+}
+
+/* ============================================================
+   8. TOGGLE SWITCH
+   ============================================================ */
+.switch-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 4px 0;
+}
+
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 28px;
+    flex-shrink: 0;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.switch .slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: #dce6f0;
+    transition: 0.3s;
+    border-radius: 34px;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.switch .slider:before {
+    position: absolute;
+    content: "";
+    height: 22px;
+    width: 22px;
+    left: 3px;
+    bottom: 3px;
+    background: white;
+    transition: 0.3s;
+    border-radius: 50%;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+.switch input:checked + .slider {
+    background: #4f9cf7;
+    box-shadow: 0 0 0 3px rgba(79, 156, 247, 0.2);
+}
+
+.switch input:checked + .slider:before {
+    transform: translateX(22px);
+}
+
+.switch input:disabled + .slider {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.switch-wrapper .switch-label {
+    font-size: 0.85rem;
+    color: #1f3149;
+    font-weight: 500;
+}
+
+.switch-wrapper .switch-description {
+    font-size: 0.7rem;
+    color: #8b9bb5;
+    display: block;
+    font-weight: 400;
+}
+
+/* ============================================================
+   9. FORM ACTIONS
+   ============================================================ */
+.settings-content .form-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 28px;
+    padding-top: 24px;
+    border-top: 1px solid #eef3f8;
+    flex-wrap: wrap;
+}
+
+.settings-content .form-actions .btn-primary,
+.settings-content .form-actions .btn-secondary,
+.settings-content .form-actions .btn-danger {
+    padding: 10px 24px;
+    font-size: 0.9rem;
+    border-radius: 10px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: none;
+    text-decoration: none;
+    font-family: inherit;
+}
+
+.settings-content .form-actions .btn-primary {
+    background: #4f9cf7;
+    color: white;
+}
+
+.settings-content .form-actions .btn-primary:hover {
+    background: #3b82d6;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(79, 156, 247, 0.3);
+}
+
+.settings-content .form-actions .btn-secondary {
+    background: #f0f5fe;
+    color: #1f3d6b;
+    border: 1px solid #dce6f0;
+}
+
+.settings-content .form-actions .btn-secondary:hover {
+    background: #e5edf9;
+    transform: translateY(-2px);
+}
+
+.settings-content .form-actions .btn-danger {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+}
+
+.settings-content .form-actions .btn-danger:hover {
+    background: #fecaca;
+    transform: translateY(-2px);
+}
+
+/* ============================================================
+   10. AUTO-SAVE INDICATOR
+   ============================================================ */
+.auto-save-indicator {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8rem;
+    color: #8b9bb5;
+    padding: 8px 12px;
+    background: #f8faff;
+    border-radius: 8px;
+    margin-top: 12px;
+}
+
+.auto-save-indicator.active {
+    display: flex;
+    animation: fadeIn 0.3s ease;
+}
+
+.auto-save-indicator i {
+    font-size: 1rem;
+}
+
+.auto-save-indicator.saving i {
+    animation: spin 1s linear infinite;
+}
+
 @keyframes spin {
     to { transform: rotate(360deg); }
 }
 
 /* ============================================================
-   16. PRINT STYLES
+   11. SETTINGS CARDS / SECTIONS
    ============================================================ */
-@media print {
-    .tenant-filter-bar,
-    .tenant-actions,
-    .tenant-page-header .header-actions {
-        display: none !important;
-    }
-    
-    .tenant-table-container {
-        border: 1px solid #ddd;
-        box-shadow: none;
-    }
-    
-    .tenant-table thead {
-        background: #f0f0f0 !important;
-        -webkit-print-color-adjust: exact;
-        print-color-adjust: exact;
-    }
-    
-    .tenant-stats-bar {
-        break-inside: avoid;
-        border: 1px solid #ddd;
-        box-shadow: none;
-    }
-    
-    .tenant-modal {
-        display: none !important;
-    }
-}
-
-/* ============================================================
-   17. DARK MODE SUPPORT (Optional)
-   ============================================================ */
-@media (prefers-color-scheme: dark) {
-    /* Add dark mode styles if needed */
-}
-
-/* ============================================================
-   18. TOOLTIP IMPROVEMENTS
-   ============================================================ */
-.tenant-actions .btn-icon .tooltip::after {
-    content: '';
-    position: absolute;
-    top: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    border: 5px solid transparent;
-    border-top-color: #0b1a33;
-}
-
-/* ============================================================
-   19. CHECKBOX & SELECTION
-   ============================================================ */
-.tenant-table .select-row {
-    width: 36px;
-    text-align: center;
-}
-
-.tenant-table .select-row input[type="checkbox"] {
-    width: 16px;
-    height: 16px;
-    accent-color: #4f9cf7;
-    cursor: pointer;
-}
-
-/* ============================================================
-   20. EXPIRY DATE WARNING
-   ============================================================ */
-.expiry-date {
-    font-size: 0.85rem;
-}
-
-.expiry-date .expiry-warning {
-    display: inline-block;
-    font-size: 0.6rem;
-    color: #ef4444;
-    margin-left: 4px;
-    background: #fee2e2;
-    padding: 1px 6px;
-    border-radius: 30px;
-}
-
-.expiry-date.expired {
-    color: #ef4444;
-    font-weight: 500;
-}
-
-.expiry-date .days-left {
-    font-size: 0.65rem;
-    color: #8b9bb5;
-    display: block;
-}
-
-.expiry-date .days-left.urgent {
-    color: #ef4444;
-}
-
-/* ============================================================
-   21. CUSTOM SCROLLBAR
-   ============================================================ */
-.tenant-modal .modal-body::-webkit-scrollbar,
-.tenant-table-container::-webkit-scrollbar {
-    width: 5px;
-    height: 5px;
-}
-
-.tenant-modal .modal-body::-webkit-scrollbar-track,
-.tenant-table-container::-webkit-scrollbar-track {
-    background: #f0f4fa;
-    border-radius: 10px;
-}
-
-.tenant-modal .modal-body::-webkit-scrollbar-thumb,
-.tenant-table-container::-webkit-scrollbar-thumb {
-    background: #d0dbe8;
-    border-radius: 10px;
-}
-
-.tenant-modal .modal-body::-webkit-scrollbar-thumb:hover,
-.tenant-table-container::-webkit-scrollbar-thumb:hover {
-    background: #b0c0d0;
-}
-/* ============================================================
-   EXPORT DROPDOWN
-   ============================================================ */
-.btn-group {
-    position: relative;
-    display: inline-flex;
-    align-items: center;
-}
-
-.btn-group .btn-secondary {
-    border-radius: 10px 0 0 10px;
-    padding-right: 12px;
-}
-
-.btn-group .dropdown-toggle {
-    border-radius: 0 10px 10px 0;
-    padding: 10px 14px;
-    border-left: 1px solid rgba(0,0,0,0.05);
-}
-
-.btn-group .dropdown-toggle .fa-chevron-down {
-    font-size: 0.7rem;
-    margin-left: 4px;
-}
-
-.dropdown-menu {
-    display: none;
-    position: absolute;
-    top: calc(100% + 8px);
-    right: 0;
-    background: white;
+.settings-card {
+    background: #f8faff;
     border-radius: 12px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.12);
-    min-width: 180px;
-    padding: 8px 0;
+    padding: 20px;
     border: 1px solid #eef3f8;
-    z-index: 100;
+    margin-bottom: 20px;
+    transition: all 0.3s ease;
 }
 
-.dropdown-menu.show {
-    display: block;
-    animation: slideDown 0.2s ease;
+.settings-card:hover {
+    border-color: #d0dbe8;
 }
 
-.dropdown-menu a {
+.settings-card .card-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #0b1a33;
+    margin-bottom: 12px;
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 10px 18px;
-    color: #1f3149;
-    text-decoration: none;
-    font-size: 0.85rem;
-    transition: 0.15s;
+    gap: 8px;
 }
 
-.dropdown-menu a:hover {
-    background: #f8faff;
+.settings-card .card-title i {
     color: #4f9cf7;
 }
 
-.dropdown-menu a i {
-    width: 20px;
-    text-align: center;
-    font-size: 1rem;
+/* ============================================================
+   12. TEST BUTTON
+   ============================================================ */
+.test-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 16px;
+    border: 1px solid #dce6f0;
+    border-radius: 8px;
+    background: white;
+    color: #4f9cf7;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
 }
 
-.dropdown-menu a .fa-file-csv { color: #10b981; }
-.dropdown-menu a .fa-file-excel { color: #217346; }
-.dropdown-menu a .fa-file-pdf { color: #ef4444; }
+.test-btn:hover {
+    background: #f0f5fe;
+    border-color: #4f9cf7;
+    transform: translateY(-1px);
+}
+
+.test-btn i {
+    font-size: 0.8rem;
+}
+
+.test-btn.success {
+    border-color: #10b981;
+    color: #10b981;
+}
+
+.test-btn.success:hover {
+    background: #d1fae5;
+}
+
+.test-btn.error {
+    border-color: #ef4444;
+    color: #ef4444;
+}
+
+.test-btn.error:hover {
+    background: #fee2e2;
+}
+
+/* ============================================================
+   13. PROVIDER CARDS
+   ============================================================ */
+.provider-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.provider-card {
+    background: white;
+    border: 2px solid #eef3f8;
+    border-radius: 10px;
+    padding: 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.provider-card:hover {
+    border-color: #d0dbe8;
+    transform: translateY(-2px);
+}
+
+.provider-card.active {
+    border-color: #4f9cf7;
+    background: #f8faff;
+    box-shadow: 0 0 0 3px rgba(79, 156, 247, 0.1);
+}
+
+.provider-card .provider-icon {
+    font-size: 2rem;
+    color: #4f9cf7;
+    display: block;
+    margin-bottom: 8px;
+}
+
+.provider-card .provider-name {
+    font-weight: 500;
+    color: #0b1a33;
+    font-size: 0.85rem;
+}
+
+.provider-card .provider-status {
+    font-size: 0.65rem;
+    color: #8b9bb5;
+    margin-top: 4px;
+}
+
+/* ============================================================
+   14. RESPONSIVE
+   ============================================================ */
+@media (max-width: 1024px) {
+    .settings-container {
+        grid-template-columns: 1fr;
+    }
+    
+    .settings-sidebar {
+        position: static;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        padding: 12px 16px;
+    }
+    
+    .settings-sidebar .nav-item {
+        flex: 1;
+        min-width: 100px;
+        justify-content: center;
+        padding: 8px 12px;
+        font-size: 0.8rem;
+    }
+    
+    .settings-sidebar .nav-item::before {
+        display: none;
+    }
+    
+    .settings-sidebar .nav-item.active {
+        border-radius: 10px;
+    }
+    
+    .settings-sidebar .sidebar-divider {
+        display: none;
+    }
+    
+    .settings-content {
+        padding: 20px;
+    }
+}
+
+@media (max-width: 768px) {
+    .settings-content .form-row {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+    
+    .settings-content .form-row-3 {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+    
+    .settings-sidebar .nav-item span {
+        display: none;
+    }
+    
+    .settings-sidebar .nav-item i {
+        font-size: 1.2rem;
+        width: auto;
+    }
+    
+    .settings-sidebar .nav-item {
+        min-width: 50px;
+        padding: 8px 12px;
+    }
+    
+    .settings-content .form-actions {
+        flex-direction: column;
+    }
+    
+    .settings-content .form-actions .btn-primary,
+    .settings-content .form-actions .btn-secondary,
+    .settings-content .form-actions .btn-danger {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .settings-content {
+        padding: 16px;
+    }
+    
+    .provider-cards {
+        grid-template-columns: 1fr 1fr;
+    }
+    
+    .current-file {
+        flex-wrap: wrap;
+    }
+    
+    .current-file .file-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+}
+
+@media (max-width: 480px) {
+    .settings-content .form-group {
+        margin-bottom: 16px;
+    }
+    
+    .settings-content {
+        padding: 12px;
+        border-radius: 10px;
+    }
+    
+    .settings-sidebar {
+        padding: 8px 12px;
+        border-radius: 10px;
+    }
+    
+    .settings-sidebar .nav-item {
+        padding: 6px 10px;
+        font-size: 0.75rem;
+    }
+    
+    .provider-cards {
+        grid-template-columns: 1fr;
+    }
+    
+    .file-upload-area {
+        padding: 16px;
+    }
+    
+    .file-upload-area i {
+        font-size: 1.8rem;
+    }
+    
+    .switch-wrapper {
+        flex-wrap: wrap;
+    }
+}
+
+/* ============================================================
+   15. UTILITY CLASSES
+   ============================================================ */
+.text-muted {
+    color: #8b9bb5 !important;
+}
+
+.text-success {
+    color: #10b981 !important;
+}
+
+.text-danger {
+    color: #ef4444 !important;
+}
+
+.text-warning {
+    color: #f59e0b !important;
+}
+
+.text-primary {
+    color: #4f9cf7 !important;
+}
+
+.mt-8 {
+    margin-top: 8px;
+}
+
+.mt-16 {
+    margin-top: 16px;
+}
+
+.mt-24 {
+    margin-top: 24px;
+}
+
+.mb-8 {
+    margin-bottom: 8px;
+}
+
+.mb-16 {
+    margin-bottom: 16px;
+}
+
+.mb-24 {
+    margin-bottom: 24px;
+}
+
+/* ============================================================
+   16. DARK MODE SUPPORT (Optional)
+   ============================================================ */
+@media (prefers-color-scheme: dark) {
+    .settings-content,
+    .settings-sidebar {
+        background: #1a2a44;
+        border-color: #2a3a5a;
+    }
+    
+    .settings-content h2 {
+        color: #e6edf5;
+    }
+    
+    .settings-content .section-desc {
+        color: #8b9bb5;
+        border-color: #2a3a5a;
+    }
+    
+    .settings-content .form-group label {
+        color: #d0def0;
+    }
+    
+    .settings-content .form-group .form-control {
+        background: #0f1a33;
+        border-color: #2a3a5a;
+        color: #e6edf5;
+    }
+    
+    .settings-content .form-group .form-control:focus {
+        border-color: #4f9cf7;
+        box-shadow: 0 0 0 4px rgba(79, 156, 247, 0.15);
+    }
+    
+    .settings-content .form-group .form-control:disabled {
+        background: #0f1a33;
+        opacity: 0.5;
+    }
+    
+    .settings-sidebar .nav-item {
+        color: #8b9bb5;
+    }
+    
+    .settings-sidebar .nav-item:hover {
+        background: rgba(255, 255, 255, 0.05);
+        color: #e6edf5;
+    }
+    
+    .settings-sidebar .nav-item.active {
+        background: rgba(79, 156, 247, 0.15);
+        color: #6aaaff;
+    }
+    
+    .file-upload-area {
+        background: #0f1a33;
+        border-color: #2a3a5a;
+    }
+    
+    .file-upload-area:hover {
+        border-color: #4f9cf7;
+        background: #1a2a44;
+    }
+    
+    .current-file {
+        background: #0f1a33;
+        border-color: #2a3a5a;
+    }
+    
+    .current-file .file-name {
+        color: #e6edf5;
+    }
+    
+    .settings-card {
+        background: #0f1a33;
+        border-color: #2a3a5a;
+    }
+    
+    .settings-card .card-title {
+        color: #e6edf5;
+    }
+    
+    .switch .slider {
+        background: #2a3a5a;
+    }
+    
+    .switch-wrapper .switch-label {
+        color: #d0def0;
+    }
+    
+    .settings-content .form-actions {
+        border-color: #2a3a5a;
+    }
+    
+    .settings-content .form-actions .btn-secondary {
+        background: #1a2a44;
+        color: #8b9bb5;
+        border-color: #2a3a5a;
+    }
+    
+    .settings-content .form-actions .btn-secondary:hover {
+        background: #2a3a5a;
+    }
+    
+    .settings-content .form-group small {
+        color: #6d83a5;
+    }
+    
+    .provider-card {
+        background: #0f1a33;
+        border-color: #2a3a5a;
+    }
+    
+    .provider-card.active {
+        border-color: #4f9cf7;
+        background: #1a2a44;
+    }
+    
+    .provider-card .provider-name {
+        color: #e6edf5;
+    }
+    
+    .settings-sidebar .nav-item .nav-badge {
+        background: #2a3a5a;
+        color: #8b9bb5;
+    }
+}

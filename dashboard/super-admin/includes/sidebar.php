@@ -1,3 +1,56 @@
+<?php
+// includes/sidebar.php
+// Get database counts for sidebar badges
+$db = Database::getInstance();
+$conn = $db->getConnection();
+
+// Get counts from database
+$tenantCount = 0;
+$userCount = 0;
+$pendingTickets = 0;
+$securityAlerts = 0;
+$notificationCount = 0;
+
+try {
+    // Total tenants
+    $stmt = $conn->query("SELECT COUNT(*) as count FROM tenants WHERE deleted_at IS NULL");
+    $tenantCount = $stmt->fetch()['count'] ?? 0;
+    
+    // Total users
+    $stmt = $conn->query("SELECT COUNT(*) as count FROM users WHERE deleted_at IS NULL");
+    $userCount = $stmt->fetch()['count'] ?? 0;
+    
+    // Pending support tickets
+    $stmt = $conn->query("SELECT COUNT(*) as count FROM support_tickets WHERE status = 'open' OR status = 'in_progress'");
+    $pendingTickets = $stmt->fetch()['count'] ?? 0;
+    
+    // Security alerts (unresolved security events)
+    $stmt = $conn->query("SELECT COUNT(*) as count FROM security_events WHERE resolved = 0");
+    $securityAlerts = $stmt->fetch()['count'] ?? 0;
+    
+    // Unread notifications
+    $stmt = $conn->query("SELECT COUNT(*) as count FROM notifications WHERE is_read = 0");
+    $notificationCount = $stmt->fetch()['count'] ?? 0;
+    
+    // Get user info if logged in
+    $userName = 'Super Admin';
+    $userRole = 'System Administrator';
+    $userAvatar = '';
+    
+    if (isset($_SESSION['user_id'])) {
+        $stmt = $conn->prepare("SELECT first_name, last_name, email, photograph_url, role_id FROM users WHERE id = ?");
+        $stmt->execute([$_SESSION['user_id']]);
+        $user = $stmt->fetch();
+        if ($user) {
+            $userName = $user['first_name'] . ' ' . $user['last_name'];
+            $userAvatar = $user['photograph_url'] ?? '';
+        }
+    }
+} catch (Exception $e) {
+    // Use default values if queries fail
+}
+?>
+
 <aside class="sidebar" id="sidebar">
     <!-- ============================================================
     SIDEBAR BRAND
@@ -38,7 +91,7 @@
             <div class="nav-dropdown-header" data-target="tenantMenu">
                 <i class="fas fa-building"></i>
                 <span class="nav-text">Tenants</span>
-                <span class="nav-badge"><?php echo $tenantCount ?? 0; ?></span>
+                <span class="nav-badge"><?php echo $tenantCount; ?></span>
                 <i class="fas fa-chevron-down dropdown-arrow"></i>
             </div>
             <div class="nav-dropdown-menu" id="tenantMenu">
@@ -61,7 +114,7 @@
         <a href="users.php" class="nav-item <?php echo $page_title === 'Manage Users' ? 'active' : ''; ?>">
             <i class="fas fa-users"></i>
             <span class="nav-text">All Users</span>
-            <span class="nav-badge"><?php echo $userCount ?? 0; ?></span>
+            <span class="nav-badge"><?php echo $userCount; ?></span>
         </a>
 
         <!-- Roles Dropdown -->
@@ -175,7 +228,7 @@
         <a href="security.php" class="nav-item <?php echo $page_title === 'Security Monitoring' ? 'active' : ''; ?>">
             <i class="fas fa-shield-alt"></i>
             <span class="nav-text">Security Monitoring</span>
-            <span class="nav-badge security"><?php echo $securityAlerts ?? 0; ?></span>
+            <span class="nav-badge security"><?php echo $securityAlerts; ?></span>
         </a>
 
         <!-- ============================================================
@@ -196,7 +249,7 @@
             <div class="nav-dropdown-header" data-target="notificationMenu">
                 <i class="fas fa-bell"></i>
                 <span class="nav-text">Notifications</span>
-                <span class="nav-badge notification">3</span>
+                <span class="nav-badge notification"><?php echo $notificationCount; ?></span>
                 <i class="fas fa-chevron-down dropdown-arrow"></i>
             </div>
             <div class="nav-dropdown-menu" id="notificationMenu">
@@ -220,7 +273,7 @@
             <div class="nav-dropdown-header" data-target="supportMenu">
                 <i class="fas fa-life-ring"></i>
                 <span class="nav-text">Support Tickets</span>
-                <span class="nav-badge support"><?php echo $pendingTickets ?? 0; ?></span>
+                <span class="nav-badge support"><?php echo $pendingTickets; ?></span>
                 <i class="fas fa-chevron-down dropdown-arrow"></i>
             </div>
             <div class="nav-dropdown-menu" id="supportMenu">
@@ -231,7 +284,7 @@
                 <a href="support-tickets.php?status=open" class="nav-item">
                     <i class="fas fa-clock"></i>
                     <span class="nav-text">Open Tickets</span>
-                    <span class="nav-badge"><?php echo $pendingTickets ?? 0; ?></span>
+                    <span class="nav-badge"><?php echo $pendingTickets; ?></span>
                 </a>
                 <a href="support-tickets.php?status=resolved" class="nav-item">
                     <i class="fas fa-check-circle"></i>
@@ -327,11 +380,15 @@
     <div class="sidebar-footer">
         <div class="user-profile">
             <div class="user-avatar">
+                <?php if (!empty($userAvatar)): ?>
+                <img src="<?php echo htmlspecialchars($userAvatar); ?>" alt="User Avatar">
+                <?php else: ?>
                 <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 40 40'%3E%3Ccircle cx='20' cy='20' r='18' fill='%23b3cef0'/%3E%3Ccircle cx='20' cy='14' r='6' fill='%23577a9e'/%3E%3Cpath d='M8 32c0-6 5-10 12-10s12 4 12 10' fill='%23577a9e'/%3E%3C/svg%3E" alt="User Avatar">
+                <?php endif; ?>
             </div>
             <div class="user-info">
-                <div class="user-name">Super Admin</div>
-                <div class="user-role">KowaGuru Tech</div>
+                <div class="user-name"><?php echo htmlspecialchars($userName); ?></div>
+                <div class="user-role"><?php echo htmlspecialchars($userRole); ?></div>
             </div>
         </div>
         <div class="sidebar-status">

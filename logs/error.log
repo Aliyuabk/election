@@ -90,3 +90,86 @@ Stack trace:
 Stack trace:
 #0 {main}
   thrown in C:\xampp\htdocs\election\dashboard\index.php on line 19
+[02-Jul-2026 06:25:12 Africa/Lagos] PHP Warning:  Undefined array key "tenant_id" in C:\xampp\htdocs\election\dashboard\super-admin\tenant-subscriptions.php on line 150
+[02-Jul-2026 06:31:58 Africa/Lagos] PHP Warning:  Undefined array key "tenant_id" in C:\xampp\htdocs\election\dashboard\super-admin\tenant-subscriptions.php on line 153
+[02-Jul-2026 06:32:06 Africa/Lagos] PHP Warning:  Undefined array key "tenant_id" in C:\xampp\htdocs\election\dashboard\super-admin\tenant-subscriptions.php on line 153
+[02-Jul-2026 07:02:46 Africa/Lagos] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'r.deleted_at' in 'where clause' in C:\xampp\htdocs\election\dashboard\super-admin\roles.php:191
+Stack trace:
+#0 C:\xampp\htdocs\election\dashboard\super-admin\roles.php(191): PDO->prepare('SELECT COUNT(DI...')
+#1 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\super-admin\roles.php on line 191
+[02-Jul-2026 07:05:31 Africa/Lagos] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\election\dashboard\super-admin\roles.php on line 1594
+[02-Jul-2026 07:05:33 Africa/Lagos] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'r.deleted_at' in 'where clause' in C:\xampp\htdocs\election\dashboard\super-admin\role-details.php:13
+Stack trace:
+#0 C:\xampp\htdocs\election\dashboard\super-admin\role-details.php(13): PDO->prepare('\r\n    SELECT r....')
+#1 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\super-admin\role-details.php on line 13
+[02-Jul-2026 07:05:54 Africa/Lagos] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\election\dashboard\super-admin\roles.php on line 1594
+[02-Jul-2026 07:06:03 Africa/Lagos] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\election\dashboard\super-admin\roles.php on line 1594
+[02-Jul-2026 07:06:05 Africa/Lagos] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\election\dashboard\super-admin\roles.php on line 1594
+[02-Jul-2026 07:06:06 Africa/Lagos] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\election\dashboard\super-admin\roles.php on line 1594
+[02-Jul-2026 07:06:08 Africa/Lagos] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\election\dashboard\super-admin\roles.php on line 1594
+[02-Jul-2026 07:06:10 Africa/Lagos] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\election\dashboard\super-admin\roles.php on line 1594
+[02-Jul-2026 07:06:13 Africa/Lagos] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\election\dashboard\super-admin\roles.php on line 1594
+[02-Jul-2026 07:08:02 Africa/Lagos] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\election\dashboard\super-admin\roles.php on line 1594
+[02-Jul-2026 07:08:06 Africa/Lagos] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\election\dashboard\super-admin\roles.php on line 1594
+[02-Jul-2026 07:14:12 Africa/Lagos] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'is_enabled' in 'field list' in C:\xampp\htdocs\election\dashboard\super-admin\permissions.php:191
+Stack trace:
+#0 C:\xampp\htdocs\election\dashboard\super-admin\permissions.php(191): PDO->query('SELECT \r\n      ...')
+#1 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\super-admin\permissions.php on line 191
+[02-Jul-2026 07:19:03 Africa/Lagos] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'is_enabled' in 'field list' in C:\xampp\htdocs\election\dashboard\super-admin\permissions.php:191
+Stack trace:
+#0 C:\xampp\htdocs\election\dashboard\super-admin\permissions.php(191): PDO->query('SELECT \r\n      ...')
+#1 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\super-admin\permissions.php on line 191
+[02-Jul-2026 07:32:44 Africa/Lagos] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'deleted_at' in 'where clause' in C:\xampp\htdocs\election\dashboard\super-admin\inec-upload.php:524
+Stack trace:
+#0 C:\xampp\htdocs\election\dashboard\super-admin\inec-upload.php(524): PDO->query('\r\n    SELECT \r\n...')
+#1 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\super-admin\inec-upload.php on line 524
+[02-Jul-2026 07:38:30 Africa/Lagos] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'deleted_at' in 'where clause' in C:\xampp\htdocs\election\dashboard\super-admin\inec-upload.php:524
+Stack trace:
+#0 C:\xampp\htdocs\election\dashboard\super-admin\inec-upload.php(524): PDO->query('\r\n    SELECT \r\n...')
+#1 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\super-admin\inec-upload.php on line 524
+[02-Jul-2026 07:38:31 Africa/Lagos] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'deleted_at' in 'where clause' in C:\xampp\htdocs\election\dashboard\super-admin\inec-upload.php:524
+Stack trace:
+#0 C:\xampp\htdocs\election\dashboard\super-admin\inec-upload.php(524): PDO->query('\r\n    SELECT \r\n...')
+#1 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\super-admin\inec-upload.php on line 524
+[02-Jul-2026 07:38:31 Africa/Lagos] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'deleted_at' in 'where clause' in C:\xampp\htdocs\election\dashboard\super-admin\inec-upload.php:524
+Stack trace:
+#0 C:\xampp\htdocs\election\dashboard\super-admin\inec-upload.php(524): PDO->query('\r\n    SELECT \r\n...')
+#1 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\super-admin\inec-upload.php on line 524
+[02-Jul-2026 07:38:32 Africa/Lagos] PHP Fatal error:  Uncaught PDOException: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'deleted_at' in 'where clause' in C:\xampp\htdocs\election\dashboard\super-admin\inec-upload.php:524
+Stack trace:
+#0 C:\xampp\htdocs\election\dashboard\super-admin\inec-upload.php(524): PDO->query('\r\n    SELECT \r\n...')
+#1 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\super-admin\inec-upload.php on line 524
+[02-Jul-2026 07:44:04 Africa/Lagos] PHP Warning:  require_once(C:\xampp\htdocs\election\dashboard\super-admin/../config/config.php): Failed to open stream: No such file or directory in C:\xampp\htdocs\election\dashboard\super-admin\backups.php on line 69
+[02-Jul-2026 07:44:04 Africa/Lagos] PHP Fatal error:  Uncaught Error: Failed opening required 'C:\xampp\htdocs\election\dashboard\super-admin/../config/config.php' (include_path='\xampp\php\PEAR') in C:\xampp\htdocs\election\dashboard\super-admin\backups.php:69
+Stack trace:
+#0 C:\xampp\htdocs\election\dashboard\super-admin\backups.php(22): createBackup('database')
+#1 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\super-admin\backups.php on line 69
+[02-Jul-2026 07:48:04 Africa/Lagos] PHP Warning:  require_once(C:\xampp\htdocs\election\dashboard\super-admin/../config/config.php): Failed to open stream: No such file or directory in C:\xampp\htdocs\election\dashboard\super-admin\backups.php on line 85
+[02-Jul-2026 07:48:04 Africa/Lagos] PHP Fatal error:  Uncaught Error: Failed opening required 'C:\xampp\htdocs\election\dashboard\super-admin/../config/config.php' (include_path='\xampp\php\PEAR') in C:\xampp\htdocs\election\dashboard\super-admin\backups.php:85
+Stack trace:
+#0 C:\xampp\htdocs\election\dashboard\super-admin\backups.php(22): createBackup('full')
+#1 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\super-admin\backups.php on line 85
+[02-Jul-2026 08:03:35 Africa/Lagos] PHP Warning:  require_once(C:\xampp\htdocs\election\dashboard\super-admin/../config/config.php): Failed to open stream: No such file or directory in C:\xampp\htdocs\election\dashboard\super-admin\backups.php on line 93
+[02-Jul-2026 08:03:35 Africa/Lagos] PHP Fatal error:  Uncaught Error: Failed opening required 'C:\xampp\htdocs\election\dashboard\super-admin/../config/config.php' (include_path='\xampp\php\PEAR') in C:\xampp\htdocs\election\dashboard\super-admin\backups.php:93
+Stack trace:
+#0 C:\xampp\htdocs\election\dashboard\super-admin\backups.php(29): createBackup('full')
+#1 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\super-admin\backups.php on line 93
+[02-Jul-2026 08:08:32 Africa/Lagos] PHP Warning:  require_once(C:\xampp\htdocs\election\dashboard\super-admin/../config/config.php): Failed to open stream: No such file or directory in C:\xampp\htdocs\election\dashboard\super-admin\backups.php on line 146
+[02-Jul-2026 08:08:32 Africa/Lagos] PHP Fatal error:  Uncaught Error: Failed opening required 'C:\xampp\htdocs\election\dashboard\super-admin/../config/config.php' (include_path='\xampp\php\PEAR') in C:\xampp\htdocs\election\dashboard\super-admin\backups.php:146
+Stack trace:
+#0 C:\xampp\htdocs\election\dashboard\super-admin\backups.php(27): createBackup('full')
+#1 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\super-admin\backups.php on line 146
+[02-Jul-2026 08:15:05 Africa/Lagos] Failed to log activity: SQLSTATE[23000]: Integrity constraint violation: 1452 Cannot add or update a child row: a foreign key constraint fails (`election`.`activity_logs`, CONSTRAINT `activity_logs_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE)
