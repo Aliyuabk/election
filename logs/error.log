@@ -1,0 +1,92 @@
+[02-Jul-2026 00:14:35 Africa/Lagos] Forgot password database error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'used' in 'where clause' in C:\xampp\htdocs\election\auth\forgot-password.php on line 61
+[02-Jul-2026 00:15:08 Africa/Lagos] Forgot password database error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'used' in 'where clause' in C:\xampp\htdocs\election\auth\forgot-password.php on line 61
+[02-Jul-2026 00:15:27 Africa/Lagos] Forgot password database error: SQLSTATE[HY000]: General error: 1364 Field 'otp_code' doesn't have a default value in C:\xampp\htdocs\election\auth\forgot-password.php on line 48
+[02-Jul-2026 00:15:35 Africa/Lagos] Forgot password database error: SQLSTATE[HY000]: General error: 1364 Field 'otp_code' doesn't have a default value in C:\xampp\htdocs\election\auth\forgot-password.php on line 48
+[02-Jul-2026 00:17:03 Africa/Lagos] Forgot password database error: SQLSTATE[HY000]: General error: 1364 Field 'otp_code' doesn't have a default value in C:\xampp\htdocs\election\auth\forgot-password.php on line 48
+[02-Jul-2026 00:17:47 Africa/Lagos] Forgot password database error: SQLSTATE[HY000]: General error: 1364 Field 'otp_code' doesn't have a default value in C:\xampp\htdocs\election\auth\forgot-password.php on line 52
+[02-Jul-2026 00:18:01 Africa/Lagos] Forgot password database error: SQLSTATE[HY000]: General error: 1364 Field 'otp_code' doesn't have a default value in C:\xampp\htdocs\election\auth\forgot-password.php on line 52
+[02-Jul-2026 00:20:20 Africa/Lagos] Forgot password database error: SQLSTATE[01000]: Warning: 1265 Data truncated for column 'activity_type' at row 1
+[02-Jul-2026 00:23:05 Africa/Lagos] Activity log failed: SQLSTATE[01000]: Warning: 1265 Data truncated for column 'activity_type' at row 1
+[02-Jul-2026 00:24:11 Africa/Lagos] Logging failed during password reset: SQLSTATE[01000]: Warning: 1265 Data truncated for column 'activity_type' at row 1
+[02-Jul-2026 00:25:31 Africa/Lagos] PHP Fatal error:  Uncaught Error: Class "Database" not found in C:\xampp\htdocs\election\dashboard\index.php:19
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\index.php on line 19
+[02-Jul-2026 00:27:06 Africa/Lagos] PHP Fatal error:  Uncaught PDOException: SQLSTATE[HY093]: Invalid parameter number in C:\xampp\htdocs\election\includes\functions.php:310
+Stack trace:
+#0 C:\xampp\htdocs\election\includes\functions.php(310): PDOStatement->execute(Array)
+#1 C:\xampp\htdocs\election\auth\two-factor-setup.php(34): saveOTP(2, '700554', '2fa_enable', 'email')
+#2 {main}
+  thrown in C:\xampp\htdocs\election\includes\functions.php on line 310
+[02-Jul-2026 00:28:02 Africa/Lagos] PHP Fatal error:  Uncaught Error: Class "Database" not found in C:\xampp\htdocs\election\dashboard\index.php:19
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\index.php on line 19
+[02-Jul-2026 00:28:04 Africa/Lagos] PHP Fatal error:  Uncaught Error: Class "Database" not found in C:\xampp\htdocs\election\dashboard\index.php:19
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\index.php on line 19
+[02-Jul-2026 00:28:05 Africa/Lagos] PHP Fatal error:  Uncaught Error: Class "Database" not found in C:\xampp\htdocs\election\dashboard\index.php:19
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\index.php on line 19
+[02-Jul-2026 00:28:06 Africa/Lagos] PHP Fatal error:  Uncaught Error: Class "Database" not found in C:\xampp\htdocs\election\dashboard\index.php:19
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\index.php on line 19
+[02-Jul-2026 00:28:22 Africa/Lagos] PHP Fatal error:  Uncaught Error: Class "Database" not found in C:\xampp\htdocs\election\dashboard\index.php:19
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\index.php on line 19
+[02-Jul-2026 00:28:49 Africa/Lagos] PHP Fatal error:  Uncaught Error: Class "Database" not found in C:\xampp\htdocs\election\dashboard\index.php:19
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\index.php on line 19
+[02-Jul-2026 00:34:37 Africa/Lagos] PHP Warning:  require_once(C:\xampp\htdocs\election\includes/../vendor/autoload.php): Failed to open stream: No such file or directory in C:\xampp\htdocs\election\includes\functions.php on line 7
+[02-Jul-2026 00:34:37 Africa/Lagos] PHP Fatal error:  Uncaught Error: Failed opening required 'C:\xampp\htdocs\election\includes/../vendor/autoload.php' (include_path='\xampp\php\PEAR') in C:\xampp\htdocs\election\includes\functions.php:7
+Stack trace:
+#0 C:\xampp\htdocs\election\auth\login.php(7): require_once()
+#1 {main}
+  thrown in C:\xampp\htdocs\election\includes\functions.php on line 7
+[02-Jul-2026 00:37:05 Africa/Lagos] PHP Fatal error:  Uncaught PDOException: SQLSTATE[01000]: Warning: 1265 Data truncated for column 'activity_type' at row 1 in C:\xampp\htdocs\election\includes\functions.php:313
+Stack trace:
+#0 C:\xampp\htdocs\election\includes\functions.php(313): PDOStatement->execute(Array)
+#1 C:\xampp\htdocs\election\auth\two-factor-setup.php(60): logActivity(2, '2fa_enabled', 'Two-factor auth...')
+#2 {main}
+  thrown in C:\xampp\htdocs\election\includes\functions.php on line 313
+[02-Jul-2026 00:40:20 Africa/Lagos] PHP Fatal error:  Uncaught Error: Class "Database" not found in C:\xampp\htdocs\election\dashboard\index.php:19
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\index.php on line 19
+[02-Jul-2026 01:02:51 Africa/Lagos] PHP Warning:  include(../includes/sidebar.php): Failed to open stream: No such file or directory in C:\xampp\htdocs\election\dashboard\super-admin\index.php on line 156
+[02-Jul-2026 01:02:51 Africa/Lagos] PHP Warning:  include(): Failed opening '../includes/sidebar.php' for inclusion (include_path='\xampp\php\PEAR') in C:\xampp\htdocs\election\dashboard\super-admin\index.php on line 156
+[02-Jul-2026 01:02:51 Africa/Lagos] PHP Warning:  include(../includes/header.php): Failed to open stream: No such file or directory in C:\xampp\htdocs\election\dashboard\super-admin\index.php on line 159
+[02-Jul-2026 01:02:51 Africa/Lagos] PHP Warning:  include(): Failed opening '../includes/header.php' for inclusion (include_path='\xampp\php\PEAR') in C:\xampp\htdocs\election\dashboard\super-admin\index.php on line 159
+[02-Jul-2026 01:02:51 Africa/Lagos] PHP Warning:  include(../includes/footer.php): Failed to open stream: No such file or directory in C:\xampp\htdocs\election\dashboard\super-admin\index.php on line 405
+[02-Jul-2026 01:02:51 Africa/Lagos] PHP Warning:  include(): Failed opening '../includes/footer.php' for inclusion (include_path='\xampp\php\PEAR') in C:\xampp\htdocs\election\dashboard\super-admin\index.php on line 405
+[02-Jul-2026 01:37:09 Africa/Lagos] PHP Warning:  Undefined variable $page in C:\xampp\htdocs\election\dashboard\super-admin\includes\sidebar.php on line 10
+[02-Jul-2026 01:37:09 Africa/Lagos] PHP Warning:  Undefined variable $page in C:\xampp\htdocs\election\dashboard\super-admin\includes\sidebar.php on line 16
+[02-Jul-2026 01:37:09 Africa/Lagos] PHP Warning:  Undefined variable $page in C:\xampp\htdocs\election\dashboard\super-admin\includes\sidebar.php on line 21
+[02-Jul-2026 01:37:09 Africa/Lagos] PHP Warning:  Undefined variable $page in C:\xampp\htdocs\election\dashboard\super-admin\includes\sidebar.php on line 31
+[02-Jul-2026 01:37:09 Africa/Lagos] PHP Warning:  Undefined variable $page in C:\xampp\htdocs\election\dashboard\super-admin\includes\sidebar.php on line 36
+[02-Jul-2026 01:37:09 Africa/Lagos] PHP Warning:  Undefined variable $page in C:\xampp\htdocs\election\dashboard\super-admin\includes\sidebar.php on line 57
+[02-Jul-2026 01:37:09 Africa/Lagos] PHP Warning:  Undefined variable $page in C:\xampp\htdocs\election\dashboard\super-admin\includes\sidebar.php on line 62
+[02-Jul-2026 01:37:09 Africa/Lagos] PHP Warning:  Undefined variable $page in C:\xampp\htdocs\election\dashboard\super-admin\includes\sidebar.php on line 71
+[02-Jul-2026 01:37:09 Africa/Lagos] PHP Warning:  Undefined variable $page in C:\xampp\htdocs\election\dashboard\super-admin\includes\sidebar.php on line 76
+[02-Jul-2026 01:37:09 Africa/Lagos] PHP Warning:  Undefined variable $page in C:\xampp\htdocs\election\dashboard\super-admin\includes\sidebar.php on line 81
+[02-Jul-2026 01:37:09 Africa/Lagos] PHP Warning:  Undefined variable $page in C:\xampp\htdocs\election\dashboard\super-admin\includes\sidebar.php on line 87
+[02-Jul-2026 01:53:22 Africa/Lagos] PHP Fatal error:  Uncaught Error: Call to undefined method PDO::insert() in C:\xampp\htdocs\election\dashboard\super-admin\tenant-edit.php:85
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\super-admin\tenant-edit.php on line 85
+[02-Jul-2026 01:57:42 Africa/Lagos] PHP Warning:  Undefined variable $tenant in C:\xampp\htdocs\election\dashboard\super-admin\tenant-edit.php on line 320
+[02-Jul-2026 01:57:54 Africa/Lagos] PHP Warning:  Undefined variable $tenant in C:\xampp\htdocs\election\dashboard\super-admin\tenant-edit.php on line 320
+[02-Jul-2026 01:58:29 Africa/Lagos] PHP Warning:  Undefined variable $tenant in C:\xampp\htdocs\election\dashboard\super-admin\tenant-edit.php on line 320
+[02-Jul-2026 02:24:58 Africa/Lagos] PHP Fatal error:  Uncaught Error: Class "Database" not found in C:\xampp\htdocs\election\dashboard\index.php:19
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\index.php on line 19
+[02-Jul-2026 02:25:09 Africa/Lagos] PHP Fatal error:  Uncaught Error: Class "Database" not found in C:\xampp\htdocs\election\dashboard\index.php:19
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\index.php on line 19
