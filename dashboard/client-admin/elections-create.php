@@ -578,7 +578,7 @@ include 'includes/sidebar.php';
                     
                     <div class="form-group full-width">
                         <label>States</label>
-                        <select name="states[]" multiple>
+                        <select name="states[]" multiple required>
                             <?php foreach ($states as $state): ?>
                                 <option value="<?php echo $state['id']; ?>" <?php echo (isset($form_data['states']) && in_array($state['id'], $form_data['states'])) ? 'selected' : ''; ?>>
                                     <?php echo htmlspecialchars($state['name']); ?>

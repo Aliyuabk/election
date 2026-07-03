@@ -448,3 +448,6 @@ Stack trace:
 #1 {main}
   thrown in C:\xampp\htdocs\election\dashboard\client-admin\audit-logs.php on line 94
 [03-Jul-2026 02:24:27 Africa/Lagos] Redirecting to: ../dashboard/client-admin/ for role: client_admin
+[03-Jul-2026 14:57:24 Africa/Lagos] Redirecting to: ../dashboard/super-admin/ for role: super_admin
+[03-Jul-2026 14:57:37 Africa/Lagos] Redirecting to: ../dashboard/super-admin/ for role: super_admin
+[03-Jul-2026 14:57:50 Africa/Lagos] Redirecting to: ../dashboard/client-admin/ for role: client_admin

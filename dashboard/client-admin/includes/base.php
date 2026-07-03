@@ -745,6 +745,215 @@
         padding: 6px 12px;
     }
 }
+/* ============================================================
+   DOCUMENT UPLOAD MODAL - ADDITIONAL STYLES
+   ============================================================ */
+
+/* File Upload Area */
+.file-upload-area {
+    border: 2px dashed var(--gray-200);
+    border-radius: 10px;
+    padding: 30px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: var(--transition);
+    background: var(--gray-50);
+    position: relative;
+}
+.file-upload-area:hover {
+    border-color: var(--primary);
+    background: #EFF6FF;
+}
+.file-upload-area.dragover {
+    border-color: var(--primary);
+    background: #EFF6FF;
+    transform: scale(1.01);
+}
+.file-upload-area i {
+    font-size: 2.5rem;
+    color: var(--gray-400);
+    display: block;
+    margin-bottom: 10px;
+    transition: var(--transition);
+}
+.file-upload-area:hover i {
+    color: var(--primary);
+}
+.file-upload-area p {
+    font-size: 0.9rem;
+    color: var(--gray-500);
+    margin-bottom: 4px;
+}
+.file-upload-area .file-types {
+    font-size: 0.7rem;
+    color: var(--gray-400);
+}
+.file-upload-area input[type="file"] {
+    display: none;
+}
+
+/* File Preview */
+.file-preview {
+    display: none;
+    margin-top: 12px;
+    padding: 12px 16px;
+    background: var(--gray-50);
+    border-radius: 8px;
+    border: 1px solid var(--gray-200);
+    text-align: left;
+    animation: fadeIn 0.3s ease;
+}
+.file-preview.show {
+    display: block;
+}
+.file-preview .file-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.file-preview .file-info .file-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+.file-preview .file-info .file-icon.pdf { background: #FEF2F2; color: #DC2626; }
+.file-preview .file-info .file-icon.doc { background: #EFF6FF; color: #3B82F6; }
+.file-preview .file-info .file-icon.xls { background: #ECFDF5; color: #10B981; }
+.file-preview .file-info .file-icon.txt { background: #F5F3FF; color: #8B5CF6; }
+.file-preview .file-info .file-icon.image { background: #FFFBEB; color: #F59E0B; }
+.file-preview .file-info .file-details {
+    flex: 1;
+}
+.file-preview .file-info .file-details .file-name {
+    font-weight: 500;
+    font-size: 0.85rem;
+    color: var(--gray-700);
+}
+.file-preview .file-info .file-details .file-size {
+    font-size: 0.7rem;
+    color: var(--gray-400);
+}
+.file-preview .file-info .file-remove {
+    background: none;
+    border: none;
+    color: var(--gray-400);
+    cursor: pointer;
+    transition: var(--transition);
+    padding: 4px;
+    border-radius: 4px;
+}
+.file-preview .file-info .file-remove:hover {
+    background: #FEF2F2;
+    color: var(--danger);
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Modal Form Group Enhancements */
+.modal .form-group {
+    margin-bottom: 16px;
+}
+.modal .form-group label {
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--gray-700);
+    display: block;
+    margin-bottom: 4px;
+}
+.modal .form-group label .required {
+    color: var(--danger);
+    margin-left: 2px;
+}
+.modal .form-group .help-text {
+    font-size: 0.75rem;
+    color: var(--gray-400);
+    margin-top: 4px;
+}
+.modal .form-group select,
+.modal .form-group input,
+.modal .form-group textarea {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1.5px solid var(--gray-200);
+    border-radius: 10px;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    transition: var(--transition);
+    background: var(--gray-50);
+    color: var(--gray-700);
+}
+.modal .form-group select:focus,
+.modal .form-group input:focus,
+.modal .form-group textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+    background: white;
+    box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.06);
+}
+
+/* Document Type Select */
+.modal .form-group select option {
+    padding: 8px;
+}
+
+/* Modal Footer Buttons */
+.modal .modal-footer .btn {
+    padding: 10px 24px;
+    border-radius: 10px;
+    border: none;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: var(--transition);
+    font-family: 'Inter', sans-serif;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+.modal .modal-footer .btn-primary {
+    background: var(--primary);
+    color: white;
+}
+.modal .modal-footer .btn-primary:hover {
+    background: var(--primary-dark);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 16px rgba(var(--primary-rgb), 0.25);
+}
+.modal .modal-footer .btn-secondary {
+    background: var(--gray-100);
+    color: var(--gray-600);
+}
+.modal .modal-footer .btn-secondary:hover {
+    background: var(--gray-200);
+}
+
+/* Modal Responsive */
+@media (max-width: 768px) {
+    .file-upload-area {
+        padding: 20px 16px;
+    }
+    .file-upload-area i {
+        font-size: 2rem;
+    }
+    .file-preview .file-info {
+        flex-wrap: wrap;
+    }
+    .modal .modal-footer {
+        flex-direction: column;
+    }
+    .modal .modal-footer .btn {
+        width: 100%;
+        justify-content: center;
+    }
+}
     </style>
 </head>
 <body>
