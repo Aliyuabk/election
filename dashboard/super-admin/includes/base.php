@@ -19,7 +19,17 @@ PRELOADER
 ============================================================ -->
 <div id="preloader">
     <div class="preloader-spinner"></div>
-    <div class="preloader-text">
-          <span class="preloader-dots"></span>
+    <div class="preloader-text"> Loading...</div>   
     </div>
 </div>
+<script>
+    window.addEventListener('load', function() {
+        var preloader = document.getElementById('preloader');
+        if (preloader) {
+            preloader.classList.add('hidden');
+            setTimeout(function() {
+                preloader.style.display = 'none';
+            }, 600);
+        }
+    });
+</script>

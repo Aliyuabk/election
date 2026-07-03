@@ -430,3 +430,8 @@ Stack trace:
 #1 {main}
   thrown in C:\xampp\htdocs\election\dashboard\super-admin\settings.php on line 166
 [03-Jul-2026 00:28:20 Africa/Lagos] Redirecting to: ../dashboard/super-admin/ for role: super_admin
+[03-Jul-2026 01:20:39 Africa/Lagos] Redirecting to: ../dashboard/super-admin/ for role: super_admin
+[03-Jul-2026 01:25:49 Africa/Lagos] Redirecting to: ../dashboard/super-admin/ for role: super_admin
+[03-Jul-2026 01:39:51 Africa/Lagos] PHP Warning:  Undefined array key "created_by_name" in C:\xampp\htdocs\election\dashboard\super-admin\elections-edit.php on line 649
+[03-Jul-2026 01:44:31 Africa/Lagos] PHP Warning:  Undefined array key "created_by_name" in C:\xampp\htdocs\election\dashboard\super-admin\elections-edit.php on line 649
+[03-Jul-2026 01:45:27 Africa/Lagos] PHP Warning:  Undefined array key "created_by_name" in C:\xampp\htdocs\election\dashboard\super-admin\elections-edit.php on line 649

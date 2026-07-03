@@ -438,11 +438,11 @@ include 'includes/sidebar.php';
                         <i class="fas fa-plus-circle"></i>
                         Create Tenant
                     </a>
-                    <a href="subscriptions-add.php" class="quick-action-btn">
+                    <a href="subscriptions.php" class="quick-action-btn">
                         <i class="fas fa-plus-circle"></i>
                         Add Subscription
                     </a>
-                    <a href="inec-upload.php" class="quick-action-btn">
+                    <a href="inec-data.php" class="quick-action-btn">
                         <i class="fas fa-upload"></i>
                         Upload INEC Data
                     </a>
@@ -450,7 +450,7 @@ include 'includes/sidebar.php';
                         <i class="fas fa-clipboard-list"></i>
                         View Audit Logs
                     </a>
-                    <a href="backups-create.php" class="quick-action-btn">
+                    <a href="backups.php" class="quick-action-btn">
                         <i class="fas fa-database"></i>
                         Create Backup
                     </a>
