@@ -435,3 +435,16 @@ Stack trace:
 [03-Jul-2026 01:39:51 Africa/Lagos] PHP Warning:  Undefined array key "created_by_name" in C:\xampp\htdocs\election\dashboard\super-admin\elections-edit.php on line 649
 [03-Jul-2026 01:44:31 Africa/Lagos] PHP Warning:  Undefined array key "created_by_name" in C:\xampp\htdocs\election\dashboard\super-admin\elections-edit.php on line 649
 [03-Jul-2026 01:45:27 Africa/Lagos] PHP Warning:  Undefined array key "created_by_name" in C:\xampp\htdocs\election\dashboard\super-admin\elections-edit.php on line 649
+[03-Jul-2026 01:48:12 Africa/Lagos] Redirecting to: ../dashboard/client-admin/ for role: client_admin
+[03-Jul-2026 01:54:58 Africa/Lagos] PHP Warning:  include(includes/base.php): Failed to open stream: No such file or directory in C:\xampp\htdocs\election\dashboard\client-admin\index.php on line 345
+[03-Jul-2026 01:54:58 Africa/Lagos] PHP Warning:  include(): Failed opening 'includes/base.php' for inclusion (include_path='\xampp\php\PEAR') in C:\xampp\htdocs\election\dashboard\client-admin\index.php on line 345
+[03-Jul-2026 01:54:58 Africa/Lagos] PHP Warning:  include(includes/sidebar.php): Failed to open stream: No such file or directory in C:\xampp\htdocs\election\dashboard\client-admin\index.php on line 346
+[03-Jul-2026 01:54:58 Africa/Lagos] PHP Warning:  include(): Failed opening 'includes/sidebar.php' for inclusion (include_path='\xampp\php\PEAR') in C:\xampp\htdocs\election\dashboard\client-admin\index.php on line 346
+[03-Jul-2026 01:54:58 Africa/Lagos] PHP Warning:  include(includes/header.php): Failed to open stream: No such file or directory in C:\xampp\htdocs\election\dashboard\client-admin\index.php on line 745
+[03-Jul-2026 01:54:58 Africa/Lagos] PHP Warning:  include(): Failed opening 'includes/header.php' for inclusion (include_path='\xampp\php\PEAR') in C:\xampp\htdocs\election\dashboard\client-admin\index.php on line 745
+[03-Jul-2026 02:14:56 Africa/Lagos] PHP Fatal error:  Uncaught PDOException: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'tenant_id' in where clause is ambiguous in C:\xampp\htdocs\election\dashboard\client-admin\audit-logs.php:94
+Stack trace:
+#0 C:\xampp\htdocs\election\dashboard\client-admin\audit-logs.php(94): PDO->prepare('\r\n    SELECT \r\n...')
+#1 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\client-admin\audit-logs.php on line 94
+[03-Jul-2026 02:24:27 Africa/Lagos] Redirecting to: ../dashboard/client-admin/ for role: client_admin
