@@ -1,400 +1,82 @@
-<?php
-// includes/sidebar.php
-// Get database counts for sidebar badges
-$db = Database::getInstance();
-$conn = $db->getConnection();
+<!-- ============================================================
+SIDEBAR OVERLAY (mobile)
+============================================================ -->
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-// Get counts from database
-$tenantCount = 0;
-$userCount = 0;
-$pendingTickets = 0;
-$securityAlerts = 0;
-$notificationCount = 0;
-
-try {
-    // Total tenants
-    $stmt = $conn->query("SELECT COUNT(*) as count FROM tenants WHERE deleted_at IS NULL");
-    $tenantCount = $stmt->fetch()['count'] ?? 0;
-    
-    // Total users
-    $stmt = $conn->query("SELECT COUNT(*) as count FROM users WHERE deleted_at IS NULL");
-    $userCount = $stmt->fetch()['count'] ?? 0;
-    
-    // Pending support tickets
-    $stmt = $conn->query("SELECT COUNT(*) as count FROM support_tickets WHERE status = 'open' OR status = 'in_progress'");
-    $pendingTickets = $stmt->fetch()['count'] ?? 0;
-    
-    // Security alerts (unresolved security events)
-    $stmt = $conn->query("SELECT COUNT(*) as count FROM security_events WHERE resolved = 0");
-    $securityAlerts = $stmt->fetch()['count'] ?? 0;
-    
-    // Unread notifications
-    $stmt = $conn->query("SELECT COUNT(*) as count FROM notifications WHERE is_read = 0");
-    $notificationCount = $stmt->fetch()['count'] ?? 0;
-    
-    // Get user info if logged in
-    $userName = 'Super Admin';
-    $userRole = 'System Administrator';
-    $userAvatar = '';
-    
-    if (isset($_SESSION['user_id'])) {
-        $stmt = $conn->prepare("SELECT first_name, last_name, email, photograph_url, role_id FROM users WHERE id = ?");
-        $stmt->execute([$_SESSION['user_id']]);
-        $user = $stmt->fetch();
-        if ($user) {
-            $userName = $user['first_name'] . ' ' . $user['last_name'];
-            $userAvatar = $user['photograph_url'] ?? '';
-        }
-    }
-} catch (Exception $e) {
-    // Use default values if queries fail
-}
-?>
-
+<!-- ============================================================
+SIDEBAR
+============================================================ -->
 <aside class="sidebar" id="sidebar">
-    <!-- ============================================================
-    SIDEBAR BRAND
-    ============================================================ -->
     <div class="sidebar-brand">
-        <div class="brand-logo">
-            <i class="fas fa-cube"></i>
-        </div>
-        <div class="brand-text">
-            <span>5G Election Guru</span>
+        <i class="fas fa-bolt"></i>
+        <div>
+            <span><?php echo APP_NAME; ?></span>
             <small>Super Admin</small>
         </div>
-        <button class="sidebar-collapse-btn" id="sidebarCollapse" title="Toggle Sidebar">
-            <i class="fas fa-chevron-left"></i>
-        </button>
     </div>
 
-    <!-- ============================================================
-    SIDEBAR NAVIGATION
-    ============================================================ -->
-    <nav class="nav-section">
-        <!-- Dashboard -->
-        <a href="index.php" class="nav-item <?php echo $page_title === 'Dashboard' ? 'active' : ''; ?>">
-            <i class="fas fa-th-large"></i>
-            <span class="nav-text">Dashboard</span>
-            <span class="nav-badge hot">Live</span>
-        </a>
+    <ul class="sidebar-nav">
+        <li class="nav-label">Main</li>
+        <li><a href="index.php" class="active"><i class="fas fa-th-large"></i> Dashboard</a></li>
+        <li><a href="tenants.php"><i class="fas fa-building"></i> Tenants</a></li>
+        <li><a href="users.php"><i class="fas fa-users"></i> Users</a></li>
 
-        <!-- ============================================================
-        MANAGEMENT GROUP
-        ============================================================ -->
-        <div class="nav-group-label">
-            <span>Management</span>
-        </div>
-
-        <!-- Tenants Dropdown -->
-        <div class="nav-dropdown <?php echo strpos($page_title, 'Tenant') !== false ? 'open' : ''; ?>">
-            <div class="nav-dropdown-header" data-target="tenantMenu">
-                <i class="fas fa-building"></i>
-                <span class="nav-text">Tenants</span>
-                <span class="nav-badge"><?php echo $tenantCount; ?></span>
-                <i class="fas fa-chevron-down dropdown-arrow"></i>
+        <li class="nav-label">Elections</li>
+        <li>
+            <a href="#" class="dropdown-toggle" data-dropdown="elections-dropdown">
+                <i class="fas fa-vote-yea"></i> Elections
+                <i class="fas fa-chevron-down chevron"></i>
+            </a>
+            <div class="dropdown-menu" id="elections-dropdown">
+                <a href="elections.php"><i class="fas fa-list"></i> All Elections</a>
+                <a href="elections-create.php"><i class="fas fa-plus"></i> Create Election</a>
+                <a href="elections-templates.php"><i class="fas fa-copy"></i> Templates</a>
             </div>
-            <div class="nav-dropdown-menu" id="tenantMenu">
-                <a href="tenants.php" class="nav-item <?php echo $page_title === 'Manage Tenants' ? 'active' : ''; ?>">
-                    <i class="fas fa-list"></i>
-                    <span class="nav-text">All Tenants</span>
-                </a>
-                <a href="tenant-edit.php" class="nav-item">
-                    <i class="fas fa-plus-circle"></i>
-                    <span class="nav-text">Create Tenant</span>
-                </a>
-                <a href="tenant-subscriptions.php" class="nav-item">
-                    <i class="fas fa-crown"></i>
-                    <span class="nav-text">Subscriptions</span>
-                </a>
+        </li>
+
+        <li class="nav-label">Management</li>
+        <li>
+            <a href="#" class="dropdown-toggle" data-dropdown="management-dropdown">
+                <i class="fas fa-cogs"></i> Management
+                <i class="fas fa-chevron-down chevron"></i>
+            </a>
+            <div class="dropdown-menu" id="management-dropdown">
+                <a href="subscriptions.php"><i class="fas fa-credit-card"></i> Subscriptions</a>
+                <a href="billing.php"><i class="fas fa-file-invoice"></i> Billing</a>
+                <a href="roles.php"><i class="fas fa-user-shield"></i> Roles</a>
+                <a href="inec-data.php"><i class="fas fa-database"></i> INEC Data</a>
             </div>
-        </div>
+        </li>
 
-        <!-- Users -->
-        <a href="users.php" class="nav-item <?php echo $page_title === 'Manage Users' ? 'active' : ''; ?>">
-            <i class="fas fa-users"></i>
-            <span class="nav-text">All Users</span>
-            <span class="nav-badge"><?php echo $userCount; ?></span>
-        </a>
-
-        <!-- Roles Dropdown -->
-        <div class="nav-dropdown <?php echo strpos($page_title, 'Role') !== false ? 'open' : ''; ?>">
-            <div class="nav-dropdown-header" data-target="rolesMenu">
-                <i class="fas fa-user-shield"></i>
-                <span class="nav-text">System Roles</span>
-                <i class="fas fa-chevron-down dropdown-arrow"></i>
+        <li class="nav-label">System</li>
+        <li>
+            <a href="#" class="dropdown-toggle" data-dropdown="system-dropdown">
+                <i class="fas fa-server"></i> System
+                <i class="fas fa-chevron-down chevron"></i>
+            </a>
+            <div class="dropdown-menu" id="system-dropdown">
+                <a href="audit-logs.php"><i class="fas fa-clipboard-list"></i> Audit Logs</a>
+                <a href="backups.php"><i class="fas fa-archive"></i> Backups</a>
+                <a href="settings.php"><i class="fas fa-cog"></i> Settings</a>
+                <a href="api-management.php"><i class="fas fa-code"></i> API Management</a>
             </div>
-            <div class="nav-dropdown-menu" id="rolesMenu">
-                <a href="roles.php" class="nav-item <?php echo $page_title === 'Manage Roles' ? 'active' : ''; ?>">
-                    <i class="fas fa-list"></i>
-                    <span class="nav-text">All Roles</span>
-                </a>
-                <a href="role-edit.php" class="nav-item">
-                    <i class="fas fa-plus-circle"></i>
-                    <span class="nav-text">Create Role</span>
-                </a>
-                <a href="permissions.php" class="nav-item">
-                    <i class="fas fa-key"></i>
-                    <span class="nav-text">Permissions</span>
-                </a>
-            </div>
-        </div>
+        </li>
 
-        <!-- ============================================================
-        ELECTIONS GROUP
-        ============================================================ -->
-        <div class="nav-group-label">
-            <span>Elections</span>
-        </div>
+        <li class="nav-label">Support</li>
+        <li><a href="tickets.php"><i class="fas fa-ticket-alt"></i> Support Tickets</a></li>
+        <li><a href="reports.php"><i class="fas fa-chart-bar"></i> Reports</a></li>
+    </ul>
 
-        <!-- Elections Dropdown -->
-        <div class="nav-dropdown <?php echo strpos($page_title, 'Election') !== false ? 'open' : ''; ?>">
-            <div class="nav-dropdown-header" data-target="electionMenu">
-                <i class="fas fa-vote-yea"></i>
-                <span class="nav-text">Elections</span>
-                <i class="fas fa-chevron-down dropdown-arrow"></i>
-            </div>
-            <div class="nav-dropdown-menu" id="electionMenu">
-                <a href="elections.php" class="nav-item <?php echo $page_title === 'Elections' ? 'active' : ''; ?>">
-                    <i class="fas fa-list"></i>
-                    <span class="nav-text">All Elections</span>
-                </a>
-                <a href="election-edit.php" class="nav-item">
-                    <i class="fas fa-plus-circle"></i>
-                    <span class="nav-text">Create Election</span>
-                </a>
-                <a href="election-results.php" class="nav-item">
-                    <i class="fas fa-chart-bar"></i>
-                    <span class="nav-text">Results</span>
-                </a>
-                <a href="election-templates.php" class="nav-item">
-                    <i class="fas fa-file-template"></i>
-                    <span class="nav-text">Templates</span>
-                </a>
-            </div>
-        </div>
-
-        <!-- INEC Data -->
-        <a href="inec-upload.php" class="nav-item <?php echo $page_title === 'INEC Data Upload' ? 'active' : ''; ?>">
-            <i class="fas fa-upload"></i>
-            <span class="nav-text">INEC Master Data</span>
-            <span class="nav-badge">Import</span>
-        </a>
-
-        <!-- ============================================================
-        SYSTEM GROUP
-        ============================================================ -->
-        <div class="nav-group-label">
-            <span>System</span>
-        </div>
-
-        <!-- Audit Logs -->
-        <a href="audit-logs.php" class="nav-item <?php echo $page_title === 'Audit Logs' ? 'active' : ''; ?>">
-            <i class="fas fa-history"></i>
-            <span class="nav-text">Audit Logs</span>
-            <span class="nav-badge audit">Live</span>
-        </a>
-
-        <!-- System Settings Dropdown -->
-        <div class="nav-dropdown <?php echo strpos($page_title, 'Setting') !== false ? 'open' : ''; ?>">
-            <div class="nav-dropdown-header" data-target="settingsMenu">
-                <i class="fas fa-cog"></i>
-                <span class="nav-text">System Settings</span>
-                <i class="fas fa-chevron-down dropdown-arrow"></i>
-            </div>
-            <div class="nav-dropdown-menu" id="settingsMenu">
-                <a href="system-settings.php" class="nav-item <?php echo $page_title === 'System Settings' ? 'active' : ''; ?>">
-                    <i class="fas fa-sliders-h"></i>
-                    <span class="nav-text">General Settings</span>
-                </a>
-                <a href="email-settings.php" class="nav-item">
-                    <i class="fas fa-envelope"></i>
-                    <span class="nav-text">Email Settings</span>
-                </a>
-                <a href="sms-settings.php" class="nav-item">
-                    <i class="fas fa-sms"></i>
-                    <span class="nav-text">SMS Settings</span>
-                </a>
-            </div>
-        </div>
-
-        <!-- Backup & Restore -->
-        <a href="backups.php" class="nav-item <?php echo $page_title === 'Backups' ? 'active' : ''; ?>">
-            <i class="fas fa-database"></i>
-            <span class="nav-text">Backup & Restore</span>
-        </a>
-
-        <!-- Security Monitoring -->
-        <a href="security.php" class="nav-item <?php echo $page_title === 'Security Monitoring' ? 'active' : ''; ?>">
-            <i class="fas fa-shield-alt"></i>
-            <span class="nav-text">Security Monitoring</span>
-            <span class="nav-badge security"><?php echo $securityAlerts; ?></span>
-        </a>
-
-        <!-- ============================================================
-        OPERATIONS GROUP
-        ============================================================ -->
-        <div class="nav-group-label">
-            <span>Operations</span>
-        </div>
-
-        <!-- API Management -->
-        <a href="api-management.php" class="nav-item <?php echo $page_title === 'API Management' ? 'active' : ''; ?>">
-            <i class="fas fa-code"></i>
-            <span class="nav-text">API Management</span>
-        </a>
-
-        <!-- Notifications Dropdown -->
-        <div class="nav-dropdown <?php echo strpos($page_title, 'Notification') !== false ? 'open' : ''; ?>">
-            <div class="nav-dropdown-header" data-target="notificationMenu">
-                <i class="fas fa-bell"></i>
-                <span class="nav-text">Notifications</span>
-                <span class="nav-badge notification"><?php echo $notificationCount; ?></span>
-                <i class="fas fa-chevron-down dropdown-arrow"></i>
-            </div>
-            <div class="nav-dropdown-menu" id="notificationMenu">
-                <a href="notifications.php" class="nav-item <?php echo $page_title === 'Notifications' ? 'active' : ''; ?>">
-                    <i class="fas fa-list"></i>
-                    <span class="nav-text">All Notifications</span>
-                </a>
-                <a href="broadcast.php" class="nav-item">
-                    <i class="fas fa-bullhorn"></i>
-                    <span class="nav-text">Send Broadcast</span>
-                </a>
-                <a href="notification-templates.php" class="nav-item">
-                    <i class="fas fa-file-alt"></i>
-                    <span class="nav-text">Templates</span>
-                </a>
-            </div>
-        </div>
-
-        <!-- Support Tickets Dropdown -->
-        <div class="nav-dropdown <?php echo strpos($page_title, 'Support') !== false ? 'open' : ''; ?>">
-            <div class="nav-dropdown-header" data-target="supportMenu">
-                <i class="fas fa-life-ring"></i>
-                <span class="nav-text">Support Tickets</span>
-                <span class="nav-badge support"><?php echo $pendingTickets; ?></span>
-                <i class="fas fa-chevron-down dropdown-arrow"></i>
-            </div>
-            <div class="nav-dropdown-menu" id="supportMenu">
-                <a href="support-tickets.php" class="nav-item <?php echo $page_title === 'Support Tickets' ? 'active' : ''; ?>">
-                    <i class="fas fa-list"></i>
-                    <span class="nav-text">All Tickets</span>
-                </a>
-                <a href="support-tickets.php?status=open" class="nav-item">
-                    <i class="fas fa-clock"></i>
-                    <span class="nav-text">Open Tickets</span>
-                    <span class="nav-badge"><?php echo $pendingTickets; ?></span>
-                </a>
-                <a href="support-tickets.php?status=resolved" class="nav-item">
-                    <i class="fas fa-check-circle"></i>
-                    <span class="nav-text">Resolved</span>
-                </a>
-                <a href="support-tickets.php?status=escalated" class="nav-item">
-                    <i class="fas fa-exclamation-triangle"></i>
-                    <span class="nav-text">Escalated</span>
-                </a>
-            </div>
-        </div>
-
-        <!-- ============================================================
-        ANALYTICS GROUP
-        ============================================================ -->
-        <div class="nav-group-label">
-            <span>Analytics</span>
-        </div>
-
-        <!-- Reports & Analytics Dropdown -->
-        <div class="nav-dropdown <?php echo strpos($page_title, 'Report') !== false ? 'open' : ''; ?>">
-            <div class="nav-dropdown-header" data-target="reportMenu">
-                <i class="fas fa-chart-bar"></i>
-                <span class="nav-text">Reports & Analytics</span>
-                <i class="fas fa-chevron-down dropdown-arrow"></i>
-            </div>
-            <div class="nav-dropdown-menu" id="reportMenu">
-                <a href="reports.php" class="nav-item <?php echo $page_title === 'Reports' ? 'active' : ''; ?>">
-                    <i class="fas fa-file-alt"></i>
-                    <span class="nav-text">All Reports</span>
-                </a>
-                <a href="reports.php?type=financial" class="nav-item">
-                    <i class="fas fa-money-bill-wave"></i>
-                    <span class="nav-text">Financial Reports</span>
-                </a>
-                <a href="reports.php?type=election" class="nav-item">
-                    <i class="fas fa-vote-yea"></i>
-                    <span class="nav-text">Election Reports</span>
-                </a>
-                <a href="reports.php?type=user" class="nav-item">
-                    <i class="fas fa-users"></i>
-                    <span class="nav-text">User Analytics</span>
-                </a>
-                <a href="reports.php?type=tenant" class="nav-item">
-                    <i class="fas fa-building"></i>
-                    <span class="nav-text">Tenant Analytics</span>
-                </a>
-            </div>
-        </div>
-
-        <!-- Billing & Invoices Dropdown -->
-        <div class="nav-dropdown <?php echo strpos($page_title, 'Billing') !== false ? 'open' : ''; ?>">
-            <div class="nav-dropdown-header" data-target="billingMenu">
-                <i class="fas fa-receipt"></i>
-                <span class="nav-text">Billing & Invoices</span>
-                <i class="fas fa-chevron-down dropdown-arrow"></i>
-            </div>
-            <div class="nav-dropdown-menu" id="billingMenu">
-                <a href="billing.php" class="nav-item <?php echo $page_title === 'Billing' ? 'active' : ''; ?>">
-                    <i class="fas fa-list"></i>
-                    <span class="nav-text">All Invoices</span>
-                </a>
-                <a href="billing.php?status=unpaid" class="nav-item">
-                    <i class="fas fa-exclamation-circle"></i>
-                    <span class="nav-text">Unpaid Invoices</span>
-                    <span class="nav-badge warning">5</span>
-                </a>
-                <a href="billing.php?status=paid" class="nav-item">
-                    <i class="fas fa-check-circle"></i>
-                    <span class="nav-text">Paid Invoices</span>
-                </a>
-                <a href="subscription-plans.php" class="nav-item">
-                    <i class="fas fa-crown"></i>
-                    <span class="nav-text">Subscription Plans</span>
-                </a>
-            </div>
-        </div>
-
-        <!-- ============================================================
-        DIVIDER & LOGOUT
-        ============================================================ -->
-        <hr class="nav-divider">
-
-        <a href="#" class="nav-item logout-item" onclick="confirmLogout()">
-            <i class="fas fa-sign-out-alt"></i>
-            <span class="nav-text">Logout</span>
-        </a>
-    </nav>
-
-    <!-- ============================================================
-    SIDEBAR FOOTER
-    ============================================================ -->
     <div class="sidebar-footer">
-        <div class="user-profile">
-            <div class="user-avatar">
-                <?php if (!empty($userAvatar)): ?>
-                <img src="<?php echo htmlspecialchars($userAvatar); ?>" alt="User Avatar">
-                <?php else: ?>
-                <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 40 40'%3E%3Ccircle cx='20' cy='20' r='18' fill='%23b3cef0'/%3E%3Ccircle cx='20' cy='14' r='6' fill='%23577a9e'/%3E%3Cpath d='M8 32c0-6 5-10 12-10s12 4 12 10' fill='%23577a9e'/%3E%3C/svg%3E" alt="User Avatar">
-                <?php endif; ?>
-            </div>
-            <div class="user-info">
-                <div class="user-name"><?php echo htmlspecialchars($userName); ?></div>
-                <div class="user-role"><?php echo htmlspecialchars($userRole); ?></div>
+        <div class="user-info">
+            <div class="user-avatar"><?php echo strtoupper(substr($user_name, 0, 2)); ?></div>
+            <div>
+                <div class="user-name text-truncate"><?php echo htmlspecialchars($user_name); ?></div>
+                <div class="user-role">Super Admin</div>
             </div>
         </div>
-        <div class="sidebar-status">
-            <span class="status-dot online"></span>
-            <span class="status-text">Online</span>
-            <span class="version">v3.1.0</span>
-        </div>
+        <a href="../../auth/logout.php" class="logout-btn">
+            <i class="fas fa-sign-out-alt"></i> Logout
+        </a>
     </div>
 </aside>

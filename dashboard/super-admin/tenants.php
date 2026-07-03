@@ -1,1678 +1,1396 @@
 <?php
-$page_title = "Manage Tenants";
-require_once 'includes/db.php';
-$db = Database::getInstance()->getConnection();
+// ============================================================
+// TENANT MANAGEMENT - SUPER ADMINISTRATOR
+// ============================================================
+require_once '../../config/config.php';
+require_once '../../includes/session.php';
+require_once '../../includes/functions.php';
 
-// ============================================================
-// HELPER: GET FULL IMAGE URL
-// ============================================================
-function getTenantImageUrl($logo_url) {
-    if (empty($logo_url)) {
-        return null;
-    }
-    
-    // If it's already a full URL
-    if (preg_match('/^https?:\/\//', $logo_url)) {
-        return $logo_url;
-    }
-    
-    // If it starts with /uploads/
-    if (strpos($logo_url, '/uploads/') === 0) {
-        return $logo_url;
-    }
-    
-    // If it starts with uploads/ (no leading slash)
-    if (strpos($logo_url, 'uploads/') === 0) {
-        return '/' . $logo_url;
-    }
-    
-    // Default: assume it's in the tenants directory
-    return '/uploads/tenants/' . ltrim($logo_url, '/');
+// Start session and check login
+SessionManager::start();
+
+// Redirect if not logged in
+if (!SessionManager::isLoggedIn()) {
+    header('Location: ../../auth/login.php');
+    exit();
 }
 
-// ============================================================
-// HANDLE ACTIONS
-// ============================================================
-$action = $_GET['action'] ?? '';
-$tenant_id = $_GET['id'] ?? 0;
-$message = '';
-$error = '';
-$message_type = '';
+// Check role - only super_admin can access this page
+if (SessionManager::get('role_level') !== 'super_admin') {
+    header('Location: ../client-admin/');
+    exit();
+}
 
-// Handle POST actions
+// Get database connection
+$db = getDB();
+
+// ============================================================
+// HANDLE ACTIONS (POST Requests)
+// ============================================================
+$action_result = ['success' => false, 'message' => ''];
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $post_action = $_POST['action'] ?? '';
-    $tenant_id = (int)($_POST['tenant_id'] ?? 0);
+    $action = $_POST['action'] ?? '';
+    $tenant_id = isset($_POST['tenant_id']) ? (int)$_POST['tenant_id'] : 0;
     
     try {
-        switch ($post_action) {
+        switch ($action) {
             case 'suspend':
-                $stmt = $db->prepare("UPDATE tenants SET subscription_status = 'suspended', updated_at = NOW() WHERE id = ? AND deleted_at IS NULL");
+                $stmt = $db->prepare("UPDATE tenants SET is_active = 0, updated_at = NOW() WHERE id = ? AND deleted_at IS NULL");
                 $stmt->execute([$tenant_id]);
-                $message = "Tenant suspended successfully.";
-                $message_type = 'success';
+                if ($stmt->rowCount() > 0) {
+                    $action_result = ['success' => true, 'message' => 'Tenant suspended successfully.'];
+                    logActivity(SessionManager::get('user_id'), 'tenant_suspended', "Suspended tenant ID: $tenant_id");
+                }
                 break;
                 
             case 'activate':
-                $stmt = $db->prepare("UPDATE tenants SET subscription_status = 'active', updated_at = NOW() WHERE id = ? AND deleted_at IS NULL");
+                $stmt = $db->prepare("UPDATE tenants SET is_active = 1, updated_at = NOW() WHERE id = ? AND deleted_at IS NULL");
                 $stmt->execute([$tenant_id]);
-                $message = "Tenant activated successfully.";
-                $message_type = 'success';
+                if ($stmt->rowCount() > 0) {
+                    $action_result = ['success' => true, 'message' => 'Tenant activated successfully.'];
+                    logActivity(SessionManager::get('user_id'), 'tenant_activated', "Activated tenant ID: $tenant_id");
+                }
                 break;
                 
             case 'delete':
-                $stmt = $db->prepare("UPDATE tenants SET deleted_at = NOW(), updated_at = NOW() WHERE id = ?");
+                // Soft delete
+                $stmt = $db->prepare("UPDATE tenants SET deleted_at = NOW() WHERE id = ?");
                 $stmt->execute([$tenant_id]);
-                $message = "Tenant deleted successfully.";
-                $message_type = 'success';
+                if ($stmt->rowCount() > 0) {
+                    $action_result = ['success' => true, 'message' => 'Tenant deleted successfully.'];
+                    logActivity(SessionManager::get('user_id'), 'tenant_deleted', "Deleted tenant ID: $tenant_id");
+                }
                 break;
                 
             case 'reset_password':
-                $new_password = bin2hex(random_bytes(8));
+                $new_password = generateRandomPassword(12);
                 $password_hash = password_hash($new_password, PASSWORD_DEFAULT);
                 
-                $stmt = $db->prepare("UPDATE users SET password_hash = ? WHERE tenant_id = ? AND role_id = (SELECT id FROM roles WHERE slug = 'client_admin' LIMIT 1)");
+                $stmt = $db->prepare("UPDATE users SET password_hash = ? WHERE tenant_id = ? AND role_id IN (SELECT id FROM roles WHERE level = 'client_admin')");
                 $stmt->execute([$password_hash, $tenant_id]);
                 
-                $message = "Password reset successfully. New password: <strong>{$new_password}</strong>";
-                $message_type = 'info';
+                if ($stmt->rowCount() > 0) {
+                    // Get admin email
+                    $stmt = $db->prepare("SELECT email FROM users WHERE tenant_id = ? AND role_id IN (SELECT id FROM roles WHERE level = 'client_admin') LIMIT 1");
+                    $stmt->execute([$tenant_id]);
+                    $admin = $stmt->fetch();
+                    
+                    if ($admin && !empty($admin['email'])) {
+                        // Send email with new password
+                        $subject = "Admin Password Reset - " . APP_NAME;
+                        $message = "Your admin password has been reset.\n\nNew Password: " . $new_password . "\n\nPlease change your password after logging in.";
+                        sendEmail($admin['email'], $subject, $message);
+                    }
+                    
+                    $action_result = ['success' => true, 'message' => 'Admin password reset successfully. New password sent via email.'];
+                    logActivity(SessionManager::get('user_id'), 'tenant_password_reset', "Reset admin password for tenant ID: $tenant_id");
+                } else {
+                    $action_result = ['success' => false, 'message' => 'No admin user found for this tenant.'];
+                }
                 break;
                 
-            case 'bulk_action':
-                $bulk_action = $_POST['bulk_action'] ?? '';
-                $tenant_ids = $_POST['tenant_ids'] ?? [];
+            case 'impersonate':
+                // Login as tenant admin
+                $stmt = $db->prepare("SELECT u.id, u.full_name, u.email, u.role_id, r.level, r.slug FROM users u JOIN roles r ON u.role_id = r.id WHERE u.tenant_id = ? AND r.level = 'client_admin' LIMIT 1");
+                $stmt->execute([$tenant_id]);
+                $admin = $stmt->fetch();
                 
-                if (!empty($tenant_ids) && is_array($tenant_ids)) {
-                    $placeholders = implode(',', array_fill(0, count($tenant_ids), '?'));
+                if ($admin) {
+                    // Store original user ID for return
+                    $_SESSION['impersonating'] = SessionManager::get('user_id');
+                    $_SESSION['original_role'] = SessionManager::get('role_level');
                     
-                    switch ($bulk_action) {
-                        case 'activate':
-                            $stmt = $db->prepare("UPDATE tenants SET subscription_status = 'active', updated_at = NOW() WHERE id IN ($placeholders) AND deleted_at IS NULL");
-                            $stmt->execute($tenant_ids);
-                            $message = count($tenant_ids) . " tenants activated successfully.";
-                            $message_type = 'success';
-                            break;
-                        case 'suspend':
-                            $stmt = $db->prepare("UPDATE tenants SET subscription_status = 'suspended', updated_at = NOW() WHERE id IN ($placeholders) AND deleted_at IS NULL");
-                            $stmt->execute($tenant_ids);
-                            $message = count($tenant_ids) . " tenants suspended successfully.";
-                            $message_type = 'success';
-                            break;
-                        case 'delete':
-                            $stmt = $db->prepare("UPDATE tenants SET deleted_at = NOW(), updated_at = NOW() WHERE id IN ($placeholders)");
-                            $stmt->execute($tenant_ids);
-                            $message = count($tenant_ids) . " tenants deleted successfully.";
-                            $message_type = 'success';
-                            break;
+                    // Set session as tenant admin
+                    SessionManager::set('user_id', $admin['id']);
+                    SessionManager::set('user_name', $admin['full_name']);
+                    SessionManager::set('user_email', $admin['email']);
+                    SessionManager::set('user_role', $admin['role_id']);
+                    SessionManager::set('role_level', $admin['level']);
+                    SessionManager::set('role_slug', $admin['slug']);
+                    SessionManager::set('role', $admin['level']);
+                    SessionManager::set('tenant_id', $tenant_id);
+                    SessionManager::set('impersonating_tenant', true);
+                    
+                    header('Location: ../client-admin/');
+                    exit();
+                } else {
+                    $action_result = ['success' => false, 'message' => 'No admin user found to impersonate.'];
+                }
+                break;
+                
+            case 'upload_logo':
+                if (isset($_FILES['logo']) && $_FILES['logo']['error'] === UPLOAD_ERR_OK) {
+                    $upload_dir = '../../uploads/tenants/';
+                    if (!file_exists($upload_dir)) {
+                        mkdir($upload_dir, 0777, true);
                     }
+                    
+                    $extension = pathinfo($_FILES['logo']['name'], PATHINFO_EXTENSION);
+                    $filename = 'tenant_' . time() . '_' . uniqid() . '.' . $extension;
+                    $filepath = $upload_dir . $filename;
+                    
+                    if (move_uploaded_file($_FILES['logo']['tmp_name'], $filepath)) {
+                        $logo_url = '/uploads/tenants/' . $filename;
+                        $stmt = $db->prepare("UPDATE tenants SET logo_url = ? WHERE id = ?");
+                        $stmt->execute([$logo_url, $tenant_id]);
+                        $action_result = ['success' => true, 'message' => 'Logo uploaded successfully.'];
+                        logActivity(SessionManager::get('user_id'), 'tenant_logo_uploaded', "Uploaded logo for tenant ID: $tenant_id");
+                    } else {
+                        $action_result = ['success' => false, 'message' => 'Failed to upload logo.'];
+                    }
+                } else {
+                    $action_result = ['success' => false, 'message' => 'No file uploaded or upload error.'];
                 }
                 break;
         }
     } catch (Exception $e) {
-        $error = "Error: " . $e->getMessage();
-        $message_type = 'error';
+        $action_result = ['success' => false, 'message' => 'Error: ' . $e->getMessage()];
     }
 }
 
 // ============================================================
-// GET TENANT DATA
+// FETCH TENANTS WITH PAGINATION & FILTERS
 // ============================================================
-$search = $_GET['search'] ?? '';
-$filter_plan = $_GET['plan'] ?? '';
-$filter_status = $_GET['status'] ?? '';
-$sort_by = $_GET['sort'] ?? 'created_at';
-$sort_order = $_GET['order'] ?? 'DESC';
-$per_page = 20;
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-$offset = ($page - 1) * $per_page;
+$limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 15;
+$offset = ($page - 1) * $limit;
+$search = isset($_GET['search']) ? trim($_GET['search']) : '';
+$status_filter = isset($_GET['status']) ? $_GET['status'] : '';
+$plan_filter = isset($_GET['plan']) ? $_GET['plan'] : '';
+$sort_by = isset($_GET['sort']) ? $_GET['sort'] : 'created_at';
+$sort_order = isset($_GET['order']) && $_GET['order'] === 'asc' ? 'ASC' : 'DESC';
 
-// Build base query
-$base_query = "FROM tenants t
-               LEFT JOIN users u ON u.tenant_id = t.id AND u.deleted_at IS NULL
-               LEFT JOIN elections e ON e.tenant_id = t.id AND e.deleted_at IS NULL
-               LEFT JOIN subscriptions s ON s.tenant_id = t.id
-               WHERE t.deleted_at IS NULL";
-
+// Build WHERE clause
+$where_conditions = ["t.deleted_at IS NULL"];
 $params = [];
 
-if ($search) {
-    $base_query .= " AND (t.name LIKE ? OR t.slug LIKE ? OR t.contact_email LIKE ? OR t.contact_phone LIKE ?)";
+if (!empty($search)) {
+    $where_conditions[] = "(t.name LIKE ? OR t.slug LIKE ? OR t.contact_email LIKE ? OR t.contact_phone LIKE ?)";
     $search_param = "%$search%";
     $params = array_merge($params, [$search_param, $search_param, $search_param, $search_param]);
 }
 
-if ($filter_plan) {
-    $base_query .= " AND t.subscription_plan = ?";
-    $params[] = $filter_plan;
+if (!empty($status_filter)) {
+    if ($status_filter === 'active') {
+        $where_conditions[] = "t.is_active = 1";
+    } elseif ($status_filter === 'suspended') {
+        $where_conditions[] = "t.is_active = 0";
+    } elseif ($status_filter === 'trial') {
+        $where_conditions[] = "t.subscription_status = 'trial'";
+    } elseif ($status_filter === 'expired') {
+        $where_conditions[] = "t.subscription_status = 'expired'";
+    } elseif ($status_filter === 'active_subscription') {
+        $where_conditions[] = "t.subscription_status = 'active'";
+    }
 }
 
-if ($filter_status) {
-    $base_query .= " AND t.subscription_status = ?";
-    $params[] = $filter_status;
+if (!empty($plan_filter)) {
+    $where_conditions[] = "t.subscription_plan = ?";
+    $params[] = $plan_filter;
 }
 
-// Get total count
-$count_query = "SELECT COUNT(DISTINCT t.id) as total " . $base_query;
-$count_stmt = $db->prepare($count_query);
-$count_stmt->execute($params);
-$total_count = $count_stmt->fetch()['total'];
-$total_pages = ceil($total_count / $per_page);
+$where_clause = implode(" AND ", $where_conditions);
 
-// Get paginated results
-$query = "SELECT 
+// Count total
+$count_sql = "SELECT COUNT(*) as total FROM tenants t WHERE $where_clause";
+$stmt = $db->prepare($count_sql);
+$stmt->execute($params);
+$total_tenants = $stmt->fetch()['total'] ?? 0;
+$total_pages = ceil($total_tenants / $limit);
+
+// Fetch tenants
+$sql = "SELECT 
             t.*,
-            COUNT(DISTINCT u.id) as user_count,
-            COUNT(DISTINCT e.id) as election_count,
-            COUNT(DISTINCT s.id) as subscription_count,
-            (SELECT COUNT(*) FROM invoices WHERE tenant_id = t.id AND status = 'paid') as invoice_count
-          " . $base_query . "
-          GROUP BY t.id 
-          ORDER BY t.$sort_by $sort_order 
-          LIMIT ? OFFSET ?";
+            u.full_name as admin_name,
+            u.email as admin_email,
+            (SELECT COUNT(*) FROM users WHERE tenant_id = t.id AND deleted_at IS NULL) as user_count
+        FROM tenants t
+        LEFT JOIN users u ON t.created_by = u.id
+        WHERE $where_clause
+        ORDER BY t.$sort_by $sort_order
+        LIMIT ? OFFSET ?";
 
-$params[] = $per_page;
+$params[] = $limit;
 $params[] = $offset;
 
-$tenants = $db->prepare($query);
-$tenants->execute($params);
-$tenants = $tenants->fetchAll();
+$stmt = $db->prepare($sql);
+$stmt->execute($params);
+$tenants = $stmt->fetchAll();
 
-// Get filter options
-$plans = ['free', 'basic', 'standard', 'premium', 'enterprise'];
-$statuses = ['trial', 'active', 'suspended', 'expired', 'cancelled'];
+// ============================================================
+// FETCH STATISTICS FOR SUMMARY CARDS
+// ============================================================
+$stats = [
+    'total' => 0,
+    'active' => 0,
+    'suspended' => 0,
+    'trial' => 0,
+    'expired' => 0,
+    'total_users' => 0
+];
 
-// Get tenant stats
-$stats_query = "SELECT 
-                   COUNT(*) as total,
-                   SUM(CASE WHEN subscription_status = 'active' THEN 1 ELSE 0 END) as active,
-                   SUM(CASE WHEN subscription_status = 'suspended' THEN 1 ELSE 0 END) as suspended,
-                   SUM(CASE WHEN subscription_status = 'trial' THEN 1 ELSE 0 END) as trial,
-                   SUM(CASE WHEN subscription_status = 'expired' THEN 1 ELSE 0 END) as expired
-                 FROM tenants WHERE deleted_at IS NULL";
-$stats = $db->query($stats_query)->fetch();
+try {
+    $stmt = $db->query("SELECT COUNT(*) as total FROM tenants WHERE deleted_at IS NULL");
+    $stats['total'] = $stmt->fetch()['total'] ?? 0;
+
+    $stmt = $db->query("SELECT COUNT(*) as total FROM tenants WHERE is_active = 1 AND deleted_at IS NULL");
+    $stats['active'] = $stmt->fetch()['total'] ?? 0;
+
+    $stmt = $db->query("SELECT COUNT(*) as total FROM tenants WHERE is_active = 0 AND deleted_at IS NULL");
+    $stats['suspended'] = $stmt->fetch()['total'] ?? 0;
+
+    $stmt = $db->query("SELECT COUNT(*) as total FROM tenants WHERE subscription_status = 'trial' AND deleted_at IS NULL");
+    $stats['trial'] = $stmt->fetch()['total'] ?? 0;
+
+    $stmt = $db->query("SELECT COUNT(*) as total FROM tenants WHERE subscription_status = 'expired' AND deleted_at IS NULL");
+    $stats['expired'] = $stmt->fetch()['total'] ?? 0;
+
+    $stmt = $db->query("SELECT COUNT(*) as total FROM users WHERE deleted_at IS NULL");
+    $stats['total_users'] = $stmt->fetch()['total'] ?? 0;
+} catch (Exception $e) {
+    // Log error but continue
+}
+
+// Get user info
+$user_name = SessionManager::get('user_name', 'Administrator');
+$user_email = SessionManager::get('user_email', 'admin@example.com');
 
 include 'includes/base.php';
+include 'includes/sidebar.php';
 ?>
-<?php include 'includes/sidebar.php'; ?>
-<?php include 'includes/header.php'; ?>
-
 <style>
-/* ============================================================
-   PROFESSIONAL TENANT MANAGEMENT STYLES
-   ============================================================ */
-
-/* Page Header */
-.page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    margin-bottom: 28px;
-    flex-wrap: wrap;
-    gap: 16px;
-}
-
-.page-header .header-left h1 {
-    font-size: 1.8rem;
-    font-weight: 600;
-    color: #0b1a33;
-    margin: 0;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.page-header .header-left h1 .page-badge {
-    font-size: 0.6rem;
-    background: #4f9cf7;
-    color: white;
-    padding: 2px 12px;
-    border-radius: 30px;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-
-.page-header .header-left .subtitle {
-    color: #6d83a5;
-    font-size: 0.95rem;
-    margin-top: 4px;
-}
-
-.page-header .header-actions {
-    display: flex;
-    gap: 12px;
-    align-items: center;
-    flex-wrap: wrap;
-}
-
-/* Stats Cards */
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 16px;
-    margin-bottom: 24px;
-}
-
-.stat-card {
-    background: white;
-    border-radius: 14px;
-    padding: 18px 20px;
-    border: 1px solid #eef3f8;
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    transition: all 0.2s ease;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.03);
-}
-
-.stat-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
-}
-
-.stat-card .stat-icon {
-    width: 44px;
-    height: 44px;
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.2rem;
-    flex-shrink: 0;
-}
-
-.stat-card .stat-icon.total { background: #e8f0fe; color: #4f9cf7; }
-.stat-card .stat-icon.active { background: #d1fae5; color: #10b981; }
-.stat-card .stat-icon.suspended { background: #fef3c7; color: #f59e0b; }
-.stat-card .stat-icon.trial { background: #ede9fe; color: #8b5cf6; }
-.stat-card .stat-icon.expired { background: #fee2e2; color: #ef4444; }
-
-.stat-card .stat-info {
-    flex: 1;
-}
-
-.stat-card .stat-number {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: #0b1a33;
-    line-height: 1.2;
-}
-
-.stat-card .stat-label {
-    font-size: 0.75rem;
-    color: #6d83a5;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-}
-
-/* Filter Bar */
-.filter-bar {
-    background: white;
-    border-radius: 14px;
-    padding: 16px 20px;
-    margin-bottom: 24px;
-    border: 1px solid #eef3f8;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.03);
-}
-
-.filter-bar .filter-form {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    align-items: center;
-}
-
-.filter-bar .filter-group {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    background: #f8faff;
-    border: 1px solid #e8edf4;
-    border-radius: 10px;
-    padding: 0 14px;
-    transition: all 0.2s ease;
-    flex: 1;
-    min-width: 160px;
-}
-
-.filter-bar .filter-group:focus-within {
-    border-color: #4f9cf7;
-    box-shadow: 0 0 0 3px rgba(79, 156, 247, 0.1);
-    background: white;
-}
-
-.filter-bar .filter-group i {
-    color: #8b9bb5;
-    font-size: 0.85rem;
-}
-
-.filter-bar .filter-group input,
-.filter-bar .filter-group select {
-    border: none;
-    padding: 10px 0;
-    background: transparent;
-    font-size: 0.85rem;
-    color: #1f3149;
-    width: 100%;
-    outline: none;
-}
-
-.filter-bar .filter-group select {
-    cursor: pointer;
-    appearance: none;
-    padding-right: 20px;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238b9bb5' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right center;
-}
-
-.filter-bar .filter-actions {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    flex-wrap: wrap;
-}
-
-.filter-bar .filter-actions .btn-primary,
-.filter-bar .filter-actions .btn-secondary {
-    padding: 9px 20px;
-    font-size: 0.85rem;
-    white-space: nowrap;
-}
-
-/* Table Container */
-.table-container {
-    background: white;
-    border-radius: 14px;
-    overflow: hidden;
-    border: 1px solid #eef3f8;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.03);
-}
-
-.table-toolbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 16px 20px;
-    border-bottom: 1px solid #f0f4fa;
-    flex-wrap: wrap;
-    gap: 12px;
-}
-
-.table-toolbar .toolbar-left {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.table-toolbar .toolbar-left .bulk-actions {
-    display: flex;
-    gap: 6px;
-    align-items: center;
-}
-
-.table-toolbar .toolbar-left .bulk-actions select {
-    padding: 6px 12px;
-    border: 1px solid #dce6f0;
-    border-radius: 8px;
-    font-size: 0.8rem;
-    background: white;
-    color: #1f3149;
-    outline: none;
-}
-
-.table-toolbar .toolbar-left .bulk-actions select:focus {
-    border-color: #4f9cf7;
-}
-
-.table-toolbar .toolbar-right {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    font-size: 0.8rem;
-    color: #6d83a5;
-}
-
-/* Data Table */
-.data-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.9rem;
-}
-
-.data-table thead {
-    background: #f8faff;
-    border-bottom: 1px solid #eef3f8;
-}
-
-.data-table thead th {
-    padding: 12px 16px;
-    text-align: left;
-    font-weight: 600;
-    color: #405473;
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    position: sticky;
-    top: 0;
-    background: #f8faff;
-    z-index: 2;
-}
-
-.data-table thead th a {
-    color: inherit;
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.data-table thead th a:hover {
-    color: #4f9cf7;
-}
-
-.data-table thead th a i {
-    font-size: 0.6rem;
-    opacity: 0.6;
-}
-
-.data-table tbody tr {
-    transition: background 0.15s;
-    border-bottom: 1px solid #f5f8fc;
-}
-
-.data-table tbody tr:last-child {
-    border-bottom: none;
-}
-
-.data-table tbody tr:hover {
-    background: #f8faff;
-}
-
-.data-table tbody td {
-    padding: 12px 16px;
-    vertical-align: middle;
-    color: #1f3149;
-}
-
-.data-table tbody td .checkbox-wrapper {
-    display: flex;
-    align-items: center;
-}
-
-.data-table tbody td .checkbox-wrapper input[type="checkbox"] {
-    width: 16px;
-    height: 16px;
-    accent-color: #4f9cf7;
-    cursor: pointer;
-}
-
-/* Tenant Cell */
-.tenant-cell {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    min-width: 200px;
-}
-
-.tenant-cell .tenant-avatar-wrapper {
-    position: relative;
-    width: 40px;
-    height: 40px;
-    flex-shrink: 0;
-}
-
-.tenant-cell .tenant-avatar {
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
-    object-fit: cover;
-    border: 2px solid #eef3f8;
-    display: block;
-    background: #f0f4fa;
-}
-
-.tenant-cell .tenant-avatar-placeholder {
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
-    background: linear-gradient(135deg, #4f9cf7, #3b82d6);
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 600;
-    font-size: 0.9rem;
-    flex-shrink: 0;
-}
-
-.tenant-cell .tenant-info {
-    min-width: 0;
-}
-
-.tenant-cell .tenant-name {
-    font-weight: 500;
-    color: #0b1a33;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.tenant-cell .tenant-meta {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 0.7rem;
-    color: #8b9bb5;
-    flex-wrap: wrap;
-}
-
-.tenant-cell .tenant-meta .tenant-slug {
-    background: #f0f4fa;
-    padding: 0 8px;
-    border-radius: 30px;
-}
-
-/* Badges */
-.plan-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 0.7rem;
-    padding: 4px 12px;
-    border-radius: 30px;
-    font-weight: 500;
-    text-transform: capitalize;
-}
-
-.plan-badge.free { background: #f3f4f6; color: #4b5563; }
-.plan-badge.basic { background: #dbeafe; color: #1e40af; }
-.plan-badge.standard { background: #d1fae5; color: #065f46; }
-.plan-badge.premium { background: #fef3c7; color: #92400e; }
-.plan-badge.enterprise { background: #ede9fe; color: #5b21b6; }
-
-.status-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 0.7rem;
-    padding: 4px 12px;
-    border-radius: 30px;
-    font-weight: 500;
-    text-transform: capitalize;
-}
-
-.status-badge.active { background: #d1fae5; color: #065f46; }
-.status-badge.suspended { background: #fef3c7; color: #92400e; }
-.status-badge.trial { background: #dbeafe; color: #1e40af; }
-.status-badge.expired { background: #fee2e2; color: #991b1b; }
-.status-badge.cancelled { background: #f3f4f6; color: #4b5563; }
-
-/* Action Buttons */
-.action-buttons {
-    display: flex;
-    gap: 2px;
-    flex-wrap: wrap;
-}
-
-.action-buttons .btn-icon {
-    width: 32px;
-    height: 32px;
-    border: none;
-    background: transparent;
-    border-radius: 8px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    color: #6d83a5;
-    cursor: pointer;
-    transition: all 0.15s;
-    font-size: 0.85rem;
-    text-decoration: none;
-    position: relative;
-}
-
-.action-buttons .btn-icon:hover {
-    background: #f0f5fe;
-    color: #1f3d6b;
-    transform: translateY(-1px);
-}
-
-.action-buttons .btn-icon .tooltip {
-    display: none;
-    position: absolute;
-    bottom: calc(100% + 8px);
-    left: 50%;
-    transform: translateX(-50%);
-    background: #0b1a33;
-    color: white;
-    padding: 4px 10px;
-    border-radius: 6px;
-    font-size: 0.65rem;
-    white-space: nowrap;
-    z-index: 10;
-}
-
-.action-buttons .btn-icon:hover .tooltip {
-    display: block;
-}
-
-.action-buttons .btn-icon .tooltip::after {
-    content: '';
-    position: absolute;
-    top: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    border: 5px solid transparent;
-    border-top-color: #0b1a33;
-}
-
-.action-buttons .btn-icon.view { color: #4f9cf7; }
-.action-buttons .btn-icon.view:hover { background: #e8f0fe; }
-.action-buttons .btn-icon.edit { color: #8b5cf6; }
-.action-buttons .btn-icon.edit:hover { background: #ede9fe; }
-.action-buttons .btn-icon.activate { color: #10b981; }
-.action-buttons .btn-icon.activate:hover { background: #d1fae5; }
-.action-buttons .btn-icon.suspend { color: #f59e0b; }
-.action-buttons .btn-icon.suspend:hover { background: #fef3c7; }
-.action-buttons .btn-icon.reset { color: #8b5cf6; }
-.action-buttons .btn-icon.reset:hover { background: #ede9fe; }
-.action-buttons .btn-icon.impersonate { color: #4f9cf7; }
-.action-buttons .btn-icon.impersonate:hover { background: #dbeafe; }
-.action-buttons .btn-icon.delete { color: #ef4444; }
-.action-buttons .btn-icon.delete:hover { background: #fee2e2; }
-
-/* Pagination */
-.pagination {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 16px 20px;
-    border-top: 1px solid #f0f4fa;
-    flex-wrap: wrap;
-    gap: 12px;
-}
-
-.pagination .pagination-info {
-    font-size: 0.85rem;
-    color: #6d83a5;
-}
-
-.pagination .pagination-info strong {
-    color: #1f3149;
-}
-
-.pagination .pagination-links {
-    display: flex;
-    gap: 4px;
-    align-items: center;
-}
-
-.pagination .pagination-links a,
-.pagination .pagination-links span {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 36px;
-    height: 36px;
-    padding: 0 12px;
-    border-radius: 8px;
-    font-size: 0.85rem;
-    color: #405473;
-    text-decoration: none;
-    transition: all 0.15s;
-}
-
-.pagination .pagination-links a:hover {
-    background: #f0f5fe;
-    color: #4f9cf7;
-}
-
-.pagination .pagination-links a.active {
-    background: #4f9cf7;
-    color: white;
-}
-
-.pagination .pagination-links .ellipsis {
-    color: #8b9bb5;
-}
-
-/* Modal */
-.modal {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 1000;
-}
-
-.modal.active {
-    display: block;
-}
-
-.modal .modal-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(11, 26, 51, 0.6);
-    backdrop-filter: blur(4px);
-    animation: fadeIn 0.2s ease;
-}
-
-.modal .modal-content {
-    position: relative;
-    max-width: 720px;
-    margin: 60px auto;
-    background: white;
-    border-radius: 20px;
-    box-shadow: 0 32px 64px rgba(0,0,0,0.2);
-    max-height: calc(100vh - 120px);
-    overflow: hidden;
-    animation: slideUp 0.3s ease;
-}
-
-.modal .modal-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 20px 24px;
-    border-bottom: 1px solid #eef3f8;
-    background: #f8faff;
-}
-
-.modal .modal-header h2 {
-    font-size: 1.2rem;
-    font-weight: 600;
-    color: #0b1a33;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.modal .modal-header h2 i {
-    color: #4f9cf7;
-}
-
-.modal .modal-close {
-    background: none;
-    border: none;
-    font-size: 1.5rem;
-    color: #8b9bb5;
-    cursor: pointer;
-    padding: 4px 8px;
-    border-radius: 8px;
-    transition: 0.15s;
-}
-
-.modal .modal-close:hover {
-    background: #f0f4fa;
-    color: #1f3149;
-}
-
-.modal .modal-body {
-    padding: 24px;
-    overflow-y: auto;
-    max-height: calc(100vh - 200px);
-}
-
-/* Alerts */
-.alert {
-    padding: 14px 20px;
-    border-radius: 12px;
-    margin-bottom: 20px;
-    font-size: 0.9rem;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    animation: slideDown 0.3s ease;
-}
-
-.alert i {
-    font-size: 1.2rem;
-    flex-shrink: 0;
-}
-
-.alert-success {
-    background: #d1fae5;
-    color: #065f46;
-    border: 1px solid #a7f3d0;
-}
-
-.alert-success i { color: #10b981; }
-
-.alert-error {
-    background: #fee2e2;
-    color: #991b1b;
-    border: 1px solid #fecaca;
-}
-
-.alert-error i { color: #ef4444; }
-
-.alert-info {
-    background: #dbeafe;
-    color: #1e40af;
-    border: 1px solid #bfdbfe;
-}
-
-.alert-info i { color: #4f9cf7; }
-
-.alert .alert-close {
-    margin-left: auto;
-    background: none;
-    border: none;
-    color: inherit;
-    opacity: 0.6;
-    cursor: pointer;
-    font-size: 1.1rem;
-    padding: 4px;
-}
-
-.alert .alert-close:hover {
-    opacity: 1;
-}
-
-/* Empty State */
-.empty-table {
-    text-align: center;
-    padding: 60px 20px !important;
-    color: #8b9bb5;
-}
-
-.empty-table i {
-    font-size: 3rem;
-    color: #dce6f0;
-    display: block;
-    margin-bottom: 16px;
-}
-
-.empty-table h3 {
-    font-size: 1.1rem;
-    color: #1f3149;
-    margin-bottom: 8px;
-}
-
-.empty-table p {
-    font-size: 0.9rem;
-    margin-bottom: 16px;
-}
-
-/* Dropdown Menu */
-.btn-group {
-    position: relative;
-}
-
-.dropdown-menu {
-    display: none;
-    position: absolute;
-    top: 100%;
-    right: 0;
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
-    border: 1px solid #eef3f8;
-    min-width: 180px;
-    padding: 8px 0;
-    z-index: 100;
-    margin-top: 4px;
-}
-
-.dropdown-menu.show {
-    display: block;
-}
-
-.dropdown-menu a {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 16px;
-    color: #1f3149;
-    text-decoration: none;
-    font-size: 0.85rem;
-    transition: background 0.15s;
-}
-
-.dropdown-menu a:hover {
-    background: #f8faff;
-}
-
-.dropdown-menu a i {
-    width: 20px;
-    color: #6d83a5;
-}
-
-/* Animations */
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-
-@keyframes slideUp {
-    from {
-        opacity: 0;
-        transform: translateY(20px) scale(0.98);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0) scale(1);
-    }
-}
-
-@keyframes slideDown {
-    from {
-        opacity: 0;
-        transform: translateY(-10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-/* Responsive */
-@media (max-width: 1024px) {
-    .stats-grid {
-        grid-template-columns: repeat(3, 1fr);
-    }
-}
-
-@media (max-width: 768px) {
+    /* ============================================================
+       TENANT MANAGEMENT SPECIFIC STYLES
+       ============================================================ */
     .page-header {
-        flex-direction: column;
-        align-items: stretch;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 20px;
     }
-    
-    .page-header .header-actions {
-        width: 100%;
+    .page-header h2 {
+        font-size: 1.3rem;
+        font-weight: 700;
     }
-    
-    .page-header .header-actions .btn-primary,
-    .page-header .header-actions .btn-secondary {
+    .page-header h2 small {
+        font-size: 0.8rem;
+        font-weight: 400;
+        color: var(--gray-500);
+        display: block;
+    }
+    .btn-primary {
+        padding: 8px 18px;
+        background: var(--primary);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 0.85rem;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        transition: var(--transition);
+        font-family: 'Inter', sans-serif;
+    }
+    .btn-primary:hover {
+        background: var(--primary-dark);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 16px rgba(var(--primary-rgb), 0.25);
+    }
+    .btn-outline {
+        padding: 8px 16px;
+        background: transparent;
+        color: var(--gray-600);
+        border: 1px solid var(--gray-200);
+        border-radius: 10px;
+        font-weight: 500;
+        font-size: 0.82rem;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: var(--transition);
+        font-family: 'Inter', sans-serif;
+    }
+    .btn-outline:hover {
+        background: var(--gray-50);
+        border-color: var(--gray-300);
+    }
+    .btn-sm {
+        padding: 4px 10px;
+        font-size: 0.7rem;
+        border-radius: 6px;
+        border: none;
+        cursor: pointer;
+        transition: var(--transition);
+        font-family: 'Inter', sans-serif;
+        font-weight: 500;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+    }
+    .btn-sm.info { background: #EFF6FF; color: var(--info); }
+    .btn-sm.info:hover { background: #DBEAFE; }
+    .btn-sm.success { background: #ECFDF5; color: var(--secondary); }
+    .btn-sm.success:hover { background: #D1FAE5; }
+    .btn-sm.warning { background: #FFFBEB; color: var(--warning); }
+    .btn-sm.warning:hover { background: #FEF3C7; }
+    .btn-sm.danger { background: #FEF2F2; color: var(--danger); }
+    .btn-sm.danger:hover { background: #FEE2E2; }
+    .btn-sm.primary { background: #EFF6FF; color: var(--primary); }
+    .btn-sm.primary:hover { background: #DBEAFE; }
+    .btn-sm.purple { background: #F5F3FF; color: #8B5CF6; }
+    .btn-sm.purple:hover { background: #EDE9FE; }
+
+    .filter-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        margin-bottom: 16px;
+        padding: 12px 16px;
+        background: white;
+        border-radius: var(--radius);
+        border: 1px solid var(--gray-200);
+    }
+    .filter-bar .search-input {
         flex: 1;
-        justify-content: center;
+        min-width: 180px;
+        padding: 8px 14px;
+        border: 1px solid var(--gray-200);
+        border-radius: 8px;
+        font-family: 'Inter', sans-serif;
+        font-size: 0.85rem;
+        transition: var(--transition);
+        background: var(--gray-50);
     }
-    
-    .stats-grid {
-        grid-template-columns: repeat(2, 1fr);
+    .filter-bar .search-input:focus {
+        outline: none;
+        border-color: var(--primary);
+        background: white;
+        box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.06);
     }
-    
-    .filter-bar .filter-form {
-        flex-direction: column;
-        align-items: stretch;
+    .filter-bar select {
+        padding: 8px 14px;
+        border: 1px solid var(--gray-200);
+        border-radius: 8px;
+        font-family: 'Inter', sans-serif;
+        font-size: 0.82rem;
+        background: var(--gray-50);
+        cursor: pointer;
+        transition: var(--transition);
+        min-width: 120px;
     }
-    
-    .filter-bar .filter-group {
-        width: 100%;
-        min-width: unset;
+    .filter-bar select:focus {
+        outline: none;
+        border-color: var(--primary);
+        background: white;
     }
-    
     .filter-bar .filter-actions {
-        flex-direction: column;
-    }
-    
-    .filter-bar .filter-actions .btn-primary,
-    .filter-bar .filter-actions .btn-secondary {
-        width: 100%;
-        justify-content: center;
-    }
-    
-    .table-toolbar {
-        flex-direction: column;
-        align-items: stretch;
-    }
-    
-    .table-toolbar .toolbar-left {
+        display: flex;
+        gap: 6px;
         flex-wrap: wrap;
     }
-    
-    .table-container {
-        overflow-x: auto;
-    }
-    
-    .data-table {
-        font-size: 0.8rem;
-        min-width: 800px;
-    }
-    
-    .data-table thead th,
-    .data-table tbody td {
-        padding: 10px 12px;
-    }
-    
-    .pagination {
-        flex-direction: column;
-        align-items: center;
-    }
-    
-    .modal .modal-content {
-        margin: 20px;
-        max-height: calc(100vh - 40px);
-    }
-}
 
-@media (max-width: 480px) {
-    .stats-grid {
-        grid-template-columns: 1fr 1fr;
-        gap: 8px;
+    .tenants-table-wrapper {
+        background: white;
+        border-radius: var(--radius);
+        border: 1px solid var(--gray-200);
+        overflow: hidden;
+        box-shadow: var(--shadow);
     }
-    
-    .stat-card {
-        padding: 12px 16px;
+    .tenants-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.85rem;
     }
-    
-    .stat-card .stat-number {
-        font-size: 1.2rem;
+    .tenants-table thead {
+        background: var(--gray-50);
+        border-bottom: 1px solid var(--gray-200);
     }
-    
-    .stat-card .stat-icon {
+    .tenants-table th {
+        padding: 12px 14px;
+        text-align: left;
+        font-weight: 600;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--gray-500);
+        white-space: nowrap;
+        cursor: pointer;
+        user-select: none;
+        position: sticky;
+        top: 0;
+        background: var(--gray-50);
+        z-index: 2;
+    }
+    .tenants-table th:hover {
+        color: var(--gray-700);
+    }
+    .tenants-table td {
+        padding: 10px 14px;
+        border-bottom: 1px solid var(--gray-100);
+        vertical-align: middle;
+    }
+    .tenants-table tbody tr:hover {
+        background: var(--gray-50);
+    }
+    .tenants-table tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    .tenant-logo {
         width: 36px;
         height: 36px;
-        font-size: 1rem;
+        border-radius: 8px;
+        object-fit: cover;
+        background: var(--gray-100);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 600;
+        color: var(--gray-500);
+        font-size: 0.8rem;
+        overflow: hidden;
     }
-    
-    .action-buttons .btn-icon {
-        width: 28px;
-        height: 28px;
-        font-size: 0.75rem;
+    .tenant-logo img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
     }
-}
+
+    .status-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 10px;
+        border-radius: 20px;
+        font-size: 0.7rem;
+        font-weight: 600;
+    }
+    .status-badge.active { background: #ECFDF5; color: #065F46; }
+    .status-badge.suspended { background: #FEF2F2; color: #991B1B; }
+    .status-badge.trial { background: #FFFBEB; color: #92400E; }
+    .status-badge.expired { background: #FEF2F2; color: #991B1B; }
+    .status-badge.premium { background: #EFF6FF; color: #1E40AF; }
+    .status-badge.enterprise { background: #F5F3FF; color: #5B21B6; }
+    .status-badge.standard { background: #ECFDF5; color: #065F46; }
+    .status-badge.basic { background: #FFFBEB; color: #92400E; }
+    .status-badge.free { background: var(--gray-100); color: var(--gray-500); }
+
+    .action-dropdown {
+        position: relative;
+        display: inline-block;
+    }
+    .action-dropdown .dropdown-btn {
+        background: none;
+        border: none;
+        padding: 4px 8px;
+        cursor: pointer;
+        color: var(--gray-400);
+        font-size: 1.1rem;
+        transition: var(--transition);
+        border-radius: 6px;
+    }
+    .action-dropdown .dropdown-btn:hover {
+        background: var(--gray-100);
+        color: var(--gray-600);
+    }
+    .action-dropdown .dropdown-menu {
+        position: absolute;
+        right: 0;
+        top: 100%;
+        background: white;
+        border-radius: 10px;
+        box-shadow: var(--shadow-hover);
+        border: 1px solid var(--gray-200);
+        min-width: 180px;
+        padding: 4px;
+        display: none;
+        z-index: 50;
+    }
+    .action-dropdown .dropdown-menu.open { display: block; }
+    .action-dropdown .dropdown-menu a,
+    .action-dropdown .dropdown-menu button {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 14px;
+        width: 100%;
+        border: none;
+        background: none;
+        font-family: 'Inter', sans-serif;
+        font-size: 0.8rem;
+        color: var(--gray-600);
+        cursor: pointer;
+        border-radius: 6px;
+        transition: var(--transition);
+        text-decoration: none;
+    }
+    .action-dropdown .dropdown-menu a:hover,
+    .action-dropdown .dropdown-menu button:hover {
+        background: var(--gray-50);
+        color: var(--primary);
+    }
+    .action-dropdown .dropdown-menu .danger:hover {
+        background: #FEF2F2;
+        color: var(--danger);
+    }
+    .action-dropdown .dropdown-menu i {
+        width: 16px;
+        color: var(--gray-400);
+    }
+    .action-dropdown .dropdown-menu .divider {
+        height: 1px;
+        background: var(--gray-100);
+        margin: 4px 8px;
+    }
+
+    .pagination {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 12px;
+        padding: 14px 16px;
+        background: white;
+        border-radius: var(--radius);
+        border: 1px solid var(--gray-200);
+        margin-top: 16px;
+    }
+    .pagination .info {
+        font-size: 0.82rem;
+        color: var(--gray-500);
+    }
+    .pagination .pages {
+        display: flex;
+        gap: 4px;
+    }
+    .pagination .pages a,
+    .pagination .pages span {
+        padding: 6px 12px;
+        border-radius: 8px;
+        font-size: 0.82rem;
+        text-decoration: none;
+        color: var(--gray-600);
+        transition: var(--transition);
+        min-width: 32px;
+        text-align: center;
+    }
+    .pagination .pages a:hover {
+        background: var(--gray-100);
+    }
+    .pagination .pages .active {
+        background: var(--primary);
+        color: white;
+    }
+    .pagination .pages .disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+
+    /* Modal */
+    .modal-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0,0,0,0.4);
+        z-index: 300;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal {
+        background: white;
+        border-radius: var(--radius);
+        max-width: 480px;
+        width: 100%;
+        padding: 28px 32px;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+        animation: modalIn 0.25s ease;
+    }
+    @keyframes modalIn {
+        from { transform: scale(0.95) translateY(10px); opacity: 0; }
+        to { transform: scale(1) translateY(0); opacity: 1; }
+    }
+    .modal .modal-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+    }
+    .modal .modal-header h3 {
+        font-size: 1.1rem;
+        font-weight: 700;
+    }
+    .modal .modal-header .close-btn {
+        background: none;
+        border: none;
+        font-size: 1.4rem;
+        color: var(--gray-400);
+        cursor: pointer;
+        transition: var(--transition);
+    }
+    .modal .modal-header .close-btn:hover {
+        color: var(--gray-600);
+    }
+    .modal .modal-body { margin-bottom: 16px; }
+    .modal .modal-footer {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+    }
+    .modal .modal-footer .btn {
+        padding: 8px 20px;
+        border-radius: 8px;
+        border: none;
+        font-weight: 600;
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition: var(--transition);
+        font-family: 'Inter', sans-serif;
+    }
+    .modal .modal-footer .btn-secondary {
+        background: var(--gray-100);
+        color: var(--gray-600);
+    }
+    .modal .modal-footer .btn-secondary:hover {
+        background: var(--gray-200);
+    }
+    .modal .modal-footer .btn-danger {
+        background: var(--danger);
+        color: white;
+    }
+    .modal .modal-footer .btn-danger:hover {
+        background: #DC2626;
+    }
+    .modal .modal-footer .btn-primary {
+        background: var(--primary);
+        color: white;
+    }
+    .modal .modal-footer .btn-primary:hover {
+        background: var(--primary-dark);
+    }
+
+    .file-upload-area {
+        border: 2px dashed var(--gray-200);
+        border-radius: 10px;
+        padding: 24px;
+        text-align: center;
+        cursor: pointer;
+        transition: var(--transition);
+        background: var(--gray-50);
+    }
+    .file-upload-area:hover {
+        border-color: var(--primary);
+        background: #EFF6FF;
+    }
+    .file-upload-area i {
+        font-size: 2rem;
+        color: var(--gray-400);
+        display: block;
+        margin-bottom: 8px;
+    }
+    .file-upload-area p {
+        font-size: 0.85rem;
+        color: var(--gray-500);
+    }
+    .file-upload-area input[type="file"] {
+        display: none;
+    }
+
+    /* Toast notifications */
+    .toast-container {
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        z-index: 999;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    .toast {
+        padding: 14px 20px;
+        border-radius: 10px;
+        color: white;
+        font-size: 0.85rem;
+        font-weight: 500;
+        box-shadow: var(--shadow-hover);
+        animation: slideIn 0.3s ease;
+        min-width: 280px;
+        max-width: 400px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .toast.success { background: var(--secondary); }
+    .toast.error { background: var(--danger); }
+    .toast.info { background: var(--info); }
+    @keyframes slideIn {
+        from { transform: translateX(100px); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 48px 20px;
+        color: var(--gray-500);
+    }
+    .empty-state i {
+        font-size: 3rem;
+        color: var(--gray-300);
+        display: block;
+        margin-bottom: 12px;
+    }
+    .empty-state h4 {
+        color: var(--gray-700);
+        margin-bottom: 4px;
+    }
+
+    @media (max-width: 768px) {
+        .tenants-table-wrapper { overflow-x: auto; }
+        .tenants-table { font-size: 0.78rem; }
+        .tenants-table th, .tenants-table td { padding: 8px 10px; }
+        .filter-bar { flex-direction: column; align-items: stretch; }
+        .filter-bar .search-input { min-width: auto; }
+        .filter-bar .filter-actions { justify-content: flex-end; }
+        .page-header { flex-direction: column; align-items: flex-start; }
+        .pagination { flex-direction: column; align-items: center; }
+        .modal { padding: 20px; margin: 10px; }
+        .toast { min-width: auto; max-width: 90%; }
+    }
+    @media (max-width: 480px) {
+        .tenants-table th, .tenants-table td { padding: 6px 8px; font-size: 0.7rem; }
+        .action-dropdown .dropdown-menu { right: -10px; min-width: 160px; }
+        .btn-sm { font-size: 0.6rem; padding: 3px 6px; }
+    }
 </style>
 
 <main class="main-content">
-    <!-- ============================================================
-    PAGE HEADER
-    ============================================================ -->
-    <div class="page-header">
-        <div class="header-left">
-            <h1>
-                <i class="fas fa-building" style="color:#4f9cf7;"></i>
-                Manage Tenants
-                <span class="page-badge">Super Admin</span>
-            </h1>
-            <p class="subtitle">Manage all client organizations using the platform</p>
-        </div>
-        <div class="header-actions">
-            <div class="btn-group">
-                <button class="btn-secondary dropdown-toggle" onclick="toggleExportDropdown()">
-                    <i class="fas fa-file-export"></i> Export <i class="fas fa-chevron-down"></i>
-                </button>
-                <div class="dropdown-menu" id="exportDropdown">
-                    <a href="#" onclick="exportData('csv')"><i class="fas fa-file-csv"></i> CSV</a>
-                    <a href="#" onclick="exportData('excel')"><i class="fas fa-file-excel"></i> Excel (XLSX)</a>
-                    <a href="#" onclick="exportData('pdf')"><i class="fas fa-file-pdf"></i> PDF</a>
-                </div>
-            </div>
-            <a href="tenant-edit.php" class="btn-primary">
-                <i class="fas fa-plus"></i> Create Tenant
-            </a>
-        </div>
-    </div>
-
-    <!-- ============================================================
-    ALERTS
-    ============================================================ -->
-    <?php if ($message): ?>
-    <div class="alert alert-<?php echo $message_type ?: 'success'; ?>">
-        <i class="fas fa-<?php echo $message_type === 'error' ? 'exclamation-circle' : ($message_type === 'info' ? 'info-circle' : 'check-circle'); ?>"></i>
-        <?php echo $message; ?>
-        <button class="alert-close" onclick="this.parentElement.remove()">&times;</button>
-    </div>
-    <?php endif; ?>
+    <!-- Fixed Header -->
+    <?php include 'includes/header.php'; ?>
     
-    <?php if ($error): ?>
-    <div class="alert alert-error">
-        <i class="fas fa-exclamation-circle"></i>
-        <?php echo htmlspecialchars($error); ?>
-        <button class="alert-close" onclick="this.parentElement.remove()">&times;</button>
-    </div>
-    <?php endif; ?>
+    <!-- Main Content Inner -->
+    <div class="main-content-inner">
+        <!-- Page Header -->
+        <div class="page-header">
+            <div>
+                <h2>
+                    <i class="fas fa-building" style="color:var(--primary);margin-right:8px;"></i> Tenant Management
+                    <small>Manage all client organizations on the platform</small>
+                </h2>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                <a href="tenants-export.php" class="btn-outline">
+                    <i class="fas fa-file-export"></i> Export
+                </a>
+                <a href="tenants-create.php" class="btn-primary">
+                    <i class="fas fa-plus-circle"></i> Create Tenant
+                </a>
+            </div>
+        </div>
 
-    <!-- ============================================================
-    STATISTICS
-    ============================================================ -->
-    <div class="stats-grid">
-        <div class="stat-card">
-            <div class="stat-icon total"><i class="fas fa-building"></i></div>
-            <div class="stat-info">
-                <div class="stat-number"><?php echo number_format($stats['total'] ?? 0); ?></div>
+        <!-- Stats Summary Cards -->
+        <div class="stats-grid" style="margin-bottom:16px;">
+            <div class="stat-card">
+                <div class="stat-icon blue"><i class="fas fa-building"></i></div>
+                <div class="stat-number"><?php echo number_format($stats['total']); ?></div>
                 <div class="stat-label">Total Tenants</div>
             </div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-icon active"><i class="fas fa-check-circle"></i></div>
-            <div class="stat-info">
-                <div class="stat-number"><?php echo number_format($stats['active'] ?? 0); ?></div>
+            <div class="stat-card">
+                <div class="stat-icon green"><i class="fas fa-check-circle"></i></div>
+                <div class="stat-number"><?php echo number_format($stats['active']); ?></div>
                 <div class="stat-label">Active</div>
             </div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-icon suspended"><i class="fas fa-pause-circle"></i></div>
-            <div class="stat-info">
-                <div class="stat-number"><?php echo number_format($stats['suspended'] ?? 0); ?></div>
+            <div class="stat-card">
+                <div class="stat-icon red"><i class="fas fa-ban"></i></div>
+                <div class="stat-number"><?php echo number_format($stats['suspended']); ?></div>
                 <div class="stat-label">Suspended</div>
             </div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-icon trial"><i class="fas fa-clock"></i></div>
-            <div class="stat-info">
-                <div class="stat-number"><?php echo number_format($stats['trial'] ?? 0); ?></div>
+            <div class="stat-card">
+                <div class="stat-icon yellow"><i class="fas fa-clock"></i></div>
+                <div class="stat-number"><?php echo number_format($stats['trial']); ?></div>
                 <div class="stat-label">Trial</div>
             </div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-icon expired"><i class="fas fa-times-circle"></i></div>
-            <div class="stat-info">
-                <div class="stat-number"><?php echo number_format($stats['expired'] ?? 0); ?></div>
-                <div class="stat-label">Expired</div>
+            <div class="stat-card">
+                <div class="stat-icon purple"><i class="fas fa-users"></i></div>
+                <div class="stat-number"><?php echo number_format($stats['total_users']); ?></div>
+                <div class="stat-label">Total Users</div>
             </div>
         </div>
-    </div>
 
-    <!-- ============================================================
-    SEARCH & FILTERS
-    ============================================================ -->
-    <div class="filter-bar">
-        <form method="GET" class="filter-form" id="filterForm">
-            <div class="filter-group">
-                <i class="fas fa-search"></i>
-                <input type="text" name="search" placeholder="Search tenants by name, slug, email..." 
-                       value="<?php echo htmlspecialchars($search); ?>">
-            </div>
-            
-            <div class="filter-group">
-                <i class="fas fa-crown"></i>
-                <select name="plan">
-                    <option value="">All Plans</option>
-                    <?php foreach ($plans as $plan): ?>
-                    <option value="<?php echo $plan; ?>" <?php echo $filter_plan === $plan ? 'selected' : ''; ?>>
-                        <?php echo ucfirst($plan); ?>
-                    </option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            
-            <div class="filter-group">
-                <i class="fas fa-circle"></i>
+        <!-- Filter Bar -->
+        <div class="filter-bar">
+            <form method="GET" action="" style="display:flex;flex-wrap:wrap;gap:10px;flex:1;align-items:center;">
+                <input type="text" name="search" class="search-input" placeholder="Search by name, email, phone..." value="<?php echo htmlspecialchars($search); ?>">
                 <select name="status">
                     <option value="">All Status</option>
-                    <?php foreach ($statuses as $status): ?>
-                    <option value="<?php echo $status; ?>" <?php echo $filter_status === $status ? 'selected' : ''; ?>>
-                        <?php echo ucfirst($status); ?>
-                    </option>
-                    <?php endforeach; ?>
+                    <option value="active" <?php echo $status_filter === 'active' ? 'selected' : ''; ?>>Active</option>
+                    <option value="suspended" <?php echo $status_filter === 'suspended' ? 'selected' : ''; ?>>Suspended</option>
+                    <option value="trial" <?php echo $status_filter === 'trial' ? 'selected' : ''; ?>>Trial</option>
+                    <option value="expired" <?php echo $status_filter === 'expired' ? 'selected' : ''; ?>>Expired</option>
+                    <option value="active_subscription" <?php echo $status_filter === 'active_subscription' ? 'selected' : ''; ?>>Active Subscription</option>
                 </select>
-            </div>
-            
-            <div class="filter-actions">
-                <button type="submit" class="btn-primary"><i class="fas fa-filter"></i> Filter</button>
-                <a href="tenants.php" class="btn-secondary"><i class="fas fa-times"></i> Clear</a>
-            </div>
-        </form>
-    </div>
-
-    <!-- ============================================================
-    TENANT TABLE
-    ============================================================ -->
-    <div class="table-container">
-        <div class="table-toolbar">
-            <div class="toolbar-left">
-                <form method="POST" id="bulkActionForm" onsubmit="return confirmBulkAction();">
-                    <input type="hidden" name="action" value="bulk_action">
-                    <div class="bulk-actions">
-                        <input type="checkbox" id="selectAll" onchange="toggleAllCheckboxes()">
-                        <label for="selectAll" style="font-size:0.8rem; color:#6d83a5; cursor:pointer;">Select All</label>
-                        <select name="bulk_action" id="bulkAction">
-                            <option value="">Bulk Actions</option>
-                            <option value="activate">Activate</option>
-                            <option value="suspend">Suspend</option>
-                            <option value="delete">Delete</option>
-                        </select>
-                        <button type="submit" class="btn-secondary" style="padding:4px 16px; font-size:0.8rem;">
-                            Apply
-                        </button>
-                    </div>
-                </form>
-            </div>
-            <div class="toolbar-right">
-                <span><i class="fas fa-database"></i> <?php echo number_format($total_count); ?> records</span>
-                <span><i class="fas fa-arrow-up"></i> <?php echo ucfirst($sort_by); ?> (<?php echo $sort_order; ?>)</span>
-            </div>
+                <select name="plan">
+                    <option value="">All Plans</option>
+                    <option value="free" <?php echo $plan_filter === 'free' ? 'selected' : ''; ?>>Free</option>
+                    <option value="basic" <?php echo $plan_filter === 'basic' ? 'selected' : ''; ?>>Basic</option>
+                    <option value="standard" <?php echo $plan_filter === 'standard' ? 'selected' : ''; ?>>Standard</option>
+                    <option value="premium" <?php echo $plan_filter === 'premium' ? 'selected' : ''; ?>>Premium</option>
+                    <option value="enterprise" <?php echo $plan_filter === 'enterprise' ? 'selected' : ''; ?>>Enterprise</option>
+                </select>
+                <button type="submit" class="btn-primary" style="padding:8px 16px;font-size:0.82rem;">
+                    <i class="fas fa-filter"></i> Filter
+                </button>
+                <?php if (!empty($search) || !empty($status_filter) || !empty($plan_filter)): ?>
+                    <a href="tenants.php" class="btn-outline" style="padding:8px 14px;font-size:0.82rem;">
+                        <i class="fas fa-times"></i> Clear
+                    </a>
+                <?php endif; ?>
+            </form>
         </div>
 
-        <table class="data-table" id="tenantTable">
-            <thead>
-                <tr>
-                    <th style="width:36px;">
-                        <input type="checkbox" id="selectAllHeader" onchange="toggleAllCheckboxes()">
-                    </th>
-                    <th style="width:50px;">
-                        <a href="?sort=id&order=<?php echo $sort_order === 'ASC' ? 'DESC' : 'ASC'; ?>&search=<?php echo urlencode($search); ?>&plan=<?php echo urlencode($filter_plan); ?>&status=<?php echo urlencode($filter_status); ?>&page=<?php echo $page; ?>">
-                            ID
-                            <?php if ($sort_by === 'id'): ?>
-                            <i class="fas fa-sort-<?php echo strtolower($sort_order); ?>"></i>
-                            <?php endif; ?>
-                        </a>
-                    </th>
-                    <th>Organization</th>
-                    <th style="width:100px;">Plan</th>
-                    <th style="width:110px;">Status</th>
-                    <th style="width:70px;">Users</th>
-                    <th style="width:100px;">
-                        <a href="?sort=created_at&order=<?php echo $sort_order === 'ASC' ? 'DESC' : 'ASC'; ?>&search=<?php echo urlencode($search); ?>&plan=<?php echo urlencode($filter_plan); ?>&status=<?php echo urlencode($filter_status); ?>&page=<?php echo $page; ?>">
-                            Registered
-                            <?php if ($sort_by === 'created_at'): ?>
-                            <i class="fas fa-sort-<?php echo strtolower($sort_order); ?>"></i>
-                            <?php endif; ?>
-                        </a>
-                    </th>
-                    <th style="width:100px;">
-                        <a href="?sort=subscription_end&order=<?php echo $sort_order === 'ASC' ? 'DESC' : 'ASC'; ?>&search=<?php echo urlencode($search); ?>&plan=<?php echo urlencode($filter_plan); ?>&status=<?php echo urlencode($filter_status); ?>&page=<?php echo $page; ?>">
-                            Expiry
-                            <?php if ($sort_by === 'subscription_end'): ?>
-                            <i class="fas fa-sort-<?php echo strtolower($sort_order); ?>"></i>
-                            <?php endif; ?>
-                        </a>
-                    </th>
-                    <th style="width:200px;">Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if (empty($tenants)): ?>
-                <tr>
-                    <td colspan="9" class="empty-table">
-                        <i class="fas fa-building"></i>
-                        <h3>No tenants found</h3>
-                        <p>Start by creating your first tenant organization.</p>
-                        <a href="tenant-edit.php" class="btn-primary" style="display:inline-flex;">
-                            <i class="fas fa-plus"></i> Create Tenant
-                        </a>
-                    </td>
-                </tr>
-                <?php endif; ?>
-                
-                <?php foreach ($tenants as $tenant): 
-                    $imageUrl = getTenantImageUrl($tenant['logo_url']);
-                    $hasImage = !empty($imageUrl);
-                    $initials = strtoupper(substr($tenant['name'], 0, 2));
-                ?>
-                <tr>
-                    <td>
-                        <div class="checkbox-wrapper">
-                            <input type="checkbox" name="tenant_ids[]" value="<?php echo $tenant['id']; ?>" class="tenant-checkbox">
-                        </div>
-                    </td>
-                    <td><span class="tenant-id" style="font-weight:600; color:#4f9cf7;">#<?php echo $tenant['id']; ?></span></td>
-                    <td>
-                        <div class="tenant-cell">
-                            <div class="tenant-avatar-wrapper">
-                                <?php if ($hasImage): ?>
-                                <img src="<?php echo htmlspecialchars($imageUrl); ?>" 
-                                     alt="<?php echo htmlspecialchars($tenant['name']); ?>" 
-                                     class="tenant-avatar"
-                                     loading="lazy"
-                                     onerror="this.style.display='none'; this.parentElement.querySelector('.tenant-avatar-placeholder').style.display='flex';">
-                                <div class="tenant-avatar-placeholder" style="display:none;">
-                                    <?php echo $initials; ?>
-                                </div>
-                                <?php else: ?>
-                                <div class="tenant-avatar-placeholder">
-                                    <?php echo $initials; ?>
-                                </div>
-                                <?php endif; ?>
-                            </div>
-                            <div class="tenant-info">
-                                <div class="tenant-name"><?php echo htmlspecialchars($tenant['name']); ?></div>
-                                <div class="tenant-meta">
-                                    <span class="tenant-slug"><?php echo htmlspecialchars($tenant['slug']); ?></span>
-                                    <?php if ($tenant['contact_email']): ?>
-                                    <span>· <?php echo htmlspecialchars($tenant['contact_email']); ?></span>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
-                        </div>
-                    </td>
-                    <td>
-                        <span class="plan-badge <?php echo $tenant['subscription_plan']; ?>">
-                            <i class="fas fa-crown"></i>
-                            <?php echo ucfirst($tenant['subscription_plan']); ?>
-                        </span>
-                    </td>
-                    <td>
-                        <span class="status-badge <?php echo $tenant['subscription_status']; ?>">
-                            <?php if ($tenant['subscription_status'] === 'active'): ?>
-                            <i class="fas fa-check-circle"></i>
-                            <?php elseif ($tenant['subscription_status'] === 'suspended'): ?>
-                            <i class="fas fa-pause-circle"></i>
-                            <?php elseif ($tenant['subscription_status'] === 'trial'): ?>
-                            <i class="fas fa-clock"></i>
-                            <?php elseif ($tenant['subscription_status'] === 'expired'): ?>
-                            <i class="fas fa-times-circle"></i>
-                            <?php else: ?>
-                            <i class="fas fa-minus-circle"></i>
-                            <?php endif; ?>
-                            <?php echo ucfirst($tenant['subscription_status']); ?>
-                        </span>
-                    </td>
-                    <td>
-                        <span style="font-weight:500; color:#0b1a33;"><?php echo $tenant['user_count']; ?></span>
-                        <span style="font-size:0.65rem; color:#8b9bb5;">users</span>
-                    </td>
-                    <td><?php echo date('M d, Y', strtotime($tenant['created_at'])); ?></td>
-                    <td>
-                        <?php if ($tenant['subscription_end']): ?>
-                        <span style="font-size:0.85rem; <?php echo strtotime($tenant['subscription_end']) < time() ? 'color:#ef4444;' : ''; ?>">
-                            <?php echo date('M d, Y', strtotime($tenant['subscription_end'])); ?>
-                            <?php if (strtotime($tenant['subscription_end']) < time()): ?>
-                            <span style="display:block; font-size:0.6rem; color:#ef4444;">(Expired)</span>
-                            <?php endif; ?>
-                        </span>
-                        <?php else: ?>
-                        <span style="color:#8b9bb5; font-size:0.8rem;">N/A</span>
-                        <?php endif; ?>
-                    </td>
-                    <td>
-                        <div class="action-buttons">
-                            <button class="btn-icon view" title="View Details" onclick="viewTenant(<?php echo $tenant['id']; ?>)">
-                                <i class="fas fa-eye"></i>
-                                <span class="tooltip">View Details</span>
-                            </button>
-                            <a href="tenant-edit.php?id=<?php echo $tenant['id']; ?>" class="btn-icon edit" title="Edit">
-                                <i class="fas fa-edit"></i>
-                                <span class="tooltip">Edit</span>
-                            </a>
-                            
-                            <?php if ($tenant['subscription_status'] === 'suspended'): ?>
-                            <form method="POST" style="display:inline;">
-                                <input type="hidden" name="tenant_id" value="<?php echo $tenant['id']; ?>">
-                                <input type="hidden" name="action" value="activate">
-                                <button type="submit" class="btn-icon activate" title="Activate">
-                                    <i class="fas fa-check-circle"></i>
-                                    <span class="tooltip">Activate</span>
-                                </button>
-                            </form>
-                            <?php else: ?>
-                            <form method="POST" style="display:inline;">
-                                <input type="hidden" name="tenant_id" value="<?php echo $tenant['id']; ?>">
-                                <input type="hidden" name="action" value="suspend">
-                                <button type="submit" class="btn-icon suspend" title="Suspend">
-                                    <i class="fas fa-pause-circle"></i>
-                                    <span class="tooltip">Suspend</span>
-                                </button>
-                            </form>
-                            <?php endif; ?>
-                            
-                            <button class="btn-icon reset" title="Reset Password" onclick="resetPassword(<?php echo $tenant['id']; ?>, '<?php echo htmlspecialchars($tenant['name']); ?>')">
-                                <i class="fas fa-key"></i>
-                                <span class="tooltip">Reset Password</span>
-                            </button>
-                            
-                            <button class="btn-icon impersonate" title="Login as Tenant" onclick="impersonateTenant(<?php echo $tenant['id']; ?>)">
-                                <i class="fas fa-user-secret"></i>
-                                <span class="tooltip">Impersonate</span>
-                            </button>
-                            
-                            <form method="POST" style="display:inline;" onsubmit="return confirmDelete('<?php echo htmlspecialchars($tenant['name']); ?>');">
-                                <input type="hidden" name="tenant_id" value="<?php echo $tenant['id']; ?>">
-                                <input type="hidden" name="action" value="delete">
-                                <button type="submit" class="btn-icon delete" title="Delete">
-                                    <i class="fas fa-trash"></i>
-                                    <span class="tooltip">Delete</span>
-                                </button>
-                            </form>
-                        </div>
-                    </td>
-                </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
+        <!-- Toast Notifications -->
+        <?php if (!empty($action_result['message'])): ?>
+        <div style="margin-bottom:12px;">
+            <div class="toast <?php echo $action_result['success'] ? 'success' : 'error'; ?>" style="position:static;animation:none;max-width:100%;">
+                <i class="fas <?php echo $action_result['success'] ? 'fa-check-circle' : 'fa-exclamation-circle'; ?>"></i>
+                <?php echo htmlspecialchars($action_result['message']); ?>
+            </div>
+        </div>
+        <?php endif; ?>
 
-        <!-- ============================================================
-        PAGINATION
-        ============================================================ -->
+        <!-- Tenants Table -->
+        <div class="tenants-table-wrapper">
+            <table class="tenants-table">
+                <thead>
+                    <tr>
+                        <th style="width:40px;">#</th>
+                        <th>Organization</th>
+                        <th>Admin</th>
+                        <th>Plan</th>
+                        <th>Status</th>
+                        <th>Users</th>
+                        <th>Expiry</th>
+                        <th style="width:80px;text-align:center;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (count($tenants) > 0): ?>
+                        <?php foreach ($tenants as $index => $tenant): ?>
+                            <tr>
+                                <td><?php echo $offset + $index + 1; ?></td>
+                                <td>
+                                    <div style="display:flex;align-items:center;gap:10px;">
+                                        <div class="tenant-logo">
+                                            <?php if (!empty($tenant['logo_url'])): ?>
+                                                <img src="<?php echo htmlspecialchars($tenant['logo_url']); ?>" alt="Logo">
+                                            <?php else: ?>
+                                                <?php echo strtoupper(substr($tenant['name'], 0, 2)); ?>
+                                            <?php endif; ?>
+                                        </div>
+                                        <div>
+                                            <div style="font-weight:600;font-size:0.85rem;"><?php echo htmlspecialchars($tenant['name']); ?></div>
+                                            <div style="font-size:0.7rem;color:var(--gray-400);"><?php echo htmlspecialchars($tenant['slug']); ?></div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div style="font-weight:500;font-size:0.82rem;"><?php echo htmlspecialchars($tenant['admin_name'] ?? 'N/A'); ?></div>
+                                    <div style="font-size:0.7rem;color:var(--gray-400);"><?php echo htmlspecialchars($tenant['admin_email'] ?? ''); ?></div>
+                                </td>
+                                <td>
+                                    <span class="status-badge <?php echo $tenant['subscription_plan']; ?>">
+                                        <?php echo ucfirst($tenant['subscription_plan']); ?>
+                                    </span>
+                                </td>
+                                <td>
+                                    <?php
+                                    $status_class = $tenant['is_active'] ? 'active' : 'suspended';
+                                    $status_label = $tenant['is_active'] ? 'Active' : 'Suspended';
+                                    
+                                    // Check subscription status
+                                    if ($tenant['is_active'] && $tenant['subscription_status'] === 'trial') {
+                                        $status_class = 'trial';
+                                        $status_label = 'Trial';
+                                    } elseif ($tenant['is_active'] && $tenant['subscription_status'] === 'expired') {
+                                        $status_class = 'expired';
+                                        $status_label = 'Expired';
+                                    }
+                                    ?>
+                                    <span class="status-badge <?php echo $status_class; ?>">
+                                        <i class="fas fa-circle" style="font-size:6px;"></i>
+                                        <?php echo $status_label; ?>
+                                    </span>
+                                </td>
+                                <td style="text-align:center;font-weight:600;"><?php echo $tenant['user_count'] ?? 0; ?></td>
+                                <td style="font-size:0.8rem;">
+                                    <?php 
+                                    if (!empty($tenant['subscription_end'])) {
+                                        echo date('M j, Y', strtotime($tenant['subscription_end']));
+                                    } else {
+                                        echo '—';
+                                    }
+                                    ?>
+                                </td>
+                                <td>
+                                    <div class="action-dropdown">
+                                        <button class="dropdown-btn" onclick="toggleDropdown(this)">
+                                            <i class="fas fa-ellipsis-v"></i>
+                                        </button>
+                                        <div class="dropdown-menu">
+                                            <a href="tenants-view.php?id=<?php echo $tenant['id']; ?>">
+                                                <i class="fas fa-eye"></i> View Details
+                                            </a>
+                                            <a href="tenants-edit.php?id=<?php echo $tenant['id']; ?>">
+                                                <i class="fas fa-edit"></i> Edit Tenant
+                                            </a>
+                                            <div class="divider"></div>
+                                            <?php if ($tenant['is_active']): ?>
+                                                <button onclick="confirmAction('suspend', <?php echo $tenant['id']; ?>, '<?php echo htmlspecialchars($tenant['name']); ?>')">
+                                                    <i class="fas fa-pause"></i> Suspend
+                                                </button>
+                                            <?php else: ?>
+                                                <button onclick="confirmAction('activate', <?php echo $tenant['id']; ?>, '<?php echo htmlspecialchars($tenant['name']); ?>')">
+                                                    <i class="fas fa-play"></i> Activate
+                                                </button>
+                                            <?php endif; ?>
+                                            <button onclick="confirmAction('reset_password', <?php echo $tenant['id']; ?>, '<?php echo htmlspecialchars($tenant['name']); ?>')">
+                                                <i class="fas fa-key"></i> Reset Admin Password
+                                            </button>
+                                            <button onclick="confirmAction('impersonate', <?php echo $tenant['id']; ?>, '<?php echo htmlspecialchars($tenant['name']); ?>')">
+                                                <i class="fas fa-user-secret"></i> Login as Tenant
+                                            </button>
+                                            <div class="divider"></div>
+                                            <button onclick="openUploadModal(<?php echo $tenant['id']; ?>)" class="purple">
+                                                <i class="fas fa-image"></i> Upload Logo
+                                            </button>
+                                            <button onclick="confirmAction('delete', <?php echo $tenant['id']; ?>, '<?php echo htmlspecialchars($tenant['name']); ?>')" class="danger">
+                                                <i class="fas fa-trash"></i> Delete
+                                            </button>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <tr>
+                            <td colspan="8">
+                                <div class="empty-state">
+                                    <i class="fas fa-building"></i>
+                                    <h4>No tenants found</h4>
+                                    <p>Try adjusting your search or filters, or create a new tenant.</p>
+                                    <a href="tenants-create.php" class="btn-primary" style="margin-top:12px;">
+                                        <i class="fas fa-plus-circle"></i> Create Tenant
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
         <?php if ($total_pages > 1): ?>
         <div class="pagination">
-            <div class="pagination-info">
-                Showing <strong><?php echo $offset + 1; ?></strong> to 
-                <strong><?php echo min($offset + $per_page, $total_count); ?></strong> 
-                of <strong><?php echo number_format($total_count); ?></strong> tenants
+            <div class="info">
+                Showing <?php echo $offset + 1; ?> to <?php echo min($offset + $limit, $total_tenants); ?> of <?php echo number_format($total_tenants); ?> tenants
             </div>
-            <div class="pagination-links">
+            <div class="pages">
                 <?php if ($page > 1): ?>
-                <a href="?page=1&sort=<?php echo urlencode($sort_by); ?>&order=<?php echo urlencode($sort_order); ?>&search=<?php echo urlencode($search); ?>&plan=<?php echo urlencode($filter_plan); ?>&status=<?php echo urlencode($filter_status); ?>">
-                    <i class="fas fa-angle-double-left"></i>
-                </a>
-                <a href="?page=<?php echo $page - 1; ?>&sort=<?php echo urlencode($sort_by); ?>&order=<?php echo urlencode($sort_order); ?>&search=<?php echo urlencode($search); ?>&plan=<?php echo urlencode($filter_plan); ?>&status=<?php echo urlencode($filter_status); ?>">
-                    <i class="fas fa-angle-left"></i>
-                </a>
+                    <a href="?page=<?php echo $page - 1; ?>&search=<?php echo urlencode($search); ?>&status=<?php echo urlencode($status_filter); ?>&plan=<?php echo urlencode($plan_filter); ?>">
+                        <i class="fas fa-chevron-left"></i>
+                    </a>
+                <?php else: ?>
+                    <span class="disabled"><i class="fas fa-chevron-left"></i></span>
                 <?php endif; ?>
-                
+
                 <?php
                 $start_page = max(1, $page - 2);
                 $end_page = min($total_pages, $page + 2);
                 
                 if ($start_page > 1) {
-                    echo '<span class="ellipsis">…</span>';
+                    echo '<a href="?page=1&search=' . urlencode($search) . '&status=' . urlencode($status_filter) . '&plan=' . urlencode($plan_filter) . '">1</a>';
+                    if ($start_page > 2) echo '<span>…</span>';
                 }
                 
-                for ($i = $start_page; $i <= $end_page; $i++) {
-                    $active = $i === $page ? 'active' : '';
-                    echo '<a href="?page=' . $i . '&sort=' . urlencode($sort_by) . '&order=' . urlencode($sort_order) . '&search=' . urlencode($search) . '&plan=' . urlencode($filter_plan) . '&status=' . urlencode($filter_status) . '" class="' . $active . '">' . $i . '</a>';
-                }
+                for ($i = $start_page; $i <= $end_page; $i++):
+                ?>
+                    <a href="?page=<?php echo $i; ?>&search=<?php echo urlencode($search); ?>&status=<?php echo urlencode($status_filter); ?>&plan=<?php echo urlencode($plan_filter); ?>" class="<?php echo $i === $page ? 'active' : ''; ?>">
+                        <?php echo $i; ?>
+                    </a>
+                <?php endfor;
                 
                 if ($end_page < $total_pages) {
-                    echo '<span class="ellipsis">…</span>';
+                    if ($end_page < $total_pages - 1) echo '<span>…</span>';
+                    echo '<a href="?page=' . $total_pages . '&search=' . urlencode($search) . '&status=' . urlencode($status_filter) . '&plan=' . urlencode($plan_filter) . '">' . $total_pages . '</a>';
                 }
                 ?>
-                
+
                 <?php if ($page < $total_pages): ?>
-                <a href="?page=<?php echo $page + 1; ?>&sort=<?php echo urlencode($sort_by); ?>&order=<?php echo urlencode($sort_order); ?>&search=<?php echo urlencode($search); ?>&plan=<?php echo urlencode($filter_plan); ?>&status=<?php echo urlencode($filter_status); ?>">
-                    <i class="fas fa-angle-right"></i>
-                </a>
-                <a href="?page=<?php echo $total_pages; ?>&sort=<?php echo urlencode($sort_by); ?>&order=<?php echo urlencode($sort_order); ?>&search=<?php echo urlencode($search); ?>&plan=<?php echo urlencode($filter_plan); ?>&status=<?php echo urlencode($filter_status); ?>">
-                    <i class="fas fa-angle-double-right"></i>
-                </a>
+                    <a href="?page=<?php echo $page + 1; ?>&search=<?php echo urlencode($search); ?>&status=<?php echo urlencode($status_filter); ?>&plan=<?php echo urlencode($plan_filter); ?>">
+                        <i class="fas fa-chevron-right"></i>
+                    </a>
+                <?php else: ?>
+                    <span class="disabled"><i class="fas fa-chevron-right"></i></span>
                 <?php endif; ?>
             </div>
         </div>
         <?php endif; ?>
     </div>
-
-    <!-- ============================================================
-    TENANT DETAIL MODAL
-    ============================================================ -->
-    <div class="modal" id="tenantModal">
-        <div class="modal-overlay" onclick="closeModal()"></div>
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2><i class="fas fa-building"></i> Tenant Details</h2>
-                <button class="modal-close" onclick="closeModal()">&times;</button>
-            </div>
-            <div class="modal-body" id="tenantModalBody">
-                <!-- Loaded via AJAX -->
-            </div>
-        </div>
-    </div>
 </main>
 
 <!-- ============================================================
-JAVASCRIPT
+CONFIRMATION MODAL
 ============================================================ -->
+<div class="modal-overlay" id="confirmModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 id="confirmTitle">Confirm Action</h3>
+            <button class="close-btn" onclick="closeModal('confirmModal')">&times;</button>
+        </div>
+        <div class="modal-body" id="confirmBody">
+            <p>Are you sure you want to perform this action?</p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal('confirmModal')">Cancel</button>
+            <button class="btn btn-danger" id="confirmActionBtn" onclick="executeAction()">Confirm</button>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================================
+UPLOAD LOGO MODAL
+============================================================ -->
+<div class="modal-overlay" id="uploadModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3>Upload Organization Logo</h3>
+            <button class="close-btn" onclick="closeModal('uploadModal')">&times;</button>
+        </div>
+        <form method="POST" action="" enctype="multipart/form-data">
+            <input type="hidden" name="action" value="upload_logo">
+            <input type="hidden" name="tenant_id" id="uploadTenantId">
+            <div class="modal-body">
+                <div class="file-upload-area" onclick="document.getElementById('logoFile').click()">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <p>Click to upload logo or drag & drop</p>
+                    <p style="font-size:0.7rem;color:var(--gray-400);">PNG, JPG, SVG (Max 2MB)</p>
+                    <input type="file" name="logo" id="logoFile" accept="image/*" required>
+                </div>
+                <div id="filePreview" style="display:none;margin-top:12px;text-align:center;">
+                    <img id="previewImage" src="#" alt="Preview" style="max-height:120px;border-radius:8px;border:1px solid var(--gray-200);">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('uploadModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Upload Logo</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
 // ============================================================
-// VIEW TENANT DETAILS
+// PRELOADER
 // ============================================================
-function viewTenant(tenantId) {
-    const modal = document.getElementById('tenantModal');
-    const body = document.getElementById('tenantModalBody');
-    
-    modal.classList.add('active');
-    body.innerHTML = '<div style="text-align:center; padding:40px; color:#6d83a5;"><i class="fas fa-spinner fa-spin" style="font-size:2rem; display:block; margin-bottom:12px;"></i> Loading tenant details...</div>';
-    
-    fetch(`tenant-details.php?id=${tenantId}`)
-        .then(response => response.text())
-        .then(html => {
-            body.innerHTML = html;
-            // Re-initialize image error handlers for modal
-            document.querySelectorAll('#tenantModalBody .tenant-avatar, #tenantModalBody .tenant-detail-avatar').forEach(img => {
-                img.addEventListener('error', function() {
-                    this.style.display = 'none';
-                    const placeholder = this.parentElement.querySelector('.tenant-avatar-placeholder, .tenant-detail-avatar-placeholder');
-                    if (placeholder) {
-                        placeholder.style.display = 'flex';
-                    }
-                });
-            });
-        })
-        .catch(error => {
-            body.innerHTML = '<div style="text-align:center; padding:40px; color:#ef4444;"><i class="fas fa-exclamation-circle" style="font-size:2rem; display:block; margin-bottom:12px;"></i> Failed to load tenant details</div>';
-        });
-}
-
-function closeModal() {
-    document.getElementById('tenantModal').classList.remove('active');
-}
-
-// Close modal on escape key
-document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') closeModal();
+window.addEventListener('load', function() {
+    const preloader = document.getElementById('preloader');
+    if (preloader) {
+        preloader.classList.add('hidden');
+        setTimeout(() => {
+            preloader.style.display = 'none';
+        }, 600);
+    }
 });
 
-// Close modal on overlay click
-document.querySelector('.modal-overlay')?.addEventListener('click', closeModal);
+// ============================================================
+// SIDEBAR TOGGLE (mobile)
+// ============================================================
+const sidebar = document.getElementById('sidebar');
+const sidebarToggle = document.getElementById('sidebarToggle');
+const sidebarOverlay = document.getElementById('sidebarOverlay');
+const dashboardHeader = document.getElementById('dashboardHeader');
 
-// ============================================================
-// RESET PASSWORD
-// ============================================================
-function resetPassword(tenantId, tenantName) {
-    if (confirm(`Are you sure you want to reset the admin password for "${tenantName}"?\n\nA new random password will be generated and displayed.`)) {
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.innerHTML = `
-            <input type="hidden" name="tenant_id" value="${tenantId}">
-            <input type="hidden" name="action" value="reset_password">
-        `;
-        document.body.appendChild(form);
-        form.submit();
+function toggleSidebar() {
+    sidebar.classList.toggle('open');
+    sidebarOverlay.classList.toggle('active');
+    updateHeaderPosition();
+}
+
+function updateHeaderPosition() {
+    if (window.innerWidth > 768) {
+        dashboardHeader.style.left = '260px';
+    } else if (sidebar.classList.contains('open')) {
+        dashboardHeader.style.left = '280px';
+    } else {
+        dashboardHeader.style.left = '0';
     }
 }
 
-// ============================================================
-// IMPERSONATE TENANT
-// ============================================================
-function impersonateTenant(tenantId) {
-    if (confirm('You are about to login as this tenant admin. This action will be logged for audit purposes.')) {
-        window.location.href = `impersonate.php?tenant_id=${tenantId}`;
+if (sidebarToggle) {
+    sidebarToggle.addEventListener('click', toggleSidebar);
+}
+if (sidebarOverlay) {
+    sidebarOverlay.addEventListener('click', toggleSidebar);
+}
+
+window.addEventListener('resize', () => {
+    if (window.innerWidth > 768) {
+        sidebar.classList.remove('open');
+        sidebarOverlay.classList.remove('active');
+        dashboardHeader.style.left = '260px';
+    } else if (!sidebar.classList.contains('open')) {
+        dashboardHeader.style.left = '0';
     }
+});
+
+// ============================================================
+// SIDEBAR DROPDOWNS
+// ============================================================
+document.querySelectorAll('.dropdown-toggle').forEach(toggle => {
+    toggle.addEventListener('click', function(e) {
+        e.preventDefault();
+        const dropdownId = this.dataset.dropdown;
+        const dropdown = document.getElementById(dropdownId);
+        const chevron = this.querySelector('.chevron');
+        
+        if (dropdown) {
+            dropdown.classList.toggle('open');
+            if (chevron) chevron.classList.toggle('open');
+        }
+    });
+});
+
+// ============================================================
+// PROFILE DROPDOWN
+// ============================================================
+const profileBtn = document.getElementById('profileBtn');
+const profileMenu = document.getElementById('profileMenu');
+
+if (profileBtn && profileMenu) {
+    profileBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        profileMenu.classList.toggle('active');
+    });
+
+    document.addEventListener('click', function(e) {
+        if (!profileBtn.contains(e.target) && !profileMenu.contains(e.target)) {
+            profileMenu.classList.remove('active');
+        }
+    });
 }
 
 // ============================================================
-// CONFIRM DELETE
+// ACTION DROPDOWN
 // ============================================================
-function confirmDelete(tenantName) {
-    return confirm(`⚠️ Are you sure you want to permanently delete "${tenantName}"?\n\nThis action cannot be undone and will remove all associated data.`);
-}
-
-// ============================================================
-// BULK ACTIONS
-// ============================================================
-function toggleAllCheckboxes() {
-    const selectAll = document.getElementById('selectAll');
-    const checkboxes = document.querySelectorAll('.tenant-checkbox');
-    checkboxes.forEach(cb => cb.checked = selectAll.checked);
-}
-
-function confirmBulkAction() {
-    const bulkAction = document.getElementById('bulkAction');
-    const selected = document.querySelectorAll('.tenant-checkbox:checked');
+function toggleDropdown(btn) {
+    const menu = btn.nextElementSibling;
+    const isOpen = menu.classList.contains('open');
     
-    if (!bulkAction.value) {
-        alert('Please select an action to perform.');
-        return false;
+    // Close all dropdowns
+    document.querySelectorAll('.action-dropdown .dropdown-menu').forEach(m => m.classList.remove('open'));
+    
+    if (!isOpen) {
+        menu.classList.toggle('open');
     }
-    
-    if (selected.length === 0) {
-        alert('Please select at least one tenant.');
-        return false;
-    }
-    
-    const actionNames = {
-        'activate': 'activate',
-        'suspend': 'suspend',
-        'delete': 'permanently delete'
-    };
-    
-    return confirm(`Are you sure you want to ${actionNames[bulkAction.value] || bulkAction.value} ${selected.length} selected tenant(s)?`);
-}
-
-// ============================================================
-// EXPORT DATA
-// ============================================================
-function exportData(format = 'csv') {
-    const search = document.querySelector('input[name="search"]')?.value || '';
-    const plan = document.querySelector('select[name="plan"]')?.value || '';
-    const status = document.querySelector('select[name="status"]')?.value || '';
-    
-    window.location.href = `tenant-export.php?search=${encodeURIComponent(search)}&plan=${encodeURIComponent(plan)}&status=${encodeURIComponent(status)}&format=${format}`;
-}
-
-// ============================================================
-// EXPORT DROPDOWN TOGGLE
-// ============================================================
-function toggleExportDropdown() {
-    const dropdown = document.getElementById('exportDropdown');
-    dropdown.classList.toggle('show');
 }
 
 // Close dropdown when clicking outside
 document.addEventListener('click', function(e) {
-    const dropdown = document.getElementById('exportDropdown');
-    const btn = document.querySelector('.dropdown-toggle');
-    if (dropdown && !dropdown.contains(e.target) && !btn.contains(e.target)) {
-        dropdown.classList.remove('show');
+    if (!e.target.closest('.action-dropdown')) {
+        document.querySelectorAll('.action-dropdown .dropdown-menu').forEach(m => m.classList.remove('open'));
     }
 });
 
 // ============================================================
-// AUTO-SUBMIT ON FILTER CHANGE
+// CONFIRMATION MODAL
 // ============================================================
-document.querySelectorAll('select[name="plan"], select[name="status"]').forEach(select => {
-    select.addEventListener('change', function() {
-        document.getElementById('filterForm').submit();
-    });
-});
+let pendingAction = null;
+
+function confirmAction(action, tenantId, tenantName) {
+    const modal = document.getElementById('confirmModal');
+    const title = document.getElementById('confirmTitle');
+    const body = document.getElementById('confirmBody');
+    const btn = document.getElementById('confirmActionBtn');
+    
+    const actionLabels = {
+        'suspend': { title: 'Suspend Tenant', body: `Are you sure you want to suspend <strong>${tenantName}</strong>? The tenant will not be able to access the platform.`, color: 'btn-warning' },
+        'activate': { title: 'Activate Tenant', body: `Are you sure you want to activate <strong>${tenantName}</strong>? The tenant will regain full access.`, color: 'btn-primary' },
+        'delete': { title: 'Delete Tenant', body: `Are you sure you want to delete <strong>${tenantName}</strong>? This action can be reversed.`, color: 'btn-danger' },
+        'reset_password': { title: 'Reset Admin Password', body: `Are you sure you want to reset the admin password for <strong>${tenantName}</strong>? A new password will be sent via email.`, color: 'btn-primary' },
+        'impersonate': { title: 'Login as Tenant', body: `You are about to login as <strong>${tenantName}</strong>. You will be able to perform actions on behalf of this tenant.`, color: 'btn-primary' }
+    };
+    
+    const label = actionLabels[action] || actionLabels['suspend'];
+    title.textContent = label.title;
+    body.innerHTML = label.body;
+    btn.className = `btn ${label.color}`;
+    
+    pendingAction = { action, tenantId };
+    modal.classList.add('active');
+}
+
+function executeAction() {
+    if (!pendingAction) return;
+    
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '';
+    
+    const actionInput = document.createElement('input');
+    actionInput.type = 'hidden';
+    actionInput.name = 'action';
+    actionInput.value = pendingAction.action;
+    
+    const idInput = document.createElement('input');
+    idInput.type = 'hidden';
+    idInput.name = 'tenant_id';
+    idInput.value = pendingAction.tenantId;
+    
+    form.appendChild(actionInput);
+    form.appendChild(idInput);
+    document.body.appendChild(form);
+    form.submit();
+}
+
+function closeModal(id) {
+    document.getElementById(id).classList.remove('active');
+}
 
 // ============================================================
-// KEYBOARD SHORTCUTS
+// UPLOAD LOGO MODAL
 // ============================================================
-document.addEventListener('keydown', function(e) {
-    // Ctrl+F for focus search
-    if (e.ctrlKey && e.key === 'f') {
-        e.preventDefault();
-        document.querySelector('input[name="search"]')?.focus();
-    }
-});
+function openUploadModal(tenantId) {
+    document.getElementById('uploadTenantId').value = tenantId;
+    document.getElementById('uploadModal').classList.add('active');
+    document.getElementById('filePreview').style.display = 'none';
+    document.getElementById('logoFile').value = '';
+}
 
-// ============================================================
-// IMAGE ERROR HANDLING - Global handler for dynamically loaded images
-// ============================================================
+// File preview
 document.addEventListener('DOMContentLoaded', function() {
-    // Handle all tenant avatar images
-    document.querySelectorAll('.tenant-avatar, .tenant-detail-avatar').forEach(img => {
-        img.addEventListener('error', function() {
-            this.style.display = 'none';
-            const wrapper = this.closest('.tenant-avatar-wrapper');
-            if (wrapper) {
-                const placeholder = wrapper.querySelector('.tenant-avatar-placeholder');
-                if (placeholder) {
-                    placeholder.style.display = 'flex';
-                }
+    const fileInput = document.getElementById('logoFile');
+    if (fileInput) {
+        fileInput.addEventListener('change', function() {
+            const preview = document.getElementById('filePreview');
+            const previewImg = document.getElementById('previewImage');
+            if (this.files && this.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    previewImg.src = e.target.result;
+                    preview.style.display = 'block';
+                };
+                reader.readAsDataURL(this.files[0]);
             }
         });
-    });
+    }
 });
-</script>
 
-<?php include 'includes/footer.php'; ?>
+// ============================================================
+// SEARCH - Live Database Search (for header search)
+// ============================================================
+const searchInput = document.getElementById('searchInput');
+const searchResults = document.getElementById('searchResults');
+let searchTimeout;
+
+if (searchInput) {
+    searchInput.addEventListener('input', function() {
+        const query = this.value.trim();
+        
+        clearTimeout(searchTimeout);
+        
+        if (query.length < 2) {
+            if (searchResults) searchResults.classList.remove('active');
+            return;
+        }
+        
+        searchTimeout = setTimeout(() => {
+            performSearch(query);
+        }, 300);
+    });
+
+    searchInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            if (searchResults) searchResults.classList.remove('active');
+            this.blur();
+        }
+    });
+}
+
+function performSearch(query) {
+    fetch(`search.php?q=${encodeURIComponent(query)}`, {
+        method: 'GET',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        renderSearchResults(data);
+    })
+    .catch(() => {
+        // Silently fail
+    });
+}
+
+function renderSearchResults(data) {
+    if (!searchResults) return;
+    searchResults.innerHTML = '';
+    
+    if (!data || data.length === 0) {
+        searchResults.innerHTML = `
+            <div style="padding:12px;text-align:center;color:var(--gray-500);font-size:0.8rem;">
+                <i class="fas fa-search" style="display:block;font-size:1.2rem;margin-bottom:4px;"></i>
+                No results found
+            </div>
+        `;
+        searchResults.classList.add('active');
+        return;
+    }
+    
+    data.forEach(item => {
+        const div = document.createElement('a');
+        div.className = 'result-item';
+        div.href = item.url || '#';
+        
+        const icon = item.icon || 'fa-file';
+        const type = item.type || '';
+        const typeLabel = type.charAt(0).toUpperCase() + type.slice(1);
+        
+        div.innerHTML = `
+            <i class="fas ${icon}"></i>
+            <span class="text-truncate">${item.label || item.name || ''}</span>
+            <span class="result-type">${typeLabel}</span>
+        `;
+        searchResults.appendChild(div);
+    });
+    
+    searchResults.classList.add('active');
+}
+
+// Close search results on click outside
+document.addEventListener('click', function(e) {
+    const searchWrapper = document.querySelector('.search-wrapper');
+    if (searchWrapper && !searchWrapper.contains(e.target)) {
+        if (searchResults) searchResults.classList.remove('active');
+    }
+});
+
+// ============================================================
+// CHARTS (keep for compatibility)
+// ============================================================
+// Charts are included but not used on this page
+// This prevents errors if chart elements don't exist
+</script>
+</body>
+</html>

@@ -1,879 +1,732 @@
 <?php
-$page_title = "Audit Logs";
-require_once 'includes/db.php';
+// ============================================================
+// AUDIT LOGS - SUPER ADMINISTRATOR (FIXED - uses activity_logs)
+// ============================================================
+require_once '../../config/config.php';
+require_once '../../includes/session.php';
+require_once '../../includes/functions.php';
+
+// Start session and check login
+SessionManager::start();
+
+// Redirect if not logged in
+if (!SessionManager::isLoggedIn()) {
+    header('Location: ../../auth/login.php');
+    exit();
+}
+
+// Check role - only super_admin can access this page
+if (SessionManager::get('role_level') !== 'super_admin') {
+    header('Location: ../client-admin/');
+    exit();
+}
 
 // Get database connection
-$db = Database::getInstance();
-$conn = $db->getConnection();
+$db = getDB();
 
 // ============================================================
-// GET FILTERS AND PAGINATION
+// FETCH AUDIT LOGS WITH PAGINATION & FILTERS
 // ============================================================
-$search = $_GET['search'] ?? '';
-$filter_action = $_GET['action'] ?? '';
-$filter_user = $_GET['user'] ?? '';
-$filter_tenant = $_GET['tenant'] ?? '';
-$date_from = $_GET['date_from'] ?? '';
-$date_to = $_GET['date_to'] ?? '';
-$sort_by = $_GET['sort'] ?? 'created_at';
-$sort_order = $_GET['order'] ?? 'DESC';
-$per_page = 50;
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-$offset = ($page - 1) * $per_page;
+$limit = 20;
+$offset = ($page - 1) * $limit;
+$search = isset($_GET['search']) ? trim($_GET['search']) : '';
+$action_filter = isset($_GET['action']) ? $_GET['action'] : '';
+$entity_filter = isset($_GET['entity']) ? $_GET['entity'] : '';
+$user_filter = isset($_GET['user']) ? (int)$_GET['user'] : 0;
+$tenant_filter = isset($_GET['tenant']) ? (int)$_GET['tenant'] : 0;
 
-// ============================================================
-// BUILD QUERY
-// ============================================================
-$base_query = "FROM activity_logs al
-               LEFT JOIN users u ON al.user_id = u.id
-               LEFT JOIN tenants t ON al.tenant_id = t.id
-               WHERE 1=1";
-
+// Build WHERE clause - Using activity_logs table
+$where_conditions = [];
 $params = [];
 
-if ($search) {
-    $base_query .= " AND (al.description LIKE ? OR al.activity_type LIKE ? OR u.full_name LIKE ? OR u.email LIKE ?)";
+if (!empty($search)) {
+    $where_conditions[] = "(a.activity_type LIKE ? OR a.description LIKE ? OR a.entity_type LIKE ?)";
     $search_param = "%$search%";
-    $params = array_merge($params, [$search_param, $search_param, $search_param, $search_param]);
+    $params = array_merge($params, [$search_param, $search_param, $search_param]);
 }
 
-if ($filter_action) {
-    $base_query .= " AND al.activity_type = ?";
-    $params[] = $filter_action;
+if (!empty($action_filter)) {
+    $where_conditions[] = "a.activity_type = ?";
+    $params[] = $action_filter;
 }
 
-if ($filter_user) {
-    $base_query .= " AND al.user_id = ?";
-    $params[] = $filter_user;
+if (!empty($entity_filter)) {
+    $where_conditions[] = "a.entity_type = ?";
+    $params[] = $entity_filter;
 }
 
-if ($filter_tenant) {
-    $base_query .= " AND al.tenant_id = ?";
-    $params[] = $filter_tenant;
+if ($user_filter > 0) {
+    $where_conditions[] = "a.user_id = ?";
+    $params[] = $user_filter;
 }
 
-if ($date_from) {
-    $base_query .= " AND DATE(al.created_at) >= ?";
-    $params[] = $date_from;
+if ($tenant_filter > 0) {
+    $where_conditions[] = "a.tenant_id = ?";
+    $params[] = $tenant_filter;
 }
 
-if ($date_to) {
-    $base_query .= " AND DATE(al.created_at) <= ?";
-    $params[] = $date_to;
-}
+$where_clause = !empty($where_conditions) ? "WHERE " . implode(" AND ", $where_conditions) : "";
 
-// Get total count
-$count_query = "SELECT COUNT(*) as total " . $base_query;
-$count_stmt = $conn->prepare($count_query);
-$count_stmt->execute($params);
-$total_count = $count_stmt->fetch()['total'];
-$total_pages = ceil($total_count / $per_page);
+// Count total
+$count_sql = "SELECT COUNT(*) as total FROM activity_logs a $where_clause";
+$stmt = $db->prepare($count_sql);
+$stmt->execute($params);
+$total_logs = $stmt->fetch()['total'] ?? 0;
+$total_pages = ceil($total_logs / $limit);
 
-// Get paginated results
-$query = "SELECT 
-            al.*,
-            u.full_name as user_name,
-            u.email as user_email,
-            t.name as tenant_name,
-            t.slug as tenant_slug
-          " . $base_query . "
-          ORDER BY al.$sort_by $sort_order 
-          LIMIT ? OFFSET ?";
+// Fetch audit logs from activity_logs
+$sql = "
+    SELECT 
+        a.*,
+        u.full_name as user_name,
+        u.email as user_email,
+        t.name as tenant_name
+    FROM activity_logs a
+    LEFT JOIN users u ON a.user_id = u.id
+    LEFT JOIN tenants t ON a.tenant_id = t.id
+    $where_clause
+    ORDER BY a.created_at DESC
+    LIMIT ? OFFSET ?
+";
 
-$params[] = $per_page;
+$params[] = $limit;
 $params[] = $offset;
 
-$stmt = $conn->prepare($query);
+$stmt = $db->prepare($sql);
 $stmt->execute($params);
 $logs = $stmt->fetchAll();
 
 // ============================================================
-// GET FILTER OPTIONS
+// FETCH DISTINCT VALUES FOR FILTERS
 // ============================================================
-$action_types = $conn->query("
-    SELECT DISTINCT activity_type 
-    FROM activity_logs 
-    ORDER BY activity_type
-")->fetchAll();
+$actions = [];
+$entity_types = [];
+$users = [];
+$tenants = [];
 
-$users = $conn->query("
-    SELECT id, full_name, email 
-    FROM users 
-    WHERE deleted_at IS NULL 
-    ORDER BY full_name
-")->fetchAll();
+try {
+    $stmt = $db->query("SELECT DISTINCT activity_type FROM activity_logs ORDER BY activity_type");
+    $actions = $stmt->fetchAll();
+    
+    $stmt = $db->query("SELECT DISTINCT entity_type FROM activity_logs WHERE entity_type IS NOT NULL ORDER BY entity_type");
+    $entity_types = $stmt->fetchAll();
+    
+    $stmt = $db->query("SELECT id, full_name, email FROM users WHERE deleted_at IS NULL ORDER BY full_name");
+    $users = $stmt->fetchAll();
+    
+    $stmt = $db->query("SELECT id, name FROM tenants WHERE deleted_at IS NULL ORDER BY name");
+    $tenants = $stmt->fetchAll();
+} catch (Exception $e) {
+    // Continue
+}
 
-$tenants = $conn->query("
-    SELECT id, name, slug 
-    FROM tenants 
-    WHERE deleted_at IS NULL 
-    ORDER BY name
-")->fetchAll();
+// ============================================================
+// FETCH STATISTICS
+// ============================================================
+$stats = [
+    'total' => 0,
+    'today' => 0,
+    'this_week' => 0,
+    'login' => 0,
+    'tenant' => 0,
+    'user' => 0
+];
 
-// Get statistics
-$stats = $conn->query("
-    SELECT 
-        COUNT(*) as total,
-        SUM(CASE WHEN activity_type = 'login' THEN 1 ELSE 0 END) as logins,
-        SUM(CASE WHEN activity_type = 'logout' THEN 1 ELSE 0 END) as logouts,
-        SUM(CASE WHEN activity_type LIKE '%created%' THEN 1 ELSE 0 END) as creations,
-        SUM(CASE WHEN activity_type LIKE '%updated%' THEN 1 ELSE 0 END) as updates,
-        SUM(CASE WHEN activity_type LIKE '%deleted%' THEN 1 ELSE 0 END) as deletions,
-        SUM(CASE WHEN DATE(created_at) = CURDATE() THEN 1 ELSE 0 END) as today
-    FROM activity_logs
-")->fetch();
+try {
+    $stmt = $db->query("SELECT COUNT(*) as total FROM activity_logs");
+    $stats['total'] = $stmt->fetch()['total'] ?? 0;
+    
+    $stmt = $db->query("SELECT COUNT(*) as total FROM activity_logs WHERE DATE(created_at) = CURDATE()");
+    $stats['today'] = $stmt->fetch()['total'] ?? 0;
+    
+    $stmt = $db->query("SELECT COUNT(*) as total FROM activity_logs WHERE YEARWEEK(created_at) = YEARWEEK(NOW())");
+    $stats['this_week'] = $stmt->fetch()['total'] ?? 0;
+    
+    $stmt = $db->query("SELECT COUNT(*) as total FROM activity_logs WHERE activity_type LIKE '%login%'");
+    $stats['login'] = $stmt->fetch()['total'] ?? 0;
+    
+    $stmt = $db->query("SELECT COUNT(*) as total FROM activity_logs WHERE activity_type LIKE '%tenant%'");
+    $stats['tenant'] = $stmt->fetch()['total'] ?? 0;
+    
+    $stmt = $db->query("SELECT COUNT(*) as total FROM activity_logs WHERE activity_type LIKE '%user%'");
+    $stats['user'] = $stmt->fetch()['total'] ?? 0;
+} catch (Exception $e) {
+    // Continue
+}
 
-// Get activity by hour for chart
-$hourlyActivity = $conn->query("
-    SELECT 
-        HOUR(created_at) as hour,
-        COUNT(*) as count
-    FROM activity_logs
-    WHERE DATE(created_at) = CURDATE()
-    GROUP BY HOUR(created_at)
-    ORDER BY hour ASC
-")->fetchAll();
+// Get user info
+$user_name = SessionManager::get('user_name', 'Administrator');
+$user_email = SessionManager::get('user_email', 'admin@example.com');
 
 include 'includes/base.php';
+include 'includes/sidebar.php';
 ?>
-<?php include 'includes/sidebar.php'; ?>
-<?php include 'includes/header.php'; ?>
-
+<!-- The rest of the HTML remains the same, but with updated column headers -->
 <style>
-/* ============================================================
-   AUDIT LOGS STYLES
-   ============================================================ */
-
-/* Stats Grid */
-.audit-stats {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 16px;
-    margin-bottom: 24px;
-}
-
-.audit-stats .stat-card {
-    background: white;
-    border-radius: 14px;
-    padding: 16px 20px;
-    text-align: center;
-    border: 1px solid #eef3f8;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.03);
-    transition: all 0.2s ease;
-}
-
-.audit-stats .stat-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 16px rgba(0,0,0,0.06);
-}
-
-.audit-stats .stat-number {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: #0b1a33;
-    line-height: 1.2;
-}
-
-.audit-stats .stat-label {
-    font-size: 0.7rem;
-    color: #6d83a5;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
-    margin-top: 4px;
-}
-
-.audit-stats .stat-icon {
-    font-size: 1.5rem;
-    display: block;
-    margin-bottom: 8px;
-}
-
-.stat-icon.total { color: #4f9cf7; }
-.stat-icon.logins { color: #10b981; }
-.stat-icon.logouts { color: #f59e0b; }
-.stat-icon.creations { color: #8b5cf6; }
-.stat-icon.today { color: #ef4444; }
-
-/* Activity Chart */
-.activity-chart {
-    background: white;
-    border-radius: 14px;
-    padding: 20px;
-    border: 1px solid #eef3f8;
-    margin-bottom: 24px;
-}
-
-.activity-chart h3 {
-    font-size: 0.95rem;
-    font-weight: 600;
-    color: #1f3149;
-    margin-bottom: 16px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.chart-bars {
-    display: flex;
-    align-items: flex-end;
-    height: 120px;
-    gap: 4px;
-}
-
-.chart-bar {
-    flex: 1;
-    background: linear-gradient(180deg, #4f9cf7, #3b82d6);
-    border-radius: 4px 4px 0 0;
-    min-height: 4px;
-    transition: height 0.3s ease;
-    position: relative;
-}
-
-.chart-bar:hover {
-    opacity: 0.8;
-}
-
-.chart-labels {
-    display: flex;
-    margin-top: 8px;
-    gap: 4px;
-}
-
-.chart-label {
-    flex: 1;
-    text-align: center;
-    font-size: 0.6rem;
-    color: #8b9bb5;
-}
-
-/* Filter Bar */
-.filter-bar {
-    background: white;
-    border-radius: 14px;
-    padding: 16px 20px;
-    margin-bottom: 24px;
-    border: 1px solid #eef3f8;
-}
-
-.filter-form {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    align-items: center;
-}
-
-.filter-group {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: #f8faff;
-    border: 1px solid #e8edf4;
-    border-radius: 10px;
-    padding: 0 14px;
-    transition: all 0.2s ease;
-    flex: 1;
-    min-width: 150px;
-}
-
-.filter-group:focus-within {
-    border-color: #4f9cf7;
-    box-shadow: 0 0 0 3px rgba(79, 156, 247, 0.1);
-    background: white;
-}
-
-.filter-group i {
-    color: #8b9bb5;
-    font-size: 0.85rem;
-}
-
-.filter-group input,
-.filter-group select {
-    border: none;
-    padding: 10px 0;
-    background: transparent;
-    font-size: 0.85rem;
-    color: #1f3149;
-    width: 100%;
-    outline: none;
-}
-
-.filter-group select {
-    cursor: pointer;
-    appearance: none;
-    padding-right: 20px;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%238b9bb5' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right center;
-}
-
-.filter-group.date-range {
-    display: flex;
-    gap: 4px;
-    min-width: 200px;
-}
-
-.filter-group.date-range input {
-    min-width: 80px;
-}
-
-.filter-group.date-range span {
-    color: #8b9bb5;
-    font-size: 0.8rem;
-}
-
-.filter-actions {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-    flex-wrap: wrap;
-}
-
-.filter-actions .btn-primary,
-.filter-actions .btn-secondary {
-    padding: 9px 18px;
-    font-size: 0.85rem;
-}
-
-/* Table */
-.table-container {
-    background: white;
-    border-radius: 14px;
-    overflow: hidden;
-    border: 1px solid #eef3f8;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.03);
-}
-
-.table-toolbar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 16px 20px;
-    border-bottom: 1px solid #f0f4fa;
-    flex-wrap: wrap;
-    gap: 12px;
-}
-
-.toolbar-left {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.toolbar-right {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    font-size: 0.8rem;
-    color: #6d83a5;
-}
-
-/* Data Table */
-.data-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.9rem;
-}
-
-.data-table thead {
-    background: #f8faff;
-    border-bottom: 2px solid #eef3f8;
-}
-
-.data-table thead th {
-    padding: 12px 16px;
-    text-align: left;
-    font-weight: 600;
-    color: #405473;
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    position: sticky;
-    top: 0;
-    background: #f8faff;
-    z-index: 2;
-}
-
-.data-table thead th a {
-    color: inherit;
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.data-table thead th a:hover {
-    color: #4f9cf7;
-}
-
-.data-table tbody tr {
-    transition: background 0.15s;
-    border-bottom: 1px solid #f5f8fc;
-}
-
-.data-table tbody tr:last-child {
-    border-bottom: none;
-}
-
-.data-table tbody tr:hover {
-    background: #f8faff;
-}
-
-.data-table tbody td {
-    padding: 12px 16px;
-    vertical-align: middle;
-    color: #1f3149;
-}
-
-/* Activity Type Badge */
-.activity-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 0.7rem;
-    padding: 3px 12px;
-    border-radius: 30px;
-    font-weight: 500;
-}
-
-.activity-badge.login { background: #d1fae5; color: #065f46; }
-.activity-badge.logout { background: #fef3c7; color: #92400e; }
-.activity-badge.tenant_created { background: #dbeafe; color: #1e40af; }
-.activity-badge.tenant_updated { background: #ede9fe; color: #5b21b6; }
-.activity-badge.user_created { background: #d1fae5; color: #065f46; }
-.activity-badge.user_updated { background: #ede9fe; color: #5b21b6; }
-.activity-badge.user_deleted { background: #fee2e2; color: #991b1b; }
-.activity-badge.election_created { background: #fef3c7; color: #92400e; }
-.activity-badge.settings_changed { background: #fce4ec; color: #c62828; }
-.activity-badge.default { background: #f3f4f6; color: #4b5563; }
-
-/* Device Info */
-.device-info {
-    font-size: 0.75rem;
-    color: #6d83a5;
-}
-
-.device-info .device-icon {
-    margin-right: 4px;
-}
-
-/* Pagination */
-.pagination {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 16px 20px;
-    border-top: 1px solid #f0f4fa;
-    flex-wrap: wrap;
-    gap: 12px;
-}
-
-.pagination-info {
-    font-size: 0.85rem;
-    color: #6d83a5;
-}
-
-.pagination-info strong {
-    color: #1f3149;
-}
-
-.pagination-links {
-    display: flex;
-    gap: 4px;
-    align-items: center;
-}
-
-.pagination-links a,
-.pagination-links span {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 36px;
-    height: 36px;
-    padding: 0 12px;
-    border-radius: 8px;
-    font-size: 0.85rem;
-    color: #405473;
-    text-decoration: none;
-    transition: all 0.15s;
-}
-
-.pagination-links a:hover {
-    background: #f0f5fe;
-    color: #4f9cf7;
-}
-
-.pagination-links a.active {
-    background: #4f9cf7;
-    color: white;
-}
-
-.pagination-links .ellipsis {
-    color: #8b9bb5;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-    .audit-stats {
-        grid-template-columns: repeat(2, 1fr);
-    }
+    /* ============================================================
+       AUDIT LOGS - PRO STYLES
+       ============================================================ */
     
-    .filter-form {
-        flex-direction: column;
-        align-items: stretch;
-    }
-    
-    .filter-group {
-        width: 100%;
-        min-width: unset;
-    }
-    
-    .filter-group.date-range {
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
         flex-wrap: wrap;
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+    .page-header h2 {
+        font-size: 1.3rem;
+        font-weight: 700;
+    }
+    .page-header h2 small {
+        font-size: 0.8rem;
+        font-weight: 400;
+        color: var(--gray-500);
+        display: block;
+        margin-top: 2px;
     }
     
-    .filter-actions {
-        flex-direction: column;
+    .btn-outline {
+        padding: 8px 16px;
+        background: transparent;
+        color: var(--gray-600);
+        border: 1px solid var(--gray-200);
+        border-radius: 10px;
+        font-weight: 500;
+        font-size: 0.82rem;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: var(--transition);
+        font-family: 'Inter', sans-serif;
+    }
+    .btn-outline:hover {
+        background: var(--gray-50);
+        border-color: var(--gray-300);
     }
     
-    .filter-actions .btn-primary,
-    .filter-actions .btn-secondary {
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 12px;
+        margin-bottom: 20px;
+    }
+    .stat-item {
+        background: white;
+        border-radius: 12px;
+        padding: 14px 18px;
+        border: 1px solid var(--gray-200);
+        text-align: center;
+        transition: var(--transition);
+    }
+    .stat-item:hover {
+        box-shadow: var(--shadow-hover);
+        transform: translateY(-2px);
+    }
+    .stat-item .number {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--primary);
+    }
+    .stat-item .number.green { color: var(--secondary); }
+    .stat-item .number.red { color: var(--danger); }
+    .stat-item .number.yellow { color: var(--warning); }
+    .stat-item .number.purple { color: #8B5CF6; }
+    .stat-item .number.blue { color: #3B82F6; }
+    .stat-item .label {
+        font-size: 0.7rem;
+        color: var(--gray-500);
+        margin-top: 2px;
+    }
+    
+    .filter-bar-pro {
+        background: white;
+        border-radius: var(--radius);
+        border: 1px solid var(--gray-200);
+        padding: 14px 20px;
+        margin-bottom: 20px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        box-shadow: var(--shadow);
+    }
+    .filter-bar-pro .search-wrap {
+        flex: 1;
+        min-width: 200px;
+        display: flex;
+        align-items: center;
+        background: var(--gray-50);
+        border: 1px solid var(--gray-200);
+        border-radius: 10px;
+        padding: 6px 14px;
+        transition: var(--transition);
+    }
+    .filter-bar-pro .search-wrap:focus-within {
+        border-color: var(--primary);
+        background: white;
+        box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.06);
+    }
+    .filter-bar-pro .search-wrap i {
+        color: var(--gray-400);
+        font-size: 0.85rem;
+    }
+    .filter-bar-pro .search-wrap input {
+        border: none;
+        outline: none;
+        background: transparent;
+        padding: 6px 10px;
+        font-family: 'Inter', sans-serif;
+        font-size: 0.85rem;
         width: 100%;
-        justify-content: center;
+        color: var(--gray-700);
+    }
+    .filter-bar-pro select {
+        padding: 8px 14px;
+        border: 1px solid var(--gray-200);
+        border-radius: 10px;
+        font-family: 'Inter', sans-serif;
+        font-size: 0.82rem;
+        background: var(--gray-50);
+        color: var(--gray-700);
+        cursor: pointer;
+        transition: var(--transition);
+        min-width: 120px;
+    }
+    .filter-bar-pro select:focus {
+        outline: none;
+        border-color: var(--primary);
+        background: white;
+    }
+    .filter-bar-pro .btn-filter {
+        padding: 8px 18px;
+        background: var(--primary);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        font-weight: 600;
+        font-size: 0.8rem;
+        cursor: pointer;
+        transition: var(--transition);
+        font-family: 'Inter', sans-serif;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .filter-bar-pro .btn-filter:hover {
+        background: var(--primary-dark);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.25);
+    }
+    .filter-bar-pro .btn-clear {
+        padding: 8px 14px;
+        background: transparent;
+        color: var(--gray-500);
+        border: 1px solid var(--gray-200);
+        border-radius: 10px;
+        font-weight: 500;
+        font-size: 0.8rem;
+        cursor: pointer;
+        transition: var(--transition);
+        font-family: 'Inter', sans-serif;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .filter-bar-pro .btn-clear:hover {
+        background: var(--gray-50);
+        border-color: var(--gray-300);
     }
     
-    .table-toolbar {
-        flex-direction: column;
-        align-items: stretch;
+    .table-container {
+        background: white;
+        border-radius: var(--radius);
+        border: 1px solid var(--gray-200);
+        overflow: hidden;
+        box-shadow: var(--shadow);
+    }
+    .table-container .table-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid var(--gray-200);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 12px;
+        background: var(--gray-50);
+    }
+    .table-container .table-header .table-title {
+        font-weight: 600;
+        font-size: 0.95rem;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .table-container .table-header .table-title .count {
+        background: var(--primary);
+        color: white;
+        padding: 0 10px;
+        border-radius: 20px;
+        font-size: 0.7rem;
+        font-weight: 600;
     }
     
     .data-table {
-        font-size: 0.8rem;
-        min-width: 900px;
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.85rem;
+    }
+    .data-table thead {
+        background: var(--gray-50);
+    }
+    .data-table thead th {
+        padding: 10px 14px;
+        text-align: left;
+        font-weight: 600;
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--gray-500);
+        border-bottom: 1px solid var(--gray-200);
+        white-space: nowrap;
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: var(--gray-50);
+    }
+    .data-table tbody td {
+        padding: 8px 14px;
+        border-bottom: 1px solid var(--gray-100);
+        vertical-align: middle;
+    }
+    .data-table tbody tr:last-child td {
+        border-bottom: none;
+    }
+    .data-table tbody tr:hover {
+        background: var(--gray-50);
     }
     
-    .pagination {
-        flex-direction: column;
+    .action-tag {
+        display: inline-block;
+        padding: 2px 10px;
+        border-radius: 12px;
+        font-size: 0.65rem;
+        font-weight: 500;
+        background: var(--gray-100);
+        color: var(--gray-600);
+    }
+    .action-tag.login { background: #EFF6FF; color: #1E40AF; }
+    .action-tag.logout { background: #EFF6FF; color: #1E40AF; }
+    .action-tag.tenant { background: #ECFDF5; color: #065F46; }
+    .action-tag.user { background: #F5F3FF; color: #5B21B6; }
+    .action-tag.election { background: #FFFBEB; color: #92400E; }
+    .action-tag.result { background: #ECFDF5; color: #065F46; }
+    .action-tag.security { background: #FEF2F2; color: #991B1B; }
+    .action-tag.settings { background: #EFF6FF; color: #1E40AF; }
+    .action-tag.backup { background: #F5F3FF; color: #5B21B6; }
+    
+    .pagination-pro {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 12px;
+        padding: 14px 20px;
+        background: white;
+        border-radius: var(--radius);
+        border: 1px solid var(--gray-200);
+        margin-top: 16px;
+        box-shadow: var(--shadow);
+    }
+    .pagination-pro .info {
+        font-size: 0.82rem;
+        color: var(--gray-500);
+    }
+    .pagination-pro .pages {
+        display: flex;
+        gap: 4px;
         align-items: center;
     }
-}
+    .pagination-pro .pages a,
+    .pagination-pro .pages span {
+        padding: 6px 14px;
+        border-radius: 8px;
+        font-size: 0.82rem;
+        text-decoration: none;
+        color: var(--gray-600);
+        transition: var(--transition);
+        min-width: 36px;
+        text-align: center;
+        border: 1px solid transparent;
+    }
+    .pagination-pro .pages a:hover {
+        background: var(--gray-100);
+        border-color: var(--gray-200);
+    }
+    .pagination-pro .pages .active {
+        background: var(--primary);
+        color: white;
+        border-color: var(--primary);
+    }
+    .pagination-pro .pages .disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+    
+    .empty-state-pro {
+        text-align: center;
+        padding: 48px 20px;
+        color: var(--gray-500);
+    }
+    .empty-state-pro i {
+        font-size: 3rem;
+        color: var(--gray-300);
+        display: block;
+        margin-bottom: 12px;
+    }
+    .empty-state-pro h4 {
+        color: var(--gray-700);
+        margin-bottom: 4px;
+        font-size: 1rem;
+    }
+    
+    @media (max-width: 768px) {
+        .stats-grid { grid-template-columns: repeat(2, 1fr); }
+        .filter-bar-pro { flex-direction: column; align-items: stretch; }
+        .filter-bar-pro .search-wrap { min-width: auto; }
+        .filter-bar-pro select { width: 100%; }
+        .table-container { overflow-x: auto; }
+        .data-table { font-size: 0.78rem; }
+        .data-table th, .data-table td { padding: 6px 10px; }
+        .pagination-pro { flex-direction: column; align-items: center; }
+        .page-header { flex-direction: column; align-items: flex-start; }
+    }
+    @media (max-width: 480px) {
+        .stats-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+        .stat-item { padding: 10px 12px; }
+        .stat-item .number { font-size: 1.2rem; }
+        .data-table th, .data-table td { padding: 4px 8px; font-size: 0.7rem; }
+        .action-tag { font-size: 0.55rem; padding: 1px 6px; }
+    }
 </style>
 
 <main class="main-content">
-    <!-- ============================================================
-    PAGE HEADER
-    ============================================================ -->
-    <div class="page-header">
-        <div class="header-left">
-            <h1>
-                <i class="fas fa-history" style="color:#4f9cf7;"></i>
-                Audit Logs
-                <span class="page-badge"><?php echo number_format($total_count); ?></span>
-            </h1>
-            <p class="subtitle">Complete audit trail of all system activities</p>
-        </div>
-        <div class="header-actions">
-            <button class="btn-secondary" onclick="exportLogs('excel')">
-                <i class="fas fa-file-excel"></i> Export Excel
-            </button>
-            <button class="btn-secondary" onclick="exportLogs('pdf')">
-                <i class="fas fa-file-pdf"></i> Export PDF
-            </button>
-        </div>
-    </div>
-
-    <!-- ============================================================
-    STATISTICS
-    ============================================================ -->
-    <div class="audit-stats">
-        <div class="stat-card">
-            <span class="stat-icon total"><i class="fas fa-database"></i></span>
-            <div class="stat-number"><?php echo number_format($stats['total'] ?? 0); ?></div>
-            <div class="stat-label">Total Records</div>
-        </div>
-        <div class="stat-card">
-            <span class="stat-icon logins"><i class="fas fa-sign-in-alt"></i></span>
-            <div class="stat-number"><?php echo number_format($stats['logins'] ?? 0); ?></div>
-            <div class="stat-label">Logins</div>
-        </div>
-        <div class="stat-card">
-            <span class="stat-icon logouts"><i class="fas fa-sign-out-alt"></i></span>
-            <div class="stat-number"><?php echo number_format($stats['logouts'] ?? 0); ?></div>
-            <div class="stat-label">Logouts</div>
-        </div>
-        <div class="stat-card">
-            <span class="stat-icon creations"><i class="fas fa-plus-circle"></i></span>
-            <div class="stat-number"><?php echo number_format($stats['creations'] ?? 0); ?></div>
-            <div class="stat-label">Creations</div>
-        </div>
-        <div class="stat-card">
-            <span class="stat-icon today"><i class="fas fa-calendar-day"></i></span>
-            <div class="stat-number"><?php echo number_format($stats['today'] ?? 0); ?></div>
-            <div class="stat-label">Today</div>
-        </div>
-    </div>
-
-    <!-- ============================================================
-    ACTIVITY CHART
-    ============================================================ -->
-    <?php if (!empty($hourlyActivity)): ?>
-    <div class="activity-chart">
-        <h3><i class="fas fa-chart-bar"></i> Today's Activity by Hour</h3>
-        <div class="chart-bars">
-            <?php 
-            $max_count = max(array_column($hourlyActivity, 'count')) ?: 1;
-            foreach ($hourlyActivity as $data): 
-                $height = ($data['count'] / $max_count) * 100;
-            ?>
-            <div class="chart-bar" style="height: <?php echo max($height, 4); ?>%;" title="<?php echo $data['hour'] . ':00 - ' . $data['count'] . ' activities'; ?>">
+    <?php include 'includes/header.php'; ?>
+    
+    <div class="main-content-inner">
+        <!-- Page Header -->
+        <div class="page-header">
+            <div>
+                <h2>
+                    <i class="fas fa-clipboard-list" style="color:var(--primary);margin-right:8px;"></i> Audit Logs
+                    <small>Track all system activities and changes</small>
+                </h2>
             </div>
-            <?php endforeach; ?>
-        </div>
-        <div class="chart-labels">
-            <?php foreach ($hourlyActivity as $data): ?>
-            <div class="chart-label"><?php echo sprintf('%02d', $data['hour']); ?>:00</div>
-            <?php endforeach; ?>
-        </div>
-    </div>
-    <?php endif; ?>
-
-    <!-- ============================================================
-    SEARCH & FILTERS
-    ============================================================ -->
-    <div class="filter-bar">
-        <form method="GET" class="filter-form" id="filterForm">
-            <div class="filter-group">
-                <i class="fas fa-search"></i>
-                <input type="text" name="search" placeholder="Search logs..." 
-                       value="<?php echo htmlspecialchars($search); ?>">
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                <a href="audit-logs-export.php" class="btn-outline">
+                    <i class="fas fa-file-export"></i> Export
+                </a>
+                <button onclick="location.reload()" class="btn-outline">
+                    <i class="fas fa-sync"></i> Refresh
+                </button>
             </div>
-            
-            <div class="filter-group">
-                <i class="fas fa-tag"></i>
+        </div>
+
+        <!-- Stats -->
+        <div class="stats-grid">
+            <div class="stat-item"><div class="number"><?php echo number_format($stats['total']); ?></div><div class="label">Total Logs</div></div>
+            <div class="stat-item"><div class="number green"><?php echo number_format($stats['today']); ?></div><div class="label">Today</div></div>
+            <div class="stat-item"><div class="number purple"><?php echo number_format($stats['this_week']); ?></div><div class="label">This Week</div></div>
+            <div class="stat-item"><div class="number blue"><?php echo number_format($stats['login']); ?></div><div class="label">Login Events</div></div>
+            <div class="stat-item"><div class="number yellow"><?php echo number_format($stats['tenant']); ?></div><div class="label">Tenant Events</div></div>
+            <div class="stat-item"><div class="number red"><?php echo number_format($stats['user']); ?></div><div class="label">User Events</div></div>
+        </div>
+
+        <!-- Filter Bar -->
+        <div class="filter-bar-pro">
+            <form method="GET" action="" style="display:flex;flex-wrap:wrap;gap:10px;flex:1;align-items:center;width:100%;">
+                <div class="search-wrap" style="flex:1;">
+                    <i class="fas fa-search"></i>
+                    <input type="text" name="search" placeholder="Search activities..." value="<?php echo htmlspecialchars($search); ?>">
+                </div>
                 <select name="action">
                     <option value="">All Actions</option>
-                    <?php foreach ($action_types as $type): ?>
-                    <option value="<?php echo $type['activity_type']; ?>" <?php echo $filter_action === $type['activity_type'] ? 'selected' : ''; ?>>
-                        <?php echo ucfirst(str_replace('_', ' ', $type['activity_type'])); ?>
-                    </option>
+                    <?php foreach ($actions as $a): ?>
+                        <option value="<?php echo htmlspecialchars($a['activity_type']); ?>" <?php echo $action_filter === $a['activity_type'] ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars($a['activity_type']); ?>
+                        </option>
                     <?php endforeach; ?>
                 </select>
-            </div>
-            
-            <div class="filter-group">
-                <i class="fas fa-user"></i>
+                <select name="entity">
+                    <option value="">All Entities</option>
+                    <?php foreach ($entity_types as $e): ?>
+                        <option value="<?php echo htmlspecialchars($e['entity_type']); ?>" <?php echo $entity_filter === $e['entity_type'] ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars($e['entity_type']); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
                 <select name="user">
                     <option value="">All Users</option>
-                    <?php foreach ($users as $user): ?>
-                    <option value="<?php echo $user['id']; ?>" <?php echo $filter_user == $user['id'] ? 'selected' : ''; ?>>
-                        <?php echo htmlspecialchars($user['full_name']); ?>
-                    </option>
+                    <?php foreach ($users as $u): ?>
+                        <option value="<?php echo $u['id']; ?>" <?php echo $user_filter == $u['id'] ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars($u['full_name'] ?? $u['email']); ?>
+                        </option>
                     <?php endforeach; ?>
                 </select>
-            </div>
-            
-            <div class="filter-group">
-                <i class="fas fa-building"></i>
                 <select name="tenant">
                     <option value="">All Tenants</option>
-                    <?php foreach ($tenants as $tenant): ?>
-                    <option value="<?php echo $tenant['id']; ?>" <?php echo $filter_tenant == $tenant['id'] ? 'selected' : ''; ?>>
-                        <?php echo htmlspecialchars($tenant['name']); ?>
-                    </option>
+                    <?php foreach ($tenants as $t): ?>
+                        <option value="<?php echo $t['id']; ?>" <?php echo $tenant_filter == $t['id'] ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars($t['name']); ?>
+                        </option>
                     <?php endforeach; ?>
                 </select>
-            </div>
-            
-            <div class="filter-group date-range">
-                <i class="fas fa-calendar"></i>
-                <input type="date" name="date_from" placeholder="From" value="<?php echo htmlspecialchars($date_from); ?>">
-                <span>to</span>
-                <input type="date" name="date_to" placeholder="To" value="<?php echo htmlspecialchars($date_to); ?>">
-            </div>
-            
-            <div class="filter-actions">
-                <button type="submit" class="btn-primary"><i class="fas fa-filter"></i> Filter</button>
-                <a href="audit-logs.php" class="btn-secondary"><i class="fas fa-times"></i> Clear</a>
-            </div>
-        </form>
-    </div>
-
-    <!-- ============================================================
-    LOGS TABLE
-    ============================================================ -->
-    <div class="table-container">
-        <div class="table-toolbar">
-            <div class="toolbar-left">
-                <span style="font-size:0.85rem; color:#6d83a5;">
-                    <i class="fas fa-clock"></i> Real-time audit trail
-                </span>
-            </div>
-            <div class="toolbar-right">
-                <span><i class="fas fa-database"></i> <?php echo number_format($total_count); ?> records</span>
-                <span><i class="fas fa-arrow-up"></i> <?php echo ucfirst($sort_by); ?> (<?php echo $sort_order; ?>)</span>
-            </div>
+                <button type="submit" class="btn-filter"><i class="fas fa-filter"></i> Filter</button>
+                <?php if (!empty($search) || !empty($action_filter) || !empty($entity_filter) || $user_filter > 0 || $tenant_filter > 0): ?>
+                    <a href="audit-logs.php" class="btn-clear"><i class="fas fa-times"></i> Clear</a>
+                <?php endif; ?>
+            </form>
         </div>
 
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th style="width:50px;">
-                        <a href="?sort=id&order=<?php echo $sort_order === 'ASC' ? 'DESC' : 'ASC'; ?>&search=<?php echo urlencode($search); ?>&action=<?php echo urlencode($filter_action); ?>&user=<?php echo urlencode($filter_user); ?>&tenant=<?php echo urlencode($filter_tenant); ?>&date_from=<?php echo urlencode($date_from); ?>&date_to=<?php echo urlencode($date_to); ?>&page=<?php echo $page; ?>">
-                            ID
-                            <?php if ($sort_by === 'id'): ?>
-                            <i class="fas fa-sort-<?php echo strtolower($sort_order); ?>"></i>
-                            <?php endif; ?>
-                        </a>
-                    </th>
-                    <th>Timestamp</th>
-                    <th>User</th>
-                    <th>Action</th>
-                    <th>Description</th>
-                    <th>IP Address</th>
-                    <th>Device</th>
-                    <th>Tenant</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if (empty($logs)): ?>
-                <tr>
-                    <td colspan="8" class="empty-table">
-                        <i class="fas fa-inbox" style="font-size:3rem; color:#dce6f0; display:block; margin-bottom:16px;"></i>
-                        <h3>No logs found</h3>
-                        <p>Try adjusting your filters or search criteria.</p>
-                    </td>
-                </tr>
-                <?php endif; ?>
-                
-                <?php foreach ($logs as $log): ?>
-                <tr>
-                    <td><span style="font-weight:600; color:#4f9cf7;">#<?php echo $log['id']; ?></span></td>
-                    <td>
-                        <span style="font-size:0.85rem;">
-                            <?php echo date('M d, Y', strtotime($log['created_at'])); ?>
-                        </span>
-                        <span style="font-size:0.7rem; color:#8b9bb5; display:block;">
-                            <?php echo date('H:i:s', strtotime($log['created_at'])); ?>
-                        </span>
-                    </td>
-                    <td>
-                        <?php if ($log['user_name']): ?>
-                        <div style="font-weight:500; color:#0b1a33;">
-                            <?php echo htmlspecialchars($log['user_name']); ?>
-                        </div>
-                        <div style="font-size:0.7rem; color:#8b9bb5;">
-                            <?php echo htmlspecialchars($log['user_email']); ?>
-                        </div>
-                        <?php else: ?>
-                        <span style="color:#8b9bb5; font-size:0.85rem;">System</span>
-                        <?php endif; ?>
-                    </td>
-                    <td>
-                        <span class="activity-badge <?php echo $log['activity_type'] ?? 'default'; ?>">
-                            <?php if ($log['activity_type'] === 'login'): ?>
-                            <i class="fas fa-sign-in-alt"></i>
-                            <?php elseif ($log['activity_type'] === 'logout'): ?>
-                            <i class="fas fa-sign-out-alt"></i>
-                            <?php elseif (strpos($log['activity_type'], 'created') !== false): ?>
-                            <i class="fas fa-plus-circle"></i>
-                            <?php elseif (strpos($log['activity_type'], 'updated') !== false): ?>
-                            <i class="fas fa-edit"></i>
-                            <?php elseif (strpos($log['activity_type'], 'deleted') !== false): ?>
-                            <i class="fas fa-trash"></i>
-                            <?php else: ?>
-                            <i class="fas fa-circle"></i>
-                            <?php endif; ?>
-                            <?php echo ucfirst(str_replace('_', ' ', $log['activity_type'] ?? 'Unknown')); ?>
-                        </span>
-                    </td>
-                    <td>
-                        <div style="max-width:200px; word-wrap:break-word;">
-                            <?php echo htmlspecialchars($log['description']); ?>
-                        </div>
-                        <?php if ($log['entity_type']): ?>
-                        <div style="font-size:0.65rem; color:#8b9bb5; margin-top:2px;">
-                            <?php echo htmlspecialchars($log['entity_type']); ?>
-                            <?php if ($log['entity_id']): ?>
-                            #<?php echo $log['entity_id']; ?>
-                            <?php endif; ?>
-                        </div>
-                        <?php endif; ?>
-                    </td>
-                    <td>
-                        <span style="font-size:0.8rem; font-family:monospace;">
-                            <?php echo htmlspecialchars($log['ip_address'] ?? 'N/A'); ?>
-                        </span>
-                    </td>
-                    <td>
-                        <div class="device-info">
-                            <?php if ($log['device_id']): ?>
-                            <i class="fas fa-laptop device-icon"></i>
-                            <span style="font-size:0.7rem;">
-                                <?php echo substr(htmlspecialchars($log['device_id']), 0, 12); ?>...
-                            </span>
-                            <?php else: ?>
-                            <span style="color:#8b9bb5; font-size:0.7rem;">N/A</span>
-                            <?php endif; ?>
-                        </div>
-                    </td>
-                    <td>
-                        <?php if ($log['tenant_name']): ?>
-                        <span style="font-size:0.8rem; color:#1f3149;">
-                            <?php echo htmlspecialchars($log['tenant_name']); ?>
-                        </span>
-                        <?php else: ?>
-                        <span style="color:#8b9bb5; font-size:0.8rem;">System</span>
-                        <?php endif; ?>
-                    </td>
-                </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
-
-        <!-- ============================================================
-        PAGINATION
-        ============================================================ -->
-        <?php if ($total_pages > 1): ?>
-        <div class="pagination">
-            <div class="pagination-info">
-                Showing <strong><?php echo $offset + 1; ?></strong> to 
-                <strong><?php echo min($offset + $per_page, $total_count); ?></strong> 
-                of <strong><?php echo number_format($total_count); ?></strong> logs
+        <!-- Audit Logs Table -->
+        <div class="table-container">
+            <div class="table-header">
+                <div class="table-title">
+                    <i class="fas fa-list" style="color:var(--primary);"></i> Activity Logs
+                    <span class="count"><?php echo number_format($total_logs); ?></span>
+                </div>
             </div>
-            <div class="pagination-links">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th style="width:40px;">#</th>
+                        <th>Activity Type</th>
+                        <th>Description</th>
+                        <th>User</th>
+                        <th>Tenant</th>
+                        <th>IP Address</th>
+                        <th>Time</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php if (count($logs) > 0): ?>
+                        <?php foreach ($logs as $index => $log): ?>
+                            <?php 
+                                $action_class = 'action-tag';
+                                $type = $log['activity_type'] ?? '';
+                                if (strpos($type, 'login') !== false) {
+                                    $action_class .= ' login';
+                                } elseif (strpos($type, 'logout') !== false) {
+                                    $action_class .= ' logout';
+                                } elseif (strpos($type, 'tenant') !== false) {
+                                    $action_class .= ' tenant';
+                                } elseif (strpos($type, 'user') !== false) {
+                                    $action_class .= ' user';
+                                } elseif (strpos($type, 'election') !== false) {
+                                    $action_class .= ' election';
+                                } elseif (strpos($type, 'result') !== false) {
+                                    $action_class .= ' result';
+                                } elseif (strpos($type, 'security') !== false || strpos($type, 'password') !== false) {
+                                    $action_class .= ' security';
+                                } elseif (strpos($type, 'settings') !== false) {
+                                    $action_class .= ' settings';
+                                } elseif (strpos($type, 'backup') !== false) {
+                                    $action_class .= ' backup';
+                                }
+                            ?>
+                            <tr>
+                                <td><?php echo $offset + $index + 1; ?></td>
+                                <td>
+                                    <span class="<?php echo $action_class; ?>">
+                                        <?php echo htmlspecialchars($log['activity_type'] ?? 'N/A'); ?>
+                                    </span>
+                                </td>
+                                <td style="max-width:250px;word-wrap:break-word;">
+                                    <?php echo htmlspecialchars($log['description'] ?? ''); ?>
+                                </td>
+                                <td>
+                                    <?php if (!empty($log['user_name'])): ?>
+                                        <div style="font-weight:500;font-size:0.82rem;"><?php echo htmlspecialchars($log['user_name']); ?></div>
+                                        <div style="font-size:0.65rem;color:var(--gray-400);"><?php echo htmlspecialchars($log['user_email'] ?? ''); ?></div>
+                                    <?php else: ?>
+                                        <span style="color:var(--gray-400);font-size:0.8rem;">System</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <?php if (!empty($log['tenant_name'])): ?>
+                                        <span style="font-size:0.78rem;background:var(--gray-100);padding:2px 10px;border-radius:12px;color:var(--gray-600);">
+                                            <?php echo htmlspecialchars($log['tenant_name']); ?>
+                                        </span>
+                                    <?php else: ?>
+                                        <span style="font-size:0.75rem;color:var(--gray-400);">Global</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td style="font-size:0.75rem;color:var(--gray-500);font-family:monospace;">
+                                    <?php echo htmlspecialchars($log['ip_address'] ?? '—'); ?>
+                                </td>
+                                <td style="font-size:0.75rem;color:var(--gray-500);white-space:nowrap;">
+                                    <?php echo date('M j, Y g:i A', strtotime($log['created_at'])); ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <tr>
+                            <td colspan="7">
+                                <div class="empty-state-pro">
+                                    <i class="fas fa-clipboard-list"></i>
+                                    <h4>No activity logs found</h4>
+                                    <p>Try adjusting your filters or check back later.</p>
+                                </div>
+                            </td>
+                        </tr>
+                    <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        <?php if ($total_pages > 1): ?>
+        <div class="pagination-pro">
+            <div class="info">
+                Showing <strong><?php echo $offset + 1; ?></strong> to <strong><?php echo min($offset + $limit, $total_logs); ?></strong> of <strong><?php echo number_format($total_logs); ?></strong> logs
+            </div>
+            <div class="pages">
                 <?php if ($page > 1): ?>
-                <a href="?page=1&sort=<?php echo urlencode($sort_by); ?>&order=<?php echo urlencode($sort_order); ?>&search=<?php echo urlencode($search); ?>&action=<?php echo urlencode($filter_action); ?>&user=<?php echo urlencode($filter_user); ?>&tenant=<?php echo urlencode($filter_tenant); ?>&date_from=<?php echo urlencode($date_from); ?>&date_to=<?php echo urlencode($date_to); ?>">
-                    <i class="fas fa-angle-double-left"></i>
-                </a>
-                <a href="?page=<?php echo $page - 1; ?>&sort=<?php echo urlencode($sort_by); ?>&order=<?php echo urlencode($sort_order); ?>&search=<?php echo urlencode($search); ?>&action=<?php echo urlencode($filter_action); ?>&user=<?php echo urlencode($filter_user); ?>&tenant=<?php echo urlencode($filter_tenant); ?>&date_from=<?php echo urlencode($date_from); ?>&date_to=<?php echo urlencode($date_to); ?>">
-                    <i class="fas fa-angle-left"></i>
-                </a>
+                    <a href="?page=<?php echo $page - 1; ?>&search=<?php echo urlencode($search); ?>&action=<?php echo urlencode($action_filter); ?>&entity=<?php echo urlencode($entity_filter); ?>&user=<?php echo $user_filter; ?>&tenant=<?php echo $tenant_filter; ?>">
+                        <i class="fas fa-chevron-left"></i>
+                    </a>
+                <?php else: ?>
+                    <span class="disabled"><i class="fas fa-chevron-left"></i></span>
                 <?php endif; ?>
-                
                 <?php
                 $start_page = max(1, $page - 2);
                 $end_page = min($total_pages, $page + 2);
-                
                 if ($start_page > 1) {
-                    echo '<span class="ellipsis">…</span>';
+                    echo '<a href="?page=1&search=' . urlencode($search) . '&action=' . urlencode($action_filter) . '&entity=' . urlencode($entity_filter) . '&user=' . $user_filter . '&tenant=' . $tenant_filter . '">1</a>';
+                    if ($start_page > 2) echo '<span>…</span>';
                 }
-                
-                for ($i = $start_page; $i <= $end_page; $i++) {
-                    $active = $i === $page ? 'active' : '';
-                    echo '<a href="?page=' . $i . '&sort=' . urlencode($sort_by) . '&order=' . urlencode($sort_order) . '&search=' . urlencode($search) . '&action=' . urlencode($filter_action) . '&user=' . urlencode($filter_user) . '&tenant=' . urlencode($filter_tenant) . '&date_from=' . urlencode($date_from) . '&date_to=' . urlencode($date_to) . '" class="' . $active . '">' . $i . '</a>';
-                }
-                
+                for ($i = $start_page; $i <= $end_page; $i++):
+                ?>
+                    <a href="?page=<?php echo $i; ?>&search=<?php echo urlencode($search); ?>&action=<?php echo urlencode($action_filter); ?>&entity=<?php echo urlencode($entity_filter); ?>&user=<?php echo $user_filter; ?>&tenant=<?php echo $tenant_filter; ?>" class="<?php echo $i === $page ? 'active' : ''; ?>">
+                        <?php echo $i; ?>
+                    </a>
+                <?php endfor;
                 if ($end_page < $total_pages) {
-                    echo '<span class="ellipsis">…</span>';
+                    if ($end_page < $total_pages - 1) echo '<span>…</span>';
+                    echo '<a href="?page=' . $total_pages . '&search=' . urlencode($search) . '&action=' . urlencode($action_filter) . '&entity=' . urlencode($entity_filter) . '&user=' . $user_filter . '&tenant=' . $tenant_filter . '">' . $total_pages . '</a>';
                 }
                 ?>
-                
                 <?php if ($page < $total_pages): ?>
-                <a href="?page=<?php echo $page + 1; ?>&sort=<?php echo urlencode($sort_by); ?>&order=<?php echo urlencode($sort_order); ?>&search=<?php echo urlencode($search); ?>&action=<?php echo urlencode($filter_action); ?>&user=<?php echo urlencode($filter_user); ?>&tenant=<?php echo urlencode($filter_tenant); ?>&date_from=<?php echo urlencode($date_from); ?>&date_to=<?php echo urlencode($date_to); ?>">
-                    <i class="fas fa-angle-right"></i>
-                </a>
-                <a href="?page=<?php echo $total_pages; ?>&sort=<?php echo urlencode($sort_by); ?>&order=<?php echo urlencode($sort_order); ?>&search=<?php echo urlencode($search); ?>&action=<?php echo urlencode($filter_action); ?>&user=<?php echo urlencode($filter_user); ?>&tenant=<?php echo urlencode($filter_tenant); ?>&date_from=<?php echo urlencode($date_from); ?>&date_to=<?php echo urlencode($date_to); ?>">
-                    <i class="fas fa-angle-double-right"></i>
-                </a>
+                    <a href="?page=<?php echo $page + 1; ?>&search=<?php echo urlencode($search); ?>&action=<?php echo urlencode($action_filter); ?>&entity=<?php echo urlencode($entity_filter); ?>&user=<?php echo $user_filter; ?>&tenant=<?php echo $tenant_filter; ?>">
+                        <i class="fas fa-chevron-right"></i>
+                    </a>
+                <?php else: ?>
+                    <span class="disabled"><i class="fas fa-chevron-right"></i></span>
                 <?php endif; ?>
             </div>
         </div>
@@ -883,40 +736,138 @@ include 'includes/base.php';
 
 <script>
 // ============================================================
-// EXPORT LOGS
+// PRELOADER
 // ============================================================
-function exportLogs(format) {
-    const search = document.querySelector('input[name="search"]')?.value || '';
-    const action = document.querySelector('select[name="action"]')?.value || '';
-    const user = document.querySelector('select[name="user"]')?.value || '';
-    const tenant = document.querySelector('select[name="tenant"]')?.value || '';
-    const date_from = document.querySelector('input[name="date_from"]')?.value || '';
-    const date_to = document.querySelector('input[name="date_to"]')?.value || '';
-    
-    window.location.href = `audit-export.php?format=${format}&search=${encodeURIComponent(search)}&action=${encodeURIComponent(action)}&user=${encodeURIComponent(user)}&tenant=${encodeURIComponent(tenant)}&date_from=${encodeURIComponent(date_from)}&date_to=${encodeURIComponent(date_to)}`;
+window.addEventListener('load', function() {
+    var preloader = document.getElementById('preloader');
+    if (preloader) {
+        preloader.classList.add('hidden');
+        setTimeout(function() { preloader.style.display = 'none'; }, 600);
+    }
+});
+
+// ============================================================
+// SIDEBAR TOGGLE
+// ============================================================
+var sidebar = document.getElementById('sidebar');
+var sidebarToggle = document.getElementById('sidebarToggle');
+var sidebarOverlay = document.getElementById('sidebarOverlay');
+var dashboardHeader = document.getElementById('dashboardHeader');
+
+function toggleSidebar() {
+    sidebar.classList.toggle('open');
+    sidebarOverlay.classList.toggle('active');
+    updateHeaderPosition();
+}
+
+function updateHeaderPosition() {
+    if (window.innerWidth > 768) {
+        dashboardHeader.style.left = '260px';
+    } else if (sidebar.classList.contains('open')) {
+        dashboardHeader.style.left = '280px';
+    } else {
+        dashboardHeader.style.left = '0';
+    }
+}
+
+if (sidebarToggle) {
+    sidebarToggle.addEventListener('click', toggleSidebar);
+}
+if (sidebarOverlay) {
+    sidebarOverlay.addEventListener('click', toggleSidebar);
+}
+
+window.addEventListener('resize', function() {
+    if (window.innerWidth > 768) {
+        sidebar.classList.remove('open');
+        sidebarOverlay.classList.remove('active');
+        dashboardHeader.style.left = '260px';
+    } else if (!sidebar.classList.contains('open')) {
+        dashboardHeader.style.left = '0';
+    }
+});
+
+// ============================================================
+// SIDEBAR DROPDOWNS
+// ============================================================
+document.querySelectorAll('.dropdown-toggle').forEach(function(toggle) {
+    toggle.addEventListener('click', function(e) {
+        e.preventDefault();
+        var dropdownId = this.dataset.dropdown;
+        var dropdown = document.getElementById(dropdownId);
+        var chevron = this.querySelector('.chevron');
+        if (dropdown) {
+            dropdown.classList.toggle('open');
+            if (chevron) chevron.classList.toggle('open');
+        }
+    });
+});
+
+// ============================================================
+// PROFILE DROPDOWN
+// ============================================================
+var profileBtn = document.getElementById('profileBtn');
+var profileMenu = document.getElementById('profileMenu');
+
+if (profileBtn && profileMenu) {
+    profileBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        profileMenu.classList.toggle('active');
+    });
+    document.addEventListener('click', function(e) {
+        if (!profileBtn.contains(e.target) && !profileMenu.contains(e.target)) {
+            profileMenu.classList.remove('active');
+        }
+    });
 }
 
 // ============================================================
-// AUTO-SUBMIT ON FILTER CHANGE
+// SEARCH
 // ============================================================
-document.querySelectorAll('select[name="action"], select[name="user"], select[name="tenant"]').forEach(select => {
-    select.addEventListener('change', function() {
-        document.getElementById('filterForm').submit();
-    });
-});
+var searchInput = document.getElementById('searchInput');
+var searchResults = document.getElementById('searchResults');
+var searchTimeout;
 
-// ============================================================
-// DATE INPUT AUTO-SUBMIT
-// ============================================================
-let filterTimeout;
-document.querySelectorAll('input[name="date_from"], input[name="date_to"]').forEach(input => {
-    input.addEventListener('change', function() {
-        clearTimeout(filterTimeout);
-        filterTimeout = setTimeout(() => {
-            document.getElementById('filterForm').submit();
-        }, 500);
+if (searchInput) {
+    searchInput.addEventListener('input', function() {
+        var query = this.value.trim();
+        clearTimeout(searchTimeout);
+        if (query.length < 2) {
+            if (searchResults) searchResults.classList.remove('active');
+            return;
+        }
+        searchTimeout = setTimeout(function() {
+            fetch('search.php?q=' + encodeURIComponent(query))
+                .then(function(response) { return response.json(); })
+                .then(function(data) {
+                    if (searchResults) {
+                        searchResults.innerHTML = '';
+                        if (data && data.length > 0) {
+                            data.forEach(function(item) {
+                                var div = document.createElement('a');
+                                div.className = 'result-item';
+                                div.href = item.url || '#';
+                                div.innerHTML = '<i class="fas ' + (item.icon || 'fa-file') + '"></i><span class="text-truncate">' + (item.label || item.name || '') + '</span><span class="result-type">' + ((item.type || '').charAt(0).toUpperCase() + (item.type || '').slice(1)) + '</span>';
+                                searchResults.appendChild(div);
+                            });
+                            searchResults.classList.add('active');
+                        } else {
+                            searchResults.innerHTML = '<div style="padding:12px;text-align:center;color:var(--gray-500);font-size:0.8rem;"><i class="fas fa-search" style="display:block;font-size:1.2rem;margin-bottom:4px;"></i>No results found</div>';
+                            searchResults.classList.add('active');
+                        }
+                    }
+                })
+                .catch(function() {});
+        }, 300);
     });
-});
+
+    document.addEventListener('click', function(e) {
+        var wrapper = document.querySelector('.search-wrapper');
+        if (wrapper && !wrapper.contains(e.target) && searchResults) {
+            searchResults.classList.remove('active');
+        }
+    });
+}
 </script>
-
-<?php include 'includes/footer.php'; ?>
+</body>
+</html>

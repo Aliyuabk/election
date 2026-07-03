@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// USERS MANAGEMENT - SUPER ADMINISTRATOR
+// TENANT USERS - SUPER ADMINISTRATOR (PRO STYLE)
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -25,6 +25,33 @@ if (SessionManager::get('role_level') !== 'super_admin') {
 $db = getDB();
 
 // ============================================================
+// GET TENANT ID
+// ============================================================
+$tenant_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+
+if ($tenant_id <= 0) {
+    header('Location: tenants.php');
+    exit();
+}
+
+// ============================================================
+// FETCH TENANT DETAILS
+// ============================================================
+$tenant = null;
+try {
+    $stmt = $db->prepare("SELECT id, name, slug, logo_url FROM tenants WHERE id = ? AND deleted_at IS NULL");
+    $stmt->execute([$tenant_id]);
+    $tenant = $stmt->fetch();
+} catch (Exception $e) {
+    // Continue
+}
+
+if (!$tenant) {
+    header('Location: tenants.php');
+    exit();
+}
+
+// ============================================================
 // FETCH USERS WITH PAGINATION & FILTERS
 // ============================================================
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
@@ -33,16 +60,15 @@ $offset = ($page - 1) * $limit;
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 $status_filter = isset($_GET['status']) ? $_GET['status'] : '';
 $role_filter = isset($_GET['role']) ? $_GET['role'] : '';
-$tenant_filter = isset($_GET['tenant']) ? (int)$_GET['tenant'] : 0;
 
 // Build WHERE clause
-$where_conditions = ["u.deleted_at IS NULL"];
-$params = [];
+$where_conditions = ["u.tenant_id = ?", "u.deleted_at IS NULL"];
+$params = [$tenant_id];
 
 if (!empty($search)) {
-    $where_conditions[] = "(u.first_name LIKE ? OR u.last_name LIKE ? OR u.email LIKE ? OR u.phone LIKE ? OR u.user_code LIKE ?)";
+    $where_conditions[] = "(u.first_name LIKE ? OR u.last_name LIKE ? OR u.email LIKE ? OR u.phone LIKE ?)";
     $search_param = "%$search%";
-    $params = array_merge($params, [$search_param, $search_param, $search_param, $search_param, $search_param]);
+    $params = array_merge($params, [$search_param, $search_param, $search_param, $search_param]);
 }
 
 if (!empty($status_filter)) {
@@ -53,11 +79,6 @@ if (!empty($status_filter)) {
 if (!empty($role_filter)) {
     $where_conditions[] = "u.role_id = ?";
     $params[] = $role_filter;
-}
-
-if ($tenant_filter > 0) {
-    $where_conditions[] = "u.tenant_id = ?";
-    $params[] = $tenant_filter;
 }
 
 $where_clause = implode(" AND ", $where_conditions);
@@ -74,12 +95,9 @@ $sql = "
     SELECT 
         u.*,
         r.name as role_name,
-        r.level as role_level,
-        t.name as tenant_name,
-        t.slug as tenant_slug
+        r.level as role_level
     FROM users u
     LEFT JOIN roles r ON u.role_id = r.id
-    LEFT JOIN tenants t ON u.tenant_id = t.id
     WHERE $where_clause
     ORDER BY u.created_at DESC
     LIMIT ? OFFSET ?
@@ -104,45 +122,50 @@ try {
 }
 
 // ============================================================
-// FETCH TENANTS FOR FILTER
+// HANDLE USER ACTIONS
 // ============================================================
-$tenants = [];
-try {
-    $stmt = $db->query("SELECT id, name FROM tenants WHERE deleted_at IS NULL ORDER BY name");
-    $tenants = $stmt->fetchAll();
-} catch (Exception $e) {
-    // Continue
-}
+$action_result = ['success' => false, 'message' => ''];
 
-// ============================================================
-// FETCH STATISTICS
-// ============================================================
-$stats = [
-    'total' => 0,
-    'active' => 0,
-    'suspended' => 0,
-    'pending' => 0,
-    'online' => 0
-];
-
-try {
-    $stmt = $db->query("SELECT COUNT(*) as total FROM users WHERE deleted_at IS NULL");
-    $stats['total'] = $stmt->fetch()['total'] ?? 0;
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $action = $_POST['action'] ?? '';
+    $user_id = isset($_POST['user_id']) ? (int)$_POST['user_id'] : 0;
     
-    $stmt = $db->query("SELECT COUNT(*) as total FROM users WHERE status = 'active' AND deleted_at IS NULL");
-    $stats['active'] = $stmt->fetch()['total'] ?? 0;
+    try {
+        switch ($action) {
+            case 'suspend':
+                $stmt = $db->prepare("UPDATE users SET status = 'suspended', updated_at = NOW() WHERE id = ? AND tenant_id = ?");
+                $stmt->execute([$user_id, $tenant_id]);
+                if ($stmt->rowCount() > 0) {
+                    $action_result = ['success' => true, 'message' => 'User suspended successfully.'];
+                    logActivity(SessionManager::get('user_id'), 'user_suspended', "Suspended user ID: $user_id");
+                }
+                break;
+            case 'activate':
+                $stmt = $db->prepare("UPDATE users SET status = 'active', updated_at = NOW() WHERE id = ? AND tenant_id = ?");
+                $stmt->execute([$user_id, $tenant_id]);
+                if ($stmt->rowCount() > 0) {
+                    $action_result = ['success' => true, 'message' => 'User activated successfully.'];
+                    logActivity(SessionManager::get('user_id'), 'user_activated', "Activated user ID: $user_id");
+                }
+                break;
+            case 'delete':
+                $stmt = $db->prepare("UPDATE users SET deleted_at = NOW() WHERE id = ? AND tenant_id = ?");
+                $stmt->execute([$user_id, $tenant_id]);
+                if ($stmt->rowCount() > 0) {
+                    $action_result = ['success' => true, 'message' => 'User deleted successfully.'];
+                    logActivity(SessionManager::get('user_id'), 'user_deleted', "Deleted user ID: $user_id");
+                }
+                break;
+        }
+    } catch (Exception $e) {
+        $action_result = ['success' => false, 'message' => 'Error: ' . $e->getMessage()];
+    }
     
-    $stmt = $db->query("SELECT COUNT(*) as total FROM users WHERE status = 'suspended' AND deleted_at IS NULL");
-    $stats['suspended'] = $stmt->fetch()['total'] ?? 0;
-    
-    $stmt = $db->query("SELECT COUNT(*) as total FROM users WHERE status = 'pending' AND deleted_at IS NULL");
-    $stats['pending'] = $stmt->fetch()['total'] ?? 0;
-    
-    $stmt = $db->prepare("SELECT COUNT(DISTINCT user_id) as total FROM user_sessions WHERE is_active = 1 AND last_activity_at > DATE_SUB(NOW(), INTERVAL 5 MINUTE)");
-    $stmt->execute();
-    $stats['online'] = $stmt->fetch()['total'] ?? 0;
-} catch (Exception $e) {
-    // Continue
+    // Refresh the page to show updated data
+    if ($action_result['success']) {
+        header("Location: tenants-users.php?id=$tenant_id");
+        exit();
+    }
 }
 
 // Get user info
@@ -154,72 +177,81 @@ include 'includes/sidebar.php';
 ?>
 <style>
     /* ============================================================
-       USERS MANAGEMENT - PRO STYLES
+       TENANT USERS - PRO STYLES
        ============================================================ */
     
-    .page-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 12px;
-        margin-bottom: 20px;
-    }
-    .page-header h2 {
-        font-size: 1.3rem;
-        font-weight: 700;
-    }
-    .page-header h2 small {
-        font-size: 0.8rem;
-        font-weight: 400;
-        color: var(--gray-500);
-        display: block;
-    }
-    .btn-primary {
-        padding: 8px 18px;
-        background: var(--primary);
-        color: white;
-        border: none;
-        border-radius: 10px;
-        font-weight: 600;
-        font-size: 0.85rem;
-        cursor: pointer;
-        text-decoration: none;
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        transition: var(--transition);
-        font-family: 'Inter', sans-serif;
-    }
-    .btn-primary:hover {
-        background: var(--primary-dark);
-        transform: translateY(-1px);
-        box-shadow: 0 4px 16px rgba(var(--primary-rgb), 0.25);
-    }
-    .btn-outline {
-        padding: 8px 16px;
-        background: transparent;
-        color: var(--gray-600);
+    /* Tenant Profile Header */
+    .tenant-profile-header {
+        background: white;
+        border-radius: var(--radius);
         border: 1px solid var(--gray-200);
-        border-radius: 10px;
-        font-weight: 500;
-        font-size: 0.82rem;
-        cursor: pointer;
-        text-decoration: none;
-        display: inline-flex;
+        padding: 20px 24px;
+        display: flex;
         align-items: center;
-        gap: 6px;
-        transition: var(--transition);
-        font-family: 'Inter', sans-serif;
+        gap: 20px;
+        flex-wrap: wrap;
+        box-shadow: var(--shadow);
+        margin-bottom: 24px;
+        position: relative;
+        overflow: hidden;
     }
-    .btn-outline:hover {
-        background: var(--gray-50);
-        border-color: var(--gray-300);
+    .tenant-profile-header::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 4px;
+        background: linear-gradient(90deg, var(--primary), var(--secondary));
+    }
+    .tenant-profile-header .tenant-avatar {
+        width: 60px;
+        height: 60px;
+        border-radius: 14px;
+        background: var(--gray-100);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.6rem;
+        font-weight: 700;
+        color: var(--primary);
+        overflow: hidden;
+        flex-shrink: 0;
+        border: 2px solid var(--gray-200);
+    }
+    .tenant-profile-header .tenant-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    .tenant-profile-header .tenant-info h2 {
+        font-size: 1.2rem;
+        font-weight: 700;
+        margin-bottom: 2px;
+    }
+    .tenant-profile-header .tenant-info .tenant-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        font-size: 0.8rem;
+        color: var(--gray-500);
+    }
+    .tenant-profile-header .tenant-info .tenant-meta span {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+    .tenant-profile-header .tenant-actions {
+        margin-left: auto;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
     }
 
+    /* Stats Summary */
     .stats-summary {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
         gap: 12px;
         margin-bottom: 20px;
     }
@@ -230,7 +262,6 @@ include 'includes/sidebar.php';
         border: 1px solid var(--gray-200);
         text-align: center;
         transition: var(--transition);
-        cursor: pointer;
     }
     .stats-summary .stat-item:hover {
         box-shadow: var(--shadow-hover);
@@ -251,6 +282,7 @@ include 'includes/sidebar.php';
         margin-top: 2px;
     }
 
+    /* Filter Bar */
     .filter-bar-pro {
         background: white;
         border-radius: var(--radius);
@@ -292,6 +324,9 @@ include 'includes/sidebar.php';
         font-size: 0.85rem;
         width: 100%;
         color: var(--gray-700);
+    }
+    .filter-bar-pro .search-wrap input::placeholder {
+        color: var(--gray-400);
     }
     .filter-bar-pro select {
         padding: 8px 14px;
@@ -351,6 +386,7 @@ include 'includes/sidebar.php';
         border-color: var(--gray-300);
     }
 
+    /* Table Container */
     .table-container {
         background: white;
         border-radius: var(--radius);
@@ -420,6 +456,7 @@ include 'includes/sidebar.php';
         background: var(--gray-50);
     }
 
+    /* User Avatar */
     .user-avatar-sm {
         width: 38px;
         height: 38px;
@@ -454,6 +491,7 @@ include 'includes/sidebar.php';
         color: var(--gray-400);
     }
 
+    /* Badges */
     .badge-status {
         display: inline-flex;
         align-items: center;
@@ -492,16 +530,10 @@ include 'includes/sidebar.php';
     .badge-role.national { background: #EFF6FF; color: #1E40AF; }
     .badge-role.state { background: #FFFBEB; color: #92400E; }
     .badge-role.lga { background: #FEF2F2; color: #991B1B; }
+    .badge-role.ward { background: #ECFDF5; color: #065F46; }
+    .badge-role.pu_agent { background: #F5F3FF; color: #5B21B6; }
 
-    .tenant-tag {
-        display: inline-block;
-        padding: 2px 10px;
-        border-radius: 12px;
-        font-size: 0.7rem;
-        background: var(--gray-100);
-        color: var(--gray-600);
-    }
-
+    /* Action Dropdown */
     .action-dropdown-pro {
         position: relative;
         display: inline-block;
@@ -576,6 +608,7 @@ include 'includes/sidebar.php';
         margin: 4px 8px;
     }
 
+    /* Pagination */
     .pagination-pro {
         display: flex;
         justify-content: space-between;
@@ -627,6 +660,7 @@ include 'includes/sidebar.php';
         cursor: not-allowed;
     }
 
+    /* Empty State */
     .empty-state-pro {
         text-align: center;
         padding: 48px 20px;
@@ -643,48 +677,110 @@ include 'includes/sidebar.php';
         margin-bottom: 4px;
         font-size: 1rem;
     }
+    .empty-state-pro p {
+        font-size: 0.85rem;
+        color: var(--gray-400);
+    }
 
-    .online-indicator {
-        display: inline-flex;
+    /* Toast Messages */
+    .toast-container {
+        position: fixed;
+        top: 80px;
+        right: 20px;
+        z-index: 999;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    .toast {
+        padding: 14px 20px;
+        border-radius: 10px;
+        color: white;
+        font-size: 0.85rem;
+        font-weight: 500;
+        box-shadow: var(--shadow-hover);
+        animation: slideIn 0.3s ease;
+        min-width: 280px;
+        max-width: 400px;
+        display: flex;
         align-items: center;
-        gap: 4px;
-        font-size: 0.7rem;
-        color: var(--secondary);
+        gap: 10px;
     }
-    .online-indicator .pulse {
-        width: 8px;
-        height: 8px;
-        border-radius: 50%;
-        background: var(--secondary);
-        animation: pulse 1.5s ease-in-out infinite;
-    }
-    @keyframes pulse {
-        0% { opacity: 1; transform: scale(1); }
-        50% { opacity: 0.5; transform: scale(0.8); }
-        100% { opacity: 1; transform: scale(1); }
+    .toast.success { background: var(--secondary); }
+    .toast.error { background: var(--danger); }
+    @keyframes slideIn {
+        from { transform: translateX(100px); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
     }
 
+    /* Responsive */
     @media (max-width: 992px) {
-        .stats-summary { grid-template-columns: repeat(3, 1fr); }
+        .stats-summary {
+            grid-template-columns: repeat(3, 1fr);
+        }
     }
     @media (max-width: 768px) {
-        .filter-bar-pro { flex-direction: column; align-items: stretch; }
-        .filter-bar-pro .search-wrap { min-width: auto; }
-        .filter-bar-pro select { width: 100%; }
-        .stats-summary { grid-template-columns: repeat(2, 1fr); }
-        .table-container .table-header { flex-direction: column; align-items: flex-start; }
+        .tenant-profile-header {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        .tenant-profile-header .tenant-actions {
+            margin-left: 0;
+            width: 100%;
+        }
+        .filter-bar-pro {
+            flex-direction: column;
+            align-items: stretch;
+        }
+        .filter-bar-pro .search-wrap {
+            min-width: auto;
+        }
+        .filter-bar-pro select {
+            width: 100%;
+        }
+        .stats-summary {
+            grid-template-columns: repeat(2, 1fr);
+        }
+        .table-container .table-header {
+            flex-direction: column;
+            align-items: flex-start;
+        }
         .data-table { font-size: 0.78rem; }
         .data-table th, .data-table td { padding: 8px 12px; }
-        .pagination-pro { flex-direction: column; align-items: center; }
+        .pagination-pro {
+            flex-direction: column;
+            align-items: center;
+        }
         .table-container { overflow-x: auto; }
-        .page-header { flex-direction: column; align-items: flex-start; }
     }
     @media (max-width: 480px) {
-        .stats-summary { grid-template-columns: 1fr 1fr; gap: 8px; }
-        .stats-summary .stat-item { padding: 10px 12px; }
-        .stats-summary .stat-item .number { font-size: 1.2rem; }
+        .stats-summary {
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .stats-summary .stat-item {
+            padding: 10px 12px;
+        }
+        .stats-summary .stat-item .number {
+            font-size: 1.2rem;
+        }
+        .tenant-profile-header {
+            padding: 16px;
+        }
+        .tenant-profile-header .tenant-avatar {
+            width: 48px;
+            height: 48px;
+            font-size: 1.2rem;
+        }
+        .tenant-profile-header .tenant-info h2 {
+            font-size: 1rem;
+        }
         .data-table th, .data-table td { padding: 6px 8px; font-size: 0.7rem; }
-        .user-avatar-sm { width: 30px; height: 30px; font-size: 0.65rem; }
+        .user-avatar-sm {
+            width: 30px;
+            height: 30px;
+            font-size: 0.65rem;
+        }
         .badge-status { font-size: 0.6rem; padding: 2px 8px; }
         .badge-role { font-size: 0.6rem; padding: 1px 8px; }
     }
@@ -694,39 +790,69 @@ include 'includes/sidebar.php';
     <?php include 'includes/header.php'; ?>
     
     <div class="main-content-inner">
-        <!-- Page Header -->
-        <div class="page-header">
-            <div>
-                <h2>
-                    <i class="fas fa-users" style="color:var(--primary);margin-right:8px;"></i> Users
-                    <small>Manage all users across the platform</small>
-                </h2>
+        <!-- Tenant Profile Header -->
+        <div class="tenant-profile-header">
+            <div class="tenant-avatar">
+                <?php if (!empty($tenant['logo_url'])): ?>
+                    <img src="<?php echo htmlspecialchars($tenant['logo_url']); ?>" alt="<?php echo htmlspecialchars($tenant['name']); ?>">
+                <?php else: ?>
+                    <?php echo strtoupper(substr($tenant['name'], 0, 2)); ?>
+                <?php endif; ?>
             </div>
-            <div style="display:flex;gap:10px;flex-wrap:wrap;">
-                <a href="users-export.php" class="btn-outline">
-                    <i class="fas fa-file-export"></i> Export
+            <div class="tenant-info">
+                <h2><?php echo htmlspecialchars($tenant['name']); ?></h2>
+                <div class="tenant-meta">
+                    <span><i class="fas fa-tag"></i> <?php echo htmlspecialchars($tenant['slug']); ?></span>
+                    <span><i class="fas fa-users"></i> <?php echo number_format($total_users); ?> Users</span>
+                </div>
+            </div>
+            <div class="tenant-actions">
+                <a href="tenants-view.php?id=<?php echo $tenant_id; ?>" class="btn-outline" style="padding:8px 16px;font-size:0.8rem;">
+                    <i class="fas fa-eye"></i> View Tenant
                 </a>
-                <a href="users-create.php" class="btn-primary">
-                    <i class="fas fa-user-plus"></i> Add User
+                <a href="tenants.php" class="btn-outline" style="padding:8px 16px;font-size:0.8rem;">
+                    <i class="fas fa-arrow-left"></i> Back
                 </a>
             </div>
         </div>
 
         <!-- Stats Summary -->
+        <?php
+        $total_active = 0;
+        $total_suspended = 0;
+        $total_pending = 0;
+        foreach ($users as $u) {
+            if ($u['status'] === 'active') $total_active++;
+            elseif ($u['status'] === 'suspended') $total_suspended++;
+            elseif ($u['status'] === 'pending') $total_pending++;
+        }
+        ?>
         <div class="stats-summary">
-            <div class="stat-item"><div class="number"><?php echo number_format($stats['total']); ?></div><div class="label">Total Users</div></div>
-            <div class="stat-item"><div class="number green"><?php echo number_format($stats['active']); ?></div><div class="label">Active</div></div>
-            <div class="stat-item"><div class="number red"><?php echo number_format($stats['suspended']); ?></div><div class="label">Suspended</div></div>
-            <div class="stat-item"><div class="number yellow"><?php echo number_format($stats['pending']); ?></div><div class="label">Pending</div></div>
-            <div class="stat-item"><div class="number purple"><?php echo number_format($stats['online']); ?></div><div class="label">Online Now</div></div>
+            <div class="stat-item">
+                <div class="number"><?php echo number_format($total_users); ?></div>
+                <div class="label">Total Users</div>
+            </div>
+            <div class="stat-item">
+                <div class="number green"><?php echo number_format($total_active); ?></div>
+                <div class="label">Active</div>
+            </div>
+            <div class="stat-item">
+                <div class="number red"><?php echo number_format($total_suspended); ?></div>
+                <div class="label">Suspended</div>
+            </div>
+            <div class="stat-item">
+                <div class="number yellow"><?php echo number_format($total_pending); ?></div>
+                <div class="label">Pending</div>
+            </div>
         </div>
 
         <!-- Filter Bar -->
         <div class="filter-bar-pro">
             <form method="GET" action="" style="display:flex;flex-wrap:wrap;gap:10px;flex:1;align-items:center;width:100%;">
+                <input type="hidden" name="id" value="<?php echo $tenant_id; ?>">
                 <div class="search-wrap" style="flex:1;">
                     <i class="fas fa-search"></i>
-                    <input type="text" name="search" placeholder="Search users by name, email, phone, or code..." value="<?php echo htmlspecialchars($search); ?>">
+                    <input type="text" name="search" placeholder="Search users by name, email, or phone..." value="<?php echo htmlspecialchars($search); ?>">
                 </div>
                 <select name="status">
                     <option value="">All Status</option>
@@ -743,17 +869,13 @@ include 'includes/sidebar.php';
                         </option>
                     <?php endforeach; ?>
                 </select>
-                <select name="tenant">
-                    <option value="">All Tenants</option>
-                    <?php foreach ($tenants as $t): ?>
-                        <option value="<?php echo $t['id']; ?>" <?php echo $tenant_filter == $t['id'] ? 'selected' : ''; ?>>
-                            <?php echo htmlspecialchars($t['name']); ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-                <button type="submit" class="btn-filter"><i class="fas fa-filter"></i> Filter</button>
-                <?php if (!empty($search) || !empty($status_filter) || !empty($role_filter) || $tenant_filter > 0): ?>
-                    <a href="users.php" class="btn-clear"><i class="fas fa-times"></i> Clear</a>
+                <button type="submit" class="btn-filter">
+                    <i class="fas fa-filter"></i> Filter
+                </button>
+                <?php if (!empty($search) || !empty($status_filter) || !empty($role_filter)): ?>
+                    <a href="tenants-users.php?id=<?php echo $tenant_id; ?>" class="btn-clear">
+                        <i class="fas fa-times"></i> Clear
+                    </a>
                 <?php endif; ?>
             </form>
         </div>
@@ -762,12 +884,12 @@ include 'includes/sidebar.php';
         <div class="table-container">
             <div class="table-header">
                 <div class="table-title">
-                    <i class="fas fa-list" style="color:var(--primary);"></i> All Users
+                    <i class="fas fa-users" style="color:var(--primary);"></i> Users
                     <span class="count"><?php echo number_format($total_users); ?></span>
                 </div>
                 <div class="table-actions">
-                    <a href="users-create.php" class="btn-primary" style="padding:6px 14px;font-size:0.8rem;">
-                        <i class="fas fa-user-plus"></i> Add User
+                    <a href="users-create.php?tenant=<?php echo $tenant_id; ?>" class="btn-primary" style="padding:6px 14px;font-size:0.8rem;">
+                        <i class="fas fa-plus-circle"></i> Add User
                     </a>
                 </div>
             </div>
@@ -778,8 +900,8 @@ include 'includes/sidebar.php';
                         <th>User</th>
                         <th>Contact</th>
                         <th>Role</th>
-                        <th>Tenant</th>
                         <th>Status</th>
+                        <th>Joined</th>
                         <th style="width:60px;text-align:center;">Actions</th>
                     </tr>
                 </thead>
@@ -790,8 +912,6 @@ include 'includes/sidebar.php';
                         foreach ($users as $index => $user): 
                             $color_idx = $index % count($avatar_colors);
                             $avatar_color = $avatar_colors[$color_idx];
-                            $is_online = false;
-                            // Check if user is online (simplified)
                         ?>
                             <tr>
                                 <td><?php echo $offset + $index + 1; ?></td>
@@ -816,29 +936,51 @@ include 'includes/sidebar.php';
                                     </span>
                                 </td>
                                 <td>
-                                    <span class="tenant-tag">
-                                        <?php echo htmlspecialchars($user['tenant_name'] ?? 'N/A'); ?>
-                                    </span>
-                                </td>
-                                <td>
                                     <span class="badge-status <?php echo $user['status']; ?>">
                                         <span class="dot"></span>
                                         <?php echo ucfirst($user['status']); ?>
                                     </span>
                                 </td>
+                                <td style="font-size:0.75rem;color:var(--gray-500);">
+                                    <?php echo date('M j, Y', strtotime($user['created_at'])); ?>
+                                </td>
                                 <td>
                                     <div class="action-dropdown-pro">
-                                        <button class="dropdown-btn" onclick="toggleDropdown(this)"><i class="fas fa-ellipsis-v"></i></button>
+                                        <button class="dropdown-btn" onclick="toggleDropdown(this)">
+                                            <i class="fas fa-ellipsis-v"></i>
+                                        </button>
                                         <div class="dropdown-menu">
-                                            <a href="users-view.php?id=<?php echo $user['id']; ?>"><i class="fas fa-eye"></i> View</a>
-                                            <a href="users-edit.php?id=<?php echo $user['id']; ?>"><i class="fas fa-edit"></i> Edit</a>
+                                            <a href="users-view.php?id=<?php echo $user['id']; ?>">
+                                                <i class="fas fa-eye"></i> View Profile
+                                            </a>
+                                            <a href="users-edit.php?id=<?php echo $user['id']; ?>">
+                                                <i class="fas fa-edit"></i> Edit User
+                                            </a>
                                             <div class="divider"></div>
-                                            <a href="tenants-users.php?id=<?php echo $user['tenant_id']; ?>"><i class="fas fa-building"></i> View Tenant</a>
                                             <?php if ($user['status'] === 'active'): ?>
-                                                <button class="danger" onclick="if(confirm('Suspend this user?')){alert('Suspending...');}"><i class="fas fa-pause"></i> Suspend</button>
+                                                <form method="POST" action="" style="display:inline;width:100%;">
+                                                    <input type="hidden" name="action" value="suspend">
+                                                    <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
+                                                    <button type="submit" class="danger" onclick="return confirm('Suspend this user?')">
+                                                        <i class="fas fa-pause"></i> Suspend
+                                                    </button>
+                                                </form>
                                             <?php else: ?>
-                                                <button onclick="if(confirm('Activate this user?')){alert('Activating...');}"><i class="fas fa-play"></i> Activate</button>
+                                                <form method="POST" action="" style="display:inline;width:100%;">
+                                                    <input type="hidden" name="action" value="activate">
+                                                    <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
+                                                    <button type="submit" onclick="return confirm('Activate this user?')">
+                                                        <i class="fas fa-play"></i> Activate
+                                                    </button>
+                                                </form>
                                             <?php endif; ?>
+                                            <form method="POST" action="" style="display:inline;width:100%;">
+                                                <input type="hidden" name="action" value="delete">
+                                                <input type="hidden" name="user_id" value="<?php echo $user['id']; ?>">
+                                                <button type="submit" class="danger" onclick="return confirm('Delete this user? This action can be reversed.')">
+                                                    <i class="fas fa-trash"></i> Delete
+                                                </button>
+                                            </form>
                                         </div>
                                     </div>
                                 </td>
@@ -850,10 +992,7 @@ include 'includes/sidebar.php';
                                 <div class="empty-state-pro">
                                     <i class="fas fa-users"></i>
                                     <h4>No users found</h4>
-                                    <p>Try adjusting your filters or add a new user.</p>
-                                    <a href="users-create.php" class="btn-primary" style="margin-top:12px;">
-                                        <i class="fas fa-user-plus"></i> Add User
-                                    </a>
+                                    <p>This tenant has no users yet. <a href="users-create.php?tenant=<?php echo $tenant_id; ?>" style="color:var(--primary);text-decoration:none;">Create one now</a>.</p>
                                 </div>
                             </td>
                         </tr>
@@ -870,7 +1009,7 @@ include 'includes/sidebar.php';
             </div>
             <div class="pages">
                 <?php if ($page > 1): ?>
-                    <a href="?page=<?php echo $page - 1; ?>&search=<?php echo urlencode($search); ?>&status=<?php echo urlencode($status_filter); ?>&role=<?php echo urlencode($role_filter); ?>&tenant=<?php echo $tenant_filter; ?>">
+                    <a href="?id=<?php echo $tenant_id; ?>&page=<?php echo $page - 1; ?>&search=<?php echo urlencode($search); ?>&status=<?php echo urlencode($status_filter); ?>&role=<?php echo urlencode($role_filter); ?>">
                         <i class="fas fa-chevron-left"></i>
                     </a>
                 <?php else: ?>
@@ -880,22 +1019,22 @@ include 'includes/sidebar.php';
                 $start_page = max(1, $page - 2);
                 $end_page = min($total_pages, $page + 2);
                 if ($start_page > 1) {
-                    echo '<a href="?page=1&search=' . urlencode($search) . '&status=' . urlencode($status_filter) . '&role=' . urlencode($role_filter) . '&tenant=' . $tenant_filter . '">1</a>';
+                    echo '<a href="?id=' . $tenant_id . '&page=1&search=' . urlencode($search) . '&status=' . urlencode($status_filter) . '&role=' . urlencode($role_filter) . '">1</a>';
                     if ($start_page > 2) echo '<span>…</span>';
                 }
                 for ($i = $start_page; $i <= $end_page; $i++):
                 ?>
-                    <a href="?page=<?php echo $i; ?>&search=<?php echo urlencode($search); ?>&status=<?php echo urlencode($status_filter); ?>&role=<?php echo urlencode($role_filter); ?>&tenant=<?php echo $tenant_filter; ?>" class="<?php echo $i === $page ? 'active' : ''; ?>">
+                    <a href="?id=<?php echo $tenant_id; ?>&page=<?php echo $i; ?>&search=<?php echo urlencode($search); ?>&status=<?php echo urlencode($status_filter); ?>&role=<?php echo urlencode($role_filter); ?>" class="<?php echo $i === $page ? 'active' : ''; ?>">
                         <?php echo $i; ?>
                     </a>
                 <?php endfor;
                 if ($end_page < $total_pages) {
                     if ($end_page < $total_pages - 1) echo '<span>…</span>';
-                    echo '<a href="?page=' . $total_pages . '&search=' . urlencode($search) . '&status=' . urlencode($status_filter) . '&role=' . urlencode($role_filter) . '&tenant=' . $tenant_filter . '">' . $total_pages . '</a>';
+                    echo '<a href="?id=' . $tenant_id . '&page=' . $total_pages . '&search=' . urlencode($search) . '&status=' . urlencode($status_filter) . '&role=' . urlencode($role_filter) . '">' . $total_pages . '</a>';
                 }
                 ?>
                 <?php if ($page < $total_pages): ?>
-                    <a href="?page=<?php echo $page + 1; ?>&search=<?php echo urlencode($search); ?>&status=<?php echo urlencode($status_filter); ?>&role=<?php echo urlencode($role_filter); ?>&tenant=<?php echo $tenant_filter; ?>">
+                    <a href="?id=<?php echo $tenant_id; ?>&page=<?php echo $page + 1; ?>&search=<?php echo urlencode($search); ?>&status=<?php echo urlencode($status_filter); ?>&role=<?php echo urlencode($role_filter); ?>">
                         <i class="fas fa-chevron-right"></i>
                     </a>
                 <?php else: ?>
@@ -908,15 +1047,22 @@ include 'includes/sidebar.php';
 </main>
 
 <script>
-// Same JS as elections.php
+// ============================================================
+// PRELOADER
+// ============================================================
 window.addEventListener('load', function() {
     var preloader = document.getElementById('preloader');
     if (preloader) {
         preloader.classList.add('hidden');
-        setTimeout(function() { preloader.style.display = 'none'; }, 600);
+        setTimeout(function() {
+            preloader.style.display = 'none';
+        }, 600);
     }
 });
 
+// ============================================================
+// SIDEBAR TOGGLE
+// ============================================================
 var sidebar = document.getElementById('sidebar');
 var sidebarToggle = document.getElementById('sidebarToggle');
 var sidebarOverlay = document.getElementById('sidebarOverlay');
@@ -955,6 +1101,9 @@ window.addEventListener('resize', function() {
     }
 });
 
+// ============================================================
+// SIDEBAR DROPDOWNS
+// ============================================================
 document.querySelectorAll('.dropdown-toggle').forEach(function(toggle) {
     toggle.addEventListener('click', function(e) {
         e.preventDefault();
@@ -968,6 +1117,9 @@ document.querySelectorAll('.dropdown-toggle').forEach(function(toggle) {
     });
 });
 
+// ============================================================
+// PROFILE DROPDOWN
+// ============================================================
 var profileBtn = document.getElementById('profileBtn');
 var profileMenu = document.getElementById('profileMenu');
 
@@ -983,6 +1135,9 @@ if (profileBtn && profileMenu) {
     });
 }
 
+// ============================================================
+// ACTION DROPDOWN
+// ============================================================
 function toggleDropdown(btn) {
     var menu = btn.nextElementSibling;
     var isOpen = menu.classList.contains('open');
@@ -1002,6 +1157,9 @@ document.addEventListener('click', function(e) {
     }
 });
 
+// ============================================================
+// SEARCH
+// ============================================================
 var searchInput = document.getElementById('searchInput');
 var searchResults = document.getElementById('searchResults');
 var searchTimeout;

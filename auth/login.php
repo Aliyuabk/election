@@ -138,6 +138,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 function loginUser($user, $remember, $db) {
+    // Get the user's role level
+    $stmt = $db->prepare("
+        SELECT r.level, r.slug, r.name as role_name 
+        FROM roles r 
+        WHERE r.id = ?
+    ");
+    $stmt->execute([$user['role_id']]);
+    $role = $stmt->fetch();
+    
+    $role_level = $role['level'] ?? 'client_admin';
+    $role_slug = $role['slug'] ?? 'client_admin';
+    
     // Create session token
     $token = createSession($user['id'], $remember);
     
@@ -147,7 +159,9 @@ function loginUser($user, $remember, $db) {
     SessionManager::set('user_name', $user['full_name']);
     SessionManager::set('user_email', $user['email']);
     SessionManager::set('user_role', $user['role_id']);
-    SessionManager::set('role_level', $user['role_level'] ?? 'client_admin');
+    SessionManager::set('role_level', $role_level);
+    SessionManager::set('role_slug', $role_slug);
+    SessionManager::set('role', $role_level); // Add this for compatibility
     SessionManager::set('tenant_id', $user['tenant_id']);
     SessionManager::set('logged_in', true);
     SessionManager::set('login_time', time());
@@ -173,8 +187,9 @@ function loginUser($user, $remember, $db) {
     unset($_SESSION['login_attempts']);
     unset($_SESSION['captcha_text']);
     
-    // Redirect based on role
-    $role = $user['role_level'] ?? 'client_admin';
+    // ============================================================
+    // REDIRECT BASED ON ROLE - FIXED
+    // ============================================================
     $dashboardMap = [
         'super_admin' => '../dashboard/super-admin/',
         'client_admin' => '../dashboard/client-admin/',
@@ -193,7 +208,12 @@ function loginUser($user, $remember, $db) {
         'citizen' => '../dashboard/citizen/'
     ];
     
-    $dashboard = $dashboardMap[$role] ?? '../dashboard/client-admin/';
+    // Determine dashboard path
+    $dashboard = $dashboardMap[$role_level] ?? '../dashboard/client-admin/';
+    
+    // DEBUG: Log the redirect
+    error_log("Redirecting to: " . $dashboard . " for role: " . $role_level);
+    
     header('Location: ' . $dashboard);
     exit();
 }
@@ -239,15 +259,13 @@ function loginUser($user, $remember, $db) {
         .form-group input.error { border-color: #EF4444; }
         .form-group input.success { border-color: #10B981; }
         .form-options { display: flex; justify-content: space-between; align-items: center; margin: 20px 0 28px; }
-        .form-options label { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; color: #475569; cursor: default; }
-        .form-options label input[type="checkbox"] { width: 16px; height: 16px; accent-color: #0F4C81; cursor: default; }
+        .form-options label { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; color: #475569; cursor: pointer; }
+        .form-options label input[type="checkbox"] { width: 16px; height: 16px; accent-color: #0F4C81; cursor: pointer; }
         .form-options a { color: #2563EB; text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: 0.15s; }
         .form-options a:hover { color: #0F4C81; text-decoration: underline; }
         .btn-login { width: 100%; padding: 16px; border: none; border-radius: 14px; background: #0F4C81; color: white; font-size: 1rem; font-weight: 600; font-family: 'Inter', sans-serif; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 10px; }
         .btn-login:hover { background: #1a3f6a; transform: translateY(-1px); box-shadow: 0 8px 24px rgba(15, 76, 129, 0.2); }
         .btn-login:disabled { opacity: 0.7; cursor: not-allowed; }
-        .btn-login .google-btn { background: white; color: #0F172A; border: 1px solid #E2E8F0; }
-        .btn-login .google-btn:hover { background: #F8FAFC; }
         .error-message { background: #FEF2F2; color: #DC2626; padding: 12px 16px; border-radius: 12px; font-size: 0.9rem; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; border: 1px solid #FECACA; }
         .error-message i { font-size: 1.1rem; }
         .success-message { background: #ECFDF5; color: #065F46; padding: 12px 16px; border-radius: 12px; font-size: 0.9rem; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; border: 1px solid #A7F3D0; }
@@ -530,7 +548,6 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(data => {
                 if (data.success && data.captcha) {
                     textElement.textContent = data.captcha;
-                    // Clear the captcha input
                     const captchaInput = document.querySelector('input[name="captcha"]');
                     if (captchaInput) captchaInput.value = '';
                 }

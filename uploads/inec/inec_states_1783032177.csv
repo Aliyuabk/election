@@ -1,0 +1,2 @@
+﻿ID,UUID,"Organization Name",Slug,Type,"Subscription Plan","Subscription Status","Subscription Start","Subscription End","Max Users","Max Agents",Status,"Contact Email","Contact Phone",Address,State,LGA,"Primary Color","Secondary Color","Total Users","Total Elections","Total Agents","Created By","Created By Email","Created At"
+10,6a460ff9bc2d0-6459ddb4b82efea1,PDP,pdp,political_party,basic,trial,,,100,500,Active,,,,,,#3b82f6,#10b981,1,0,0,,,"2026-07-02 08:15:05"
