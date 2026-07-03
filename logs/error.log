@@ -451,3 +451,7 @@ Stack trace:
 [03-Jul-2026 14:57:24 Africa/Lagos] Redirecting to: ../dashboard/super-admin/ for role: super_admin
 [03-Jul-2026 14:57:37 Africa/Lagos] Redirecting to: ../dashboard/super-admin/ for role: super_admin
 [03-Jul-2026 14:57:50 Africa/Lagos] Redirecting to: ../dashboard/client-admin/ for role: client_admin
+[03-Jul-2026 19:46:41 Africa/Lagos] Redirecting to: ../dashboard/super-admin/ for role: super_admin
+[03-Jul-2026 19:48:34 Africa/Lagos] Redirecting to: ../dashboard/client-admin/ for role: client_admin
+[03-Jul-2026 20:44:14 Africa/Lagos] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\election\dashboard\client-admin\candidates-edit.php on line 732
+[03-Jul-2026 20:44:36 Africa/Lagos] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\election\dashboard\client-admin\candidates-edit.php on line 732
