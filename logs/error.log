@@ -455,3 +455,22 @@ Stack trace:
 [03-Jul-2026 19:48:34 Africa/Lagos] Redirecting to: ../dashboard/client-admin/ for role: client_admin
 [03-Jul-2026 20:44:14 Africa/Lagos] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\election\dashboard\client-admin\candidates-edit.php on line 732
 [03-Jul-2026 20:44:36 Africa/Lagos] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\election\dashboard\client-admin\candidates-edit.php on line 732
+[03-Jul-2026 21:16:47 Africa/Lagos] PHP Fatal error:  Uncaught PDOException: SQLSTATE[HY093]: Invalid parameter number in C:\xampp\htdocs\election\dashboard\client-admin\parties.php:126
+Stack trace:
+#0 C:\xampp\htdocs\election\dashboard\client-admin\parties.php(126): PDOStatement->execute(Array)
+#1 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\client-admin\parties.php on line 126
+[03-Jul-2026 21:26:54 Africa/Lagos] PHP Warning:  Undefined variable $states in C:\xampp\htdocs\election\dashboard\client-admin\results-ec8b.php on line 1028
+[03-Jul-2026 21:26:54 Africa/Lagos] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\election\dashboard\client-admin\results-ec8b.php on line 1028
+[03-Jul-2026 21:26:54 Africa/Lagos] PHP Warning:  Undefined variable $state_filter in C:\xampp\htdocs\election\dashboard\client-admin\results-ec8b.php on line 1035
+[03-Jul-2026 21:27:04 Africa/Lagos] PHP Warning:  Undefined variable $states in C:\xampp\htdocs\election\dashboard\client-admin\results-ec8b.php on line 1028
+[03-Jul-2026 21:27:04 Africa/Lagos] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\election\dashboard\client-admin\results-ec8b.php on line 1028
+[03-Jul-2026 21:27:04 Africa/Lagos] PHP Warning:  Undefined variable $state_filter in C:\xampp\htdocs\election\dashboard\client-admin\results-ec8b.php on line 1035
+[03-Jul-2026 21:28:04 Africa/Lagos] PHP Warning:  Undefined variable $states in C:\xampp\htdocs\election\dashboard\client-admin\results-ec8b.php on line 1028
+[03-Jul-2026 21:28:04 Africa/Lagos] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\election\dashboard\client-admin\results-ec8b.php on line 1028
+[03-Jul-2026 21:28:04 Africa/Lagos] PHP Warning:  Undefined variable $state_filter in C:\xampp\htdocs\election\dashboard\client-admin\results-ec8b.php on line 1035
+[03-Jul-2026 22:11:35 Africa/Lagos] PHP Fatal error:  Uncaught TypeError: explode(): Argument #2 ($string) must be of type string, array given in C:\xampp\htdocs\election\dashboard\client-admin\broadcasts-create.php:392
+Stack trace:
+#0 C:\xampp\htdocs\election\dashboard\client-admin\broadcasts-create.php(392): explode(',', Array)
+#1 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\client-admin\broadcasts-create.php on line 392
