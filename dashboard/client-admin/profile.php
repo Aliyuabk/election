@@ -1208,6 +1208,7 @@ if (searchInput) {
         }
     });
 }
+
 </script>
 </body>
 </html>

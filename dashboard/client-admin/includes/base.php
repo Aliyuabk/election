@@ -15,6 +15,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="icon" type="image/x-icon" href="assets/favicon.ico" />
+   
     
     <!-- ============================================================
     BASE STYLES
@@ -952,6 +953,131 @@
     .modal .modal-footer .btn {
         width: 100%;
         justify-content: center;
+    }
+}
+/* ============================================================
+   SEARCH RESULTS STYLES
+   ============================================================ */
+.search-wrapper {
+    position: relative;
+}
+
+.search-box {
+    display: flex;
+    align-items: center;
+    background: var(--gray-50);
+    border: 1px solid var(--gray-200);
+    border-radius: 10px;
+    padding: 4px 12px;
+    gap: 8px;
+    transition: var(--transition);
+    min-width: 160px;
+}
+.search-box:focus-within {
+    border-color: var(--primary);
+    background: white;
+    box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.06);
+}
+.search-box i {
+    color: var(--gray-400);
+    font-size: 0.8rem;
+}
+.search-box input {
+    border: none;
+    outline: none;
+    background: transparent;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.8rem;
+    width: 100%;
+    color: var(--gray-700);
+}
+.search-box input::placeholder {
+    color: var(--gray-400);
+    font-size: 0.75rem;
+}
+
+.search-results {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.12);
+    border: 1px solid var(--gray-200);
+    max-height: 400px;
+    overflow-y: auto;
+    display: none;
+    z-index: 50;
+    min-width: 320px;
+}
+.search-results.active {
+    display: block;
+}
+.search-results::-webkit-scrollbar {
+    width: 4px;
+}
+.search-results::-webkit-scrollbar-thumb {
+    background: var(--gray-300);
+    border-radius: 4px;
+}
+.search-results::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.result-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    text-decoration: none;
+    color: var(--gray-700);
+    transition: var(--transition);
+    border-bottom: 1px solid var(--gray-50);
+    font-size: 0.82rem;
+}
+.result-item:hover {
+    background: var(--gray-50);
+}
+.result-item:last-child {
+    border-bottom: none;
+}
+.result-item .text-truncate {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.result-item .result-type {
+    font-size: 0.55rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 1px 8px;
+    border-radius: 10px;
+    background: var(--gray-100);
+    color: var(--gray-500);
+    flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+    .search-results {
+        min-width: auto;
+        width: calc(100vw - 40px);
+        right: -60px;
+        left: auto;
+    }
+}
+@media (max-width: 480px) {
+    .search-box {
+        min-width: 80px;
+        padding: 2px 8px;
+    }
+    .search-box input {
+        width: 50px;
+    }
+    .search-results {
+        right: -40px;
+        width: calc(100vw - 30px);
     }
 }
     </style>

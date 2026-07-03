@@ -474,3 +474,13 @@ Stack trace:
 #0 C:\xampp\htdocs\election\dashboard\client-admin\broadcasts-create.php(392): explode(',', Array)
 #1 {main}
   thrown in C:\xampp\htdocs\election\dashboard\client-admin\broadcasts-create.php on line 392
+[03-Jul-2026 23:01:45 Africa/Lagos] PHP Fatal error:  Uncaught PDOException: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'tenant_id' in where clause is ambiguous in C:\xampp\htdocs\election\dashboard\client-admin\audit-logs.php:129
+Stack trace:
+#0 C:\xampp\htdocs\election\dashboard\client-admin\audit-logs.php(129): PDO->prepare('\r\n    SELECT al...')
+#1 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\client-admin\audit-logs.php on line 129
+[03-Jul-2026 23:03:35 Africa/Lagos] PHP Warning:  require_once(../../includes/vendor/autoload.php): Failed to open stream: No such file or directory in C:\xampp\htdocs\election\dashboard\client-admin\reports-export.php on line 201
+[03-Jul-2026 23:03:35 Africa/Lagos] PHP Fatal error:  Uncaught Error: Failed opening required '../../includes/vendor/autoload.php' (include_path='\xampp\php\PEAR') in C:\xampp\htdocs\election\dashboard\client-admin\reports-export.php:201
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\client-admin\reports-export.php on line 201
