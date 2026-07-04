@@ -484,3 +484,183 @@ Stack trace:
 Stack trace:
 #0 {main}
   thrown in C:\xampp\htdocs\election\dashboard\client-admin\reports-export.php on line 201
+[03-Jul-2026 23:46:29 Africa/Lagos] Redirecting to: ../dashboard/super-admin/ for role: super_admin
+[03-Jul-2026 23:51:54 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: national
+[03-Jul-2026 23:55:40 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: national
+[03-Jul-2026 23:56:24 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: national
+[04-Jul-2026 00:06:19 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: state
+[04-Jul-2026 00:18:52 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: lga
+[04-Jul-2026 00:19:37 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: lga
+[04-Jul-2026 00:24:07 Africa/Lagos] Redirecting to: ../dashboard/super-admin/ for role: super_admin
+[04-Jul-2026 00:30:33 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: lga
+[04-Jul-2026 00:31:59 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: lga
+[04-Jul-2026 00:37:13 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: lga
+[04-Jul-2026 00:40:08 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: lga
+[04-Jul-2026 00:40:41 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: lga
+[04-Jul-2026 00:40:41 Africa/Lagos] PHP Warning:  Undefined variable $user_level in C:\xampp\htdocs\election\dashboard\Coordinator\index.php on line 112
+[04-Jul-2026 00:40:41 Africa/Lagos] PHP Warning:  Undefined variable $user_level in C:\xampp\htdocs\election\dashboard\Coordinator\index.php on line 277
+[04-Jul-2026 00:40:41 Africa/Lagos] PHP Warning:  Undefined variable $user_level in C:\xampp\htdocs\election\dashboard\Coordinator\index.php on line 295
+[04-Jul-2026 00:40:41 Africa/Lagos] PHP Warning:  Undefined variable $user_level in C:\xampp\htdocs\election\dashboard\Coordinator\index.php on line 310
+[04-Jul-2026 00:40:51 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: lga
+[04-Jul-2026 00:40:51 Africa/Lagos] PHP Warning:  Undefined variable $user_level in C:\xampp\htdocs\election\dashboard\Coordinator\index.php on line 112
+[04-Jul-2026 00:40:51 Africa/Lagos] PHP Warning:  Undefined variable $user_level in C:\xampp\htdocs\election\dashboard\Coordinator\index.php on line 277
+[04-Jul-2026 00:40:51 Africa/Lagos] PHP Warning:  Undefined variable $user_level in C:\xampp\htdocs\election\dashboard\Coordinator\index.php on line 295
+[04-Jul-2026 00:40:51 Africa/Lagos] PHP Warning:  Undefined variable $user_level in C:\xampp\htdocs\election\dashboard\Coordinator\index.php on line 310
+[04-Jul-2026 00:41:11 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: lga
+[04-Jul-2026 00:41:11 Africa/Lagos] PHP Warning:  Undefined variable $user_level in C:\xampp\htdocs\election\dashboard\Coordinator\index.php on line 112
+[04-Jul-2026 00:41:11 Africa/Lagos] PHP Warning:  Undefined variable $user_level in C:\xampp\htdocs\election\dashboard\Coordinator\index.php on line 277
+[04-Jul-2026 00:41:11 Africa/Lagos] PHP Warning:  Undefined variable $user_level in C:\xampp\htdocs\election\dashboard\Coordinator\index.php on line 295
+[04-Jul-2026 00:41:11 Africa/Lagos] PHP Warning:  Undefined variable $user_level in C:\xampp\htdocs\election\dashboard\Coordinator\index.php on line 310
+[04-Jul-2026 00:41:14 Africa/Lagos] PHP Warning:  Undefined variable $user_level in C:\xampp\htdocs\election\dashboard\Coordinator\index.php on line 112
+[04-Jul-2026 00:41:14 Africa/Lagos] PHP Warning:  Undefined variable $user_level in C:\xampp\htdocs\election\dashboard\Coordinator\index.php on line 277
+[04-Jul-2026 00:41:14 Africa/Lagos] PHP Warning:  Undefined variable $user_level in C:\xampp\htdocs\election\dashboard\Coordinator\index.php on line 295
+[04-Jul-2026 00:41:14 Africa/Lagos] PHP Warning:  Undefined variable $user_level in C:\xampp\htdocs\election\dashboard\Coordinator\index.php on line 310
+[04-Jul-2026 00:41:16 Africa/Lagos] PHP Warning:  Undefined variable $user_level in C:\xampp\htdocs\election\dashboard\Coordinator\index.php on line 112
+[04-Jul-2026 00:41:16 Africa/Lagos] PHP Warning:  Undefined variable $user_level in C:\xampp\htdocs\election\dashboard\Coordinator\index.php on line 277
+[04-Jul-2026 00:41:16 Africa/Lagos] PHP Warning:  Undefined variable $user_level in C:\xampp\htdocs\election\dashboard\Coordinator\index.php on line 295
+[04-Jul-2026 00:41:16 Africa/Lagos] PHP Warning:  Undefined variable $user_level in C:\xampp\htdocs\election\dashboard\Coordinator\index.php on line 310
+[04-Jul-2026 00:52:16 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: national
+[04-Jul-2026 00:53:04 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: national
+[04-Jul-2026 00:54:23 Africa/Lagos] PHP Warning:  include(includes/base.php): Failed to open stream: No such file or directory in C:\xampp\htdocs\election\dashboard\national\index.php on line 153
+[04-Jul-2026 00:54:23 Africa/Lagos] PHP Warning:  include(): Failed opening 'includes/base.php' for inclusion (include_path='\xampp\php\PEAR') in C:\xampp\htdocs\election\dashboard\national\index.php on line 153
+[04-Jul-2026 00:54:23 Africa/Lagos] PHP Warning:  include(includes/sidebar.php): Failed to open stream: No such file or directory in C:\xampp\htdocs\election\dashboard\national\index.php on line 154
+[04-Jul-2026 00:54:23 Africa/Lagos] PHP Warning:  include(): Failed opening 'includes/sidebar.php' for inclusion (include_path='\xampp\php\PEAR') in C:\xampp\htdocs\election\dashboard\national\index.php on line 154
+[04-Jul-2026 00:54:23 Africa/Lagos] PHP Warning:  include(includes/header.php): Failed to open stream: No such file or directory in C:\xampp\htdocs\election\dashboard\national\index.php on line 158
+[04-Jul-2026 00:54:23 Africa/Lagos] PHP Warning:  include(): Failed opening 'includes/header.php' for inclusion (include_path='\xampp\php\PEAR') in C:\xampp\htdocs\election\dashboard\national\index.php on line 158
+[04-Jul-2026 01:18:18 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: state
+[04-Jul-2026 01:18:18 Africa/Lagos] PHP Warning:  include(includes/base.php): Failed to open stream: No such file or directory in C:\xampp\htdocs\election\dashboard\state\index.php on line 143
+[04-Jul-2026 01:18:18 Africa/Lagos] PHP Warning:  include(): Failed opening 'includes/base.php' for inclusion (include_path='\xampp\php\PEAR') in C:\xampp\htdocs\election\dashboard\state\index.php on line 143
+[04-Jul-2026 01:18:18 Africa/Lagos] PHP Warning:  include(includes/sidebar.php): Failed to open stream: No such file or directory in C:\xampp\htdocs\election\dashboard\state\index.php on line 144
+[04-Jul-2026 01:18:18 Africa/Lagos] PHP Warning:  include(): Failed opening 'includes/sidebar.php' for inclusion (include_path='\xampp\php\PEAR') in C:\xampp\htdocs\election\dashboard\state\index.php on line 144
+[04-Jul-2026 01:18:18 Africa/Lagos] PHP Warning:  include(includes/header.php): Failed to open stream: No such file or directory in C:\xampp\htdocs\election\dashboard\state\index.php on line 148
+[04-Jul-2026 01:18:18 Africa/Lagos] PHP Warning:  include(): Failed opening 'includes/header.php' for inclusion (include_path='\xampp\php\PEAR') in C:\xampp\htdocs\election\dashboard\state\index.php on line 148
+[04-Jul-2026 01:18:18 Africa/Lagos] PHP Warning:  Undefined variable $recent_activities in C:\xampp\htdocs\election\dashboard\state\index.php on line 242
+[04-Jul-2026 01:18:18 Africa/Lagos] PHP Fatal error:  Uncaught TypeError: count(): Argument #1 ($value) must be of type Countable|array, null given in C:\xampp\htdocs\election\dashboard\state\index.php:242
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\state\index.php on line 242
+[04-Jul-2026 01:19:03 Africa/Lagos] PHP Warning:  Undefined variable $recent_activities in C:\xampp\htdocs\election\dashboard\state\index.php on line 242
+[04-Jul-2026 01:19:03 Africa/Lagos] PHP Fatal error:  Uncaught TypeError: count(): Argument #1 ($value) must be of type Countable|array, null given in C:\xampp\htdocs\election\dashboard\state\index.php:242
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\state\index.php on line 242
+[04-Jul-2026 01:20:55 Africa/Lagos] PHP Warning:  Undefined variable $recent_activities in C:\xampp\htdocs\election\dashboard\state\index.php on line 242
+[04-Jul-2026 01:20:55 Africa/Lagos] PHP Fatal error:  Uncaught TypeError: count(): Argument #1 ($value) must be of type Countable|array, null given in C:\xampp\htdocs\election\dashboard\state\index.php:242
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\state\index.php on line 242
+[04-Jul-2026 01:21:08 Africa/Lagos] PHP Warning:  Undefined variable $recent_activities in C:\xampp\htdocs\election\dashboard\state\index.php on line 242
+[04-Jul-2026 01:21:08 Africa/Lagos] PHP Fatal error:  Uncaught TypeError: count(): Argument #1 ($value) must be of type Countable|array, null given in C:\xampp\htdocs\election\dashboard\state\index.php:242
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\state\index.php on line 242
+[04-Jul-2026 01:23:16 Africa/Lagos] PHP Warning:  Undefined variable $top_states in C:\xampp\htdocs\election\dashboard\includes\footer.php on line 178
+[04-Jul-2026 01:23:16 Africa/Lagos] PHP Fatal error:  Uncaught TypeError: array_column(): Argument #1 ($array) must be of type array, null given in C:\xampp\htdocs\election\dashboard\includes\footer.php:178
+Stack trace:
+#0 C:\xampp\htdocs\election\dashboard\includes\footer.php(178): array_column(NULL, 'state_name')
+#1 C:\xampp\htdocs\election\dashboard\state\index.php(431): include('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\includes\footer.php on line 178
+[04-Jul-2026 01:24:01 Africa/Lagos] PHP Warning:  Undefined variable $top_states in C:\xampp\htdocs\election\dashboard\includes\footer.php on line 178
+[04-Jul-2026 01:24:01 Africa/Lagos] PHP Fatal error:  Uncaught TypeError: array_column(): Argument #1 ($array) must be of type array, null given in C:\xampp\htdocs\election\dashboard\includes\footer.php:178
+Stack trace:
+#0 C:\xampp\htdocs\election\dashboard\includes\footer.php(178): array_column(NULL, 'state_name')
+#1 C:\xampp\htdocs\election\dashboard\state\index.php(431): include('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\includes\footer.php on line 178
+[04-Jul-2026 01:24:09 Africa/Lagos] PHP Warning:  Undefined variable $top_states in C:\xampp\htdocs\election\dashboard\includes\footer.php on line 178
+[04-Jul-2026 01:24:09 Africa/Lagos] PHP Fatal error:  Uncaught TypeError: array_column(): Argument #1 ($array) must be of type array, null given in C:\xampp\htdocs\election\dashboard\includes\footer.php:178
+Stack trace:
+#0 C:\xampp\htdocs\election\dashboard\includes\footer.php(178): array_column(NULL, 'state_name')
+#1 C:\xampp\htdocs\election\dashboard\state\index.php(431): include('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\includes\footer.php on line 178
+[04-Jul-2026 01:24:22 Africa/Lagos] PHP Warning:  Undefined variable $top_states in C:\xampp\htdocs\election\dashboard\includes\footer.php on line 178
+[04-Jul-2026 01:24:22 Africa/Lagos] PHP Fatal error:  Uncaught TypeError: array_column(): Argument #1 ($array) must be of type array, null given in C:\xampp\htdocs\election\dashboard\includes\footer.php:178
+Stack trace:
+#0 C:\xampp\htdocs\election\dashboard\includes\footer.php(178): array_column(NULL, 'state_name')
+#1 C:\xampp\htdocs\election\dashboard\state\index.php(431): include('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\includes\footer.php on line 178
+[04-Jul-2026 01:24:24 Africa/Lagos] PHP Warning:  Undefined variable $top_states in C:\xampp\htdocs\election\dashboard\includes\footer.php on line 178
+[04-Jul-2026 01:24:24 Africa/Lagos] PHP Fatal error:  Uncaught TypeError: array_column(): Argument #1 ($array) must be of type array, null given in C:\xampp\htdocs\election\dashboard\includes\footer.php:178
+Stack trace:
+#0 C:\xampp\htdocs\election\dashboard\includes\footer.php(178): array_column(NULL, 'state_name')
+#1 C:\xampp\htdocs\election\dashboard\state\index.php(431): include('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\includes\footer.php on line 178
+[04-Jul-2026 01:24:36 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: national
+[04-Jul-2026 01:25:40 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: state
+[04-Jul-2026 01:25:40 Africa/Lagos] PHP Warning:  Undefined variable $top_states in C:\xampp\htdocs\election\dashboard\includes\footer.php on line 178
+[04-Jul-2026 01:25:40 Africa/Lagos] PHP Fatal error:  Uncaught TypeError: array_column(): Argument #1 ($array) must be of type array, null given in C:\xampp\htdocs\election\dashboard\includes\footer.php:178
+Stack trace:
+#0 C:\xampp\htdocs\election\dashboard\includes\footer.php(178): array_column(NULL, 'state_name')
+#1 C:\xampp\htdocs\election\dashboard\state\index.php(347): include('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\includes\footer.php on line 178
+[04-Jul-2026 01:25:52 Africa/Lagos] PHP Warning:  Undefined variable $top_states in C:\xampp\htdocs\election\dashboard\includes\footer.php on line 178
+[04-Jul-2026 01:25:52 Africa/Lagos] PHP Fatal error:  Uncaught TypeError: array_column(): Argument #1 ($array) must be of type array, null given in C:\xampp\htdocs\election\dashboard\includes\footer.php:178
+Stack trace:
+#0 C:\xampp\htdocs\election\dashboard\includes\footer.php(178): array_column(NULL, 'state_name')
+#1 C:\xampp\htdocs\election\dashboard\state\index.php(347): include('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\includes\footer.php on line 178
+[04-Jul-2026 01:26:01 Africa/Lagos] PHP Warning:  Undefined variable $top_states in C:\xampp\htdocs\election\dashboard\includes\footer.php on line 178
+[04-Jul-2026 01:26:01 Africa/Lagos] PHP Fatal error:  Uncaught TypeError: array_column(): Argument #1 ($array) must be of type array, null given in C:\xampp\htdocs\election\dashboard\includes\footer.php:178
+Stack trace:
+#0 C:\xampp\htdocs\election\dashboard\includes\footer.php(178): array_column(NULL, 'state_name')
+#1 C:\xampp\htdocs\election\dashboard\state\index.php(347): include('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\includes\footer.php on line 178
+[04-Jul-2026 01:27:21 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: senatorial
+[04-Jul-2026 01:27:48 Africa/Lagos] PHP Warning:  Undefined variable $top_states in C:\xampp\htdocs\election\dashboard\includes\footer.php on line 178
+[04-Jul-2026 01:27:48 Africa/Lagos] PHP Fatal error:  Uncaught TypeError: array_column(): Argument #1 ($array) must be of type array, null given in C:\xampp\htdocs\election\dashboard\includes\footer.php:178
+Stack trace:
+#0 C:\xampp\htdocs\election\dashboard\includes\footer.php(178): array_column(NULL, 'state_name')
+#1 C:\xampp\htdocs\election\dashboard\senatorial\index.php(420): include('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\includes\footer.php on line 178
+[04-Jul-2026 01:29:31 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: lga
+[04-Jul-2026 01:29:31 Africa/Lagos] PHP Warning:  Undefined variable $top_states in C:\xampp\htdocs\election\dashboard\includes\footer.php on line 178
+[04-Jul-2026 01:29:31 Africa/Lagos] PHP Fatal error:  Uncaught TypeError: array_column(): Argument #1 ($array) must be of type array, null given in C:\xampp\htdocs\election\dashboard\includes\footer.php:178
+Stack trace:
+#0 C:\xampp\htdocs\election\dashboard\includes\footer.php(178): array_column(NULL, 'state_name')
+#1 C:\xampp\htdocs\election\dashboard\lga\index.php(427): include('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\includes\footer.php on line 178
+[04-Jul-2026 01:30:46 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: lga
+[04-Jul-2026 01:30:46 Africa/Lagos] PHP Warning:  Undefined variable $top_states in C:\xampp\htdocs\election\dashboard\includes\footer.php on line 178
+[04-Jul-2026 01:30:46 Africa/Lagos] PHP Fatal error:  Uncaught TypeError: array_column(): Argument #1 ($array) must be of type array, null given in C:\xampp\htdocs\election\dashboard\includes\footer.php:178
+Stack trace:
+#0 C:\xampp\htdocs\election\dashboard\includes\footer.php(178): array_column(NULL, 'state_name')
+#1 C:\xampp\htdocs\election\dashboard\lga\index.php(427): include('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\includes\footer.php on line 178
+[04-Jul-2026 01:31:28 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: federal_constituency
+[04-Jul-2026 01:32:37 Africa/Lagos] PHP Warning:  Undefined variable $top_states in C:\xampp\htdocs\election\dashboard\includes\footer.php on line 178
+[04-Jul-2026 01:32:37 Africa/Lagos] PHP Fatal error:  Uncaught TypeError: array_column(): Argument #1 ($array) must be of type array, null given in C:\xampp\htdocs\election\dashboard\includes\footer.php:178
+Stack trace:
+#0 C:\xampp\htdocs\election\dashboard\includes\footer.php(178): array_column(NULL, 'state_name')
+#1 C:\xampp\htdocs\election\dashboard\federal-constituency\index.php(389): include('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\includes\footer.php on line 178
+[04-Jul-2026 01:32:54 Africa/Lagos] PHP Warning:  Undefined variable $top_states in C:\xampp\htdocs\election\dashboard\includes\footer.php on line 178
+[04-Jul-2026 01:32:54 Africa/Lagos] PHP Fatal error:  Uncaught TypeError: array_column(): Argument #1 ($array) must be of type array, null given in C:\xampp\htdocs\election\dashboard\includes\footer.php:178
+Stack trace:
+#0 C:\xampp\htdocs\election\dashboard\includes\footer.php(178): array_column(NULL, 'state_name')
+#1 C:\xampp\htdocs\election\dashboard\federal-constituency\index.php(389): include('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\includes\footer.php on line 178
+[04-Jul-2026 01:33:05 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: ward
+[04-Jul-2026 01:33:05 Africa/Lagos] PHP Warning:  Undefined variable $top_states in C:\xampp\htdocs\election\dashboard\includes\footer.php on line 178
+[04-Jul-2026 01:33:05 Africa/Lagos] PHP Fatal error:  Uncaught TypeError: array_column(): Argument #1 ($array) must be of type array, null given in C:\xampp\htdocs\election\dashboard\includes\footer.php:178
+Stack trace:
+#0 C:\xampp\htdocs\election\dashboard\includes\footer.php(178): array_column(NULL, 'state_name')
+#1 C:\xampp\htdocs\election\dashboard\ward\index.php(421): include('C:\\xampp\\htdocs...')
+#2 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\includes\footer.php on line 178
+[04-Jul-2026 01:39:59 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: national
+[04-Jul-2026 01:45:01 Africa/Lagos] PHP Fatal error:  Cannot redeclare getJurisdictionName() (previously declared in C:\xampp\htdocs\election\dashboard\includes\sidebar.php:53) in C:\xampp\htdocs\election\dashboard\includes\sidebar.php on line 91
+[04-Jul-2026 01:45:13 Africa/Lagos] PHP Fatal error:  Cannot redeclare getJurisdictionName() (previously declared in C:\xampp\htdocs\election\dashboard\includes\sidebar.php:53) in C:\xampp\htdocs\election\dashboard\includes\sidebar.php on line 91
+[04-Jul-2026 01:45:14 Africa/Lagos] PHP Fatal error:  Cannot redeclare getJurisdictionName() (previously declared in C:\xampp\htdocs\election\dashboard\includes\sidebar.php:53) in C:\xampp\htdocs\election\dashboard\includes\sidebar.php on line 91
+[04-Jul-2026 02:01:08 Africa/Lagos] PHP Warning:  filemtime(): stat failed for C:\xampp\htdocs\election\dashboard\includes/../../assets/js/dashboard.js in C:\xampp\htdocs\election\dashboard\includes\footer.php on line 46

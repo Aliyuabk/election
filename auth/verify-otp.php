@@ -67,10 +67,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $dashboardMap = [
                 'super_admin' => '../dashboard/super-admin/',
                 'client_admin' => '../dashboard/client-admin/',
-                'national' => '../dashboard/national/',
-                'state' => '../dashboard/state/',
-                'lga' => '../dashboard/lga/',
-                'pu_agent' => '../dashboard/agent/'
+                'national' => '../dashboard/Coordinator/',
+                'state' => '../dashboard/Coordinator/',
+                'senatorial' => '../dashboard/Coordinator/',
+                'federal_constituency' => '../dashboard/Coordinator/',
+                'lga' => '../dashboard/Coordinator/',
+                'ward' => '../dashboard/Coordinator/',
+                'pu_agent' => '../dashboard/agent/',
+                'party_agent' => '../dashboard/party-agent/',
+                'volunteer' => '../dashboard/volunteer/',
+                'observer' => '../dashboard/observer/',
+                'situation_room' => '../dashboard/situation-room/',
+                'finance_officer' => '../dashboard/finance-officer/',
+                'citizen' => '../dashboard/citizen/'
             ];
             $dashboard = $dashboardMap[$role] ?? '../dashboard/client-admin/';
             header('Location: ' . $dashboard);
