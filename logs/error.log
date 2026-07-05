@@ -664,3 +664,24 @@ Stack trace:
 [04-Jul-2026 01:45:13 Africa/Lagos] PHP Fatal error:  Cannot redeclare getJurisdictionName() (previously declared in C:\xampp\htdocs\election\dashboard\includes\sidebar.php:53) in C:\xampp\htdocs\election\dashboard\includes\sidebar.php on line 91
 [04-Jul-2026 01:45:14 Africa/Lagos] PHP Fatal error:  Cannot redeclare getJurisdictionName() (previously declared in C:\xampp\htdocs\election\dashboard\includes\sidebar.php:53) in C:\xampp\htdocs\election\dashboard\includes\sidebar.php on line 91
 [04-Jul-2026 02:01:08 Africa/Lagos] PHP Warning:  filemtime(): stat failed for C:\xampp\htdocs\election\dashboard\includes/../../assets/js/dashboard.js in C:\xampp\htdocs\election\dashboard\includes\footer.php on line 46
+[05-Jul-2026 10:01:49 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: national
+[05-Jul-2026 10:04:33 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: state
+[05-Jul-2026 10:05:01 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: state
+[05-Jul-2026 10:05:01 Africa/Lagos] PHP Warning:  Undefined array key "client_admin" in C:\xampp\htdocs\election\dashboard\includes\sidebar.php on line 135
+[05-Jul-2026 10:16:02 Africa/Lagos] PHP Warning:  Undefined array key "client_admin" in C:\xampp\htdocs\election\dashboard\includes\sidebar.php on line 135
+[05-Jul-2026 10:16:05 Africa/Lagos] PHP Warning:  Undefined array key "client_admin" in C:\xampp\htdocs\election\dashboard\includes\sidebar.php on line 135
+[05-Jul-2026 10:16:33 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: state
+[05-Jul-2026 10:16:33 Africa/Lagos] PHP Warning:  Undefined array key "client_admin" in C:\xampp\htdocs\election\dashboard\includes\sidebar.php on line 135
+[05-Jul-2026 10:18:50 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: lga
+[05-Jul-2026 10:18:50 Africa/Lagos] PHP Warning:  Undefined array key "client_admin" in C:\xampp\htdocs\election\dashboard\includes\sidebar.php on line 135
+[05-Jul-2026 10:19:35 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: ward
+[05-Jul-2026 10:19:36 Africa/Lagos] PHP Warning:  Undefined array key "client_admin" in C:\xampp\htdocs\election\dashboard\includes\sidebar.php on line 135
+[05-Jul-2026 10:24:27 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: national
+[05-Jul-2026 10:25:08 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: state
+[05-Jul-2026 10:25:09 Africa/Lagos] PHP Warning:  Undefined array key "client_admin" in C:\xampp\htdocs\election\dashboard\includes\sidebar.php on line 135
+[05-Jul-2026 10:27:16 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: lga
+[05-Jul-2026 10:27:33 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: lga
+[05-Jul-2026 10:27:54 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: ward
+[05-Jul-2026 10:29:03 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: senatorial
+[05-Jul-2026 10:32:21 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: federal_constituency
+[05-Jul-2026 10:33:44 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: national

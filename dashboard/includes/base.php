@@ -1446,10 +1446,10 @@ $primary_rgb = implode(', ', sscanf($primary_color, '#%02x%02x%02x'));
 <!-- ============================================================
 PRELOADER
 ============================================================ -->
-<!-- <div id="preloader">
+<div id="preloader">
     <div class="preloader-spinner"></div>
-    <div class="preloader-text">Loading <span class="preloader-dots"></span></div>
-</div> -->
+    <div class="preloader-text"> <span class="preloader-dots"></span></div>
+</div>
 
 <!-- ============================================================
 SIDEBAR OVERLAY (mobile)
