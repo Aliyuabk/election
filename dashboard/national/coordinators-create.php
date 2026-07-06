@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// NATIONAL COORDINATOR - CREATE COORDINATOR
+// NATIONAL COORDINATOR - CREATE COORDINATOR (PRO VERSION)
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -24,46 +24,90 @@ $user_name = SessionManager::get('user_name', 'Coordinator');
 $user_id = SessionManager::get('user_id');
 $tenant_id = SessionManager::get('tenant_id');
 
-// Get parameters - check both GET and POST
+// Get parameters - support both state and lga
 $state_id = isset($_GET['state']) ? intval($_GET['state']) : 0;
+$lga_id = isset($_GET['lga']) ? intval($_GET['lga']) : 0;
+$level = isset($_GET['level']) ? $_GET['level'] : 'state';
+
+// Also check POST for parameters
 if ($state_id <= 0 && isset($_POST['state_id'])) {
     $state_id = intval($_POST['state_id']);
 }
-$level = isset($_GET['level']) ? $_GET['level'] : 'state';
+if ($lga_id <= 0 && isset($_POST['lga_id'])) {
+    $lga_id = intval($_POST['lga_id']);
+}
+if (isset($_POST['level'])) {
+    $level = $_POST['level'];
+}
 
 // Debug log
 error_log("=== coordinators-create.php ===");
 error_log("GET: " . print_r($_GET, true));
+error_log("POST: " . print_r($_POST, true));
 error_log("State ID: " . $state_id);
+error_log("LGA ID: " . $lga_id);
 error_log("Level: " . $level);
-
-// If no state ID, redirect
-if ($state_id <= 0) {
-    error_log("Redirecting due to invalid state ID");
-    header('Location: monitor-states.php?error=invalid_state');
-    exit();
-}
 
 $db = getDB();
 
 // ============================================================
-// FETCH STATE NAME
+// FETCH LOCATION DATA
 // ============================================================
 $state_name = '';
-try {
-    $stmt = $db->prepare("SELECT name FROM states WHERE id = ?");
-    $stmt->execute([$state_id]);
-    $state_name = $stmt->fetchColumn();
-    error_log("State name found: " . $state_name);
-    
-    if (!$state_name) {
-        error_log("State not found with ID: " . $state_id);
-        header('Location: monitor-states.php?error=state_not_found');
-        exit();
+$lga_name = '';
+$location_label = '';
+
+// Determine which level we're working with
+if ($level === 'state' && $state_id > 0) {
+    try {
+        $stmt = $db->prepare("SELECT name FROM states WHERE id = ?");
+        $stmt->execute([$state_id]);
+        $state_name = $stmt->fetchColumn() ?: '';
+        $location_label = $state_name;
+    } catch (Exception $e) {
+        error_log("State fetch error: " . $e->getMessage());
     }
-} catch (Exception $e) {
-    error_log("Create Coordinator Error: " . $e->getMessage());
-    header('Location: monitor-states.php?error=database_error');
+} elseif ($level === 'lga' && $lga_id > 0) {
+    try {
+        $stmt = $db->prepare("
+            SELECT l.name as lga_name, s.name as state_name 
+            FROM lgas l 
+            JOIN states s ON l.state_id = s.id 
+            WHERE l.id = ?
+        ");
+        $stmt->execute([$lga_id]);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($result) {
+            $lga_name = $result['lga_name'];
+            $state_name = $result['state_name'];
+            $location_label = "$lga_name ($state_name)";
+        }
+    } catch (Exception $e) {
+        error_log("LGA fetch error: " . $e->getMessage());
+    }
+} elseif ($level === 'ward' && $lga_id > 0) {
+    try {
+        $stmt = $db->prepare("
+            SELECT s.name as state_name, l.name as lga_name 
+            FROM lgas l 
+            JOIN states s ON l.state_id = s.id 
+            WHERE l.id = ?
+        ");
+        $stmt->execute([$lga_id]);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($result) {
+            $state_name = $result['state_name'];
+            $lga_name = $result['lga_name'];
+            $location_label = "$lga_name ($state_name)";
+        }
+    } catch (Exception $e) {
+        error_log("Location fetch error: " . $e->getMessage());
+    }
+}
+
+// If no valid location, redirect
+if (empty($location_label) && $level !== 'state') {
+    header('Location: monitor-states.php?error=invalid_location');
     exit();
 }
 
@@ -75,12 +119,12 @@ try {
     $stmt = $db->prepare("
         SELECT id, name, level 
         FROM roles 
-        WHERE level IN ('state', 'lga') 
+        WHERE level IN ('state', 'lga', 'ward', 'pu_agent') 
         AND is_active = 1 
-        ORDER BY level, name
+        ORDER BY FIELD(level, 'state', 'lga', 'ward', 'pu_agent'), name
     ");
     $stmt->execute();
-    $roles = $stmt->fetchAll();
+    $roles = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     $roles = [];
 }
@@ -93,9 +137,43 @@ if ($state_id > 0) {
     try {
         $stmt = $db->prepare("SELECT id, name FROM lgas WHERE state_id = ? AND is_active = 1 ORDER BY name");
         $stmt->execute([$state_id]);
-        $lgas = $stmt->fetchAll();
+        $lgas = $stmt->fetchAll(PDO::FETCH_ASSOC);
     } catch (Exception $e) {
         $lgas = [];
+    }
+}
+
+// ============================================================
+// FETCH WARDS FOR SELECTION
+// ============================================================
+$wards = [];
+if ($lga_id > 0) {
+    try {
+        $stmt = $db->prepare("SELECT id, name FROM wards WHERE lga_id = ? AND is_active = 1 ORDER BY name");
+        $stmt->execute([$lga_id]);
+        $wards = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        $wards = [];
+    }
+}
+
+// ============================================================
+// FETCH POLLING UNITS FOR SELECTION
+// ============================================================
+$polling_units = [];
+if ($lga_id > 0) {
+    try {
+        $stmt = $db->prepare("
+            SELECT pu.id, pu.name, pu.code, w.name as ward_name 
+            FROM polling_units pu 
+            JOIN wards w ON pu.ward_id = w.id 
+            WHERE w.lga_id = ? AND pu.is_active = 1 
+            ORDER BY w.name, pu.name
+        ");
+        $stmt->execute([$lga_id]);
+        $polling_units = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        $polling_units = [];
     }
 }
 
@@ -115,9 +193,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $jurisdiction_id = intval($_POST['jurisdiction_id'] ?? 0);
     $password = trim($_POST['password'] ?? '');
     $confirm_password = trim($_POST['confirm_password'] ?? '');
+    $send_welcome_email = isset($_POST['send_welcome_email']) ? true : false;
     
-    // Debug
-    error_log("Form submission: " . print_r($_POST, true));
+    // Get state_id from POST if not set
+    if ($state_id <= 0 && isset($_POST['state_id'])) {
+        $state_id = intval($_POST['state_id']);
+    }
     
     // Validation
     if (empty($first_name)) {
@@ -159,8 +240,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Hash password
                 $password_hash = password_hash($password, PASSWORD_DEFAULT);
                 
-                // Determine jurisdiction type
-                $jurisdiction_type = $role_level === 'state' ? 'state' : 'lga';
+                // Determine jurisdiction type based on role
+                $jurisdiction_type = $role_level;
+                if ($role_level === 'pu_agent') {
+                    $jurisdiction_type = 'pu';
+                }
                 
                 // Insert user
                 $stmt = $db->prepare("
@@ -188,6 +272,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $new_user_id = $db->lastInsertId();
                 error_log("User created with ID: " . $new_user_id);
                 
+                // Send welcome email if requested
+                if ($send_welcome_email && !empty($email)) {
+                    $login_url = APP_URL . '/auth/login.php';
+                    $email_subject = 'Welcome to ' . APP_NAME . ' - Your Coordinator Account';
+                    $email_body = '
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <style>
+                            body { font-family: Arial, sans-serif; background: #f4f6fa; padding: 20px; }
+                            .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; padding: 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+                            .header { text-align: center; margin-bottom: 30px; }
+                            .header h1 { color: #0F4C81; margin: 0; }
+                            .credentials { background: #F8FAFC; padding: 20px; border-radius: 12px; margin: 20px 0; border-left: 4px solid #0F4C81; }
+                            .btn { display: inline-block; padding: 12px 32px; background: #0F4C81; color: white; text-decoration: none; border-radius: 8px; font-weight: 600; }
+                            .footer { text-align: center; color: #64748B; font-size: 12px; margin-top: 30px; border-top: 1px solid #E2E8F0; padding-top: 20px; }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="container">
+                            <div class="header">
+                                <h1>🎯 ' . APP_NAME . '</h1>
+                                <p style="color: #64748B;">Welcome to the Team!</p>
+                            </div>
+                            <p>Dear ' . htmlspecialchars($first_name) . ' ' . htmlspecialchars($last_name) . ',</p>
+                            <p>Your coordinator account has been created successfully. You can now access the platform using the credentials below:</p>
+                            <div class="credentials">
+                                <p><strong>User Code:</strong> ' . $user_code . '</p>
+                                <p><strong>Email:</strong> ' . htmlspecialchars($email) . '</p>
+                                <p><strong>Password:</strong> [The password you set]</p>
+                                <p><strong>Role:</strong> ' . ucfirst($role_level) . ' Coordinator</p>
+                                <p><strong>Jurisdiction:</strong> ' . htmlspecialchars($location_label) . '</p>
+                            </div>
+                            <div style="text-align: center; margin: 30px 0;">
+                                <a href="' . $login_url . '" class="btn">Login Now</a>
+                            </div>
+                            <p style="color: #64748B; font-size: 14px;">
+                                Please keep your credentials secure and do not share them with anyone.
+                            </p>
+                            <div class="footer">
+                                &copy; ' . date('Y') . ' ' . APP_NAME . '. All rights reserved.
+                            </div>
+                        </div>
+                    </body>
+                    </html>
+                    ';
+                    
+                    sendEmail($email, $email_subject, $email_body);
+                }
+                
                 // Log activity
                 $log_stmt = $db->prepare("
                     INSERT INTO activity_logs (user_id, tenant_id, activity_type, description, entity_type, entity_id, created_at)
@@ -196,7 +330,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $log_stmt->execute([
                     $user_id,
                     $tenant_id,
-                    "Created coordinator: $first_name $last_name for " . ucfirst($role_level),
+                    "Created coordinator: $first_name $last_name as " . ucfirst($role_level) . " for $location_label",
                     $new_user_id
                 ]);
                 
@@ -204,7 +338,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $message = "Coordinator created successfully! User Code: $user_code";
                 
                 // Redirect after success
-                header("Location: state-coordinators.php?id=$state_id&success=1");
+                if ($level === 'state' && $state_id > 0) {
+                    header("Location: state-coordinators.php?id=$state_id&success=1");
+                } elseif ($lga_id > 0) {
+                    header("Location: lga-coordinators.php?id=$lga_id&success=1");
+                } else {
+                    header("Location: monitor-states.php?success=1");
+                }
                 exit();
             }
         } catch (Exception $e) {
@@ -218,7 +358,7 @@ include '../includes/base.php';
 include '../includes/sidebar.php';
 
 $page_title = 'Create Coordinator';
-$page_subtitle = $level === 'state' ? 'State Coordinator' : 'LGA Coordinator';
+$page_subtitle = ucfirst($level) . ' Coordinator';
 ?>
 
 <main class="main-content">
@@ -231,9 +371,13 @@ $page_subtitle = $level === 'state' ? 'State Coordinator' : 'LGA Coordinator';
                 <i class="fas fa-home"></i>
                 <a href="../national/index.php" style="text-decoration:none;color:var(--gray-500);">Dashboard</a>
                 <i class="fas fa-chevron-right" style="font-size:0.6rem;color:var(--gray-400);"></i>
-                <a href="monitor-states.php" style="text-decoration:none;color:var(--gray-500);">Monitor States</a>
-                <i class="fas fa-chevron-right" style="font-size:0.6rem;color:var(--gray-400);"></i>
-                <a href="state-coordinators.php?id=<?php echo $state_id; ?>" style="text-decoration:none;color:var(--gray-500);"><?php echo htmlspecialchars($state_name); ?></a>
+                <?php if ($level === 'state' && $state_id > 0): ?>
+                    <a href="state-coordinators.php?id=<?php echo $state_id; ?>" style="text-decoration:none;color:var(--gray-500);"><?php echo htmlspecialchars($state_name); ?></a>
+                <?php elseif ($lga_id > 0): ?>
+                    <a href="lga-coordinators.php?id=<?php echo $lga_id; ?>" style="text-decoration:none;color:var(--gray-500);"><?php echo htmlspecialchars($lga_name); ?></a>
+                <?php else: ?>
+                    <a href="monitor-states.php" style="text-decoration:none;color:var(--gray-500);">Monitor States</a>
+                <?php endif; ?>
                 <i class="fas fa-chevron-right" style="font-size:0.6rem;color:var(--gray-400);"></i>
                 <span style="font-weight:600;color:var(--gray-800);">Create Coordinator</span>
             </div>
@@ -241,16 +385,22 @@ $page_subtitle = $level === 'state' ? 'State Coordinator' : 'LGA Coordinator';
             <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-top:8px;">
                 <div>
                     <h2 style="font-size:1.5rem;font-weight:700;margin:0;">
-                        Create <?php echo $level === 'state' ? 'State' : 'LGA'; ?> Coordinator
+                        Create <?php echo ucfirst($level); ?> Coordinator
                     </h2>
                     <p style="color:var(--gray-500);margin:2px 0 0;">
-                        <?php echo htmlspecialchars($state_name); ?> • 
-                        <?php echo $level === 'state' ? 'State Level' : 'LGA Level'; ?>
+                        <?php echo htmlspecialchars($location_label); ?> • 
+                        <?php echo ucfirst($level); ?> Level
                     </p>
                 </div>
-                <a href="state-coordinators.php?id=<?php echo $state_id; ?>" class="btn-secondary" style="padding:8px 20px;background:var(--gray-100);color:var(--gray-700);border:1px solid var(--gray-200);border-radius:10px;text-decoration:none;font-weight:500;font-size:0.8rem;display:inline-flex;align-items:center;gap:6px;">
-                    <i class="fas fa-arrow-left"></i> Back
-                </a>
+                <?php if ($level === 'state' && $state_id > 0): ?>
+                    <a href="state-coordinators.php?id=<?php echo $state_id; ?>" class="btn-secondary" style="padding:8px 20px;background:var(--gray-100);color:var(--gray-700);border:1px solid var(--gray-200);border-radius:10px;text-decoration:none;font-weight:500;font-size:0.8rem;display:inline-flex;align-items:center;gap:6px;">
+                        <i class="fas fa-arrow-left"></i> Back
+                    </a>
+                <?php elseif ($lga_id > 0): ?>
+                    <a href="lga-coordinators.php?id=<?php echo $lga_id; ?>" class="btn-secondary" style="padding:8px 20px;background:var(--gray-100);color:var(--gray-700);border:1px solid var(--gray-200);border-radius:10px;text-decoration:none;font-weight:500;font-size:0.8rem;display:inline-flex;align-items:center;gap:6px;">
+                        <i class="fas fa-arrow-left"></i> Back
+                    </a>
+                <?php endif; ?>
             </div>
         </div>
 
@@ -272,6 +422,8 @@ $page_subtitle = $level === 'state' ? 'State Coordinator' : 'LGA Coordinator';
         <!-- Create Coordinator Form -->
         <form method="POST" action="" style="background:white;border-radius:var(--radius);padding:24px;border:1px solid var(--gray-200);">
             <input type="hidden" name="state_id" value="<?php echo $state_id; ?>">
+            <input type="hidden" name="lga_id" value="<?php echo $lga_id; ?>">
+            <input type="hidden" name="level" value="<?php echo $level; ?>">
             
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
                 <!-- Left Column -->
@@ -328,13 +480,14 @@ $page_subtitle = $level === 'state' ? 'State Coordinator' : 'LGA Coordinator';
                         <label style="display:block;font-weight:600;font-size:0.85rem;color:var(--gray-700);margin-bottom:4px;">
                             Role <span style="color:#EF4444;">*</span>
                         </label>
-                        <select name="role_id" class="form-control" required
+                        <select name="role_id" class="form-control" required id="roleSelect"
                                 style="width:100%;padding:10px 14px;border:1px solid var(--gray-200);border-radius:10px;font-family:'Inter',sans-serif;font-size:0.85rem;background:white;transition:var(--transition);">
                             <option value="">Select Role...</option>
                             <?php foreach ($roles as $role): ?>
                                 <option value="<?php echo $role['id']; ?>"
                                     <?php echo ($_POST['role_id'] ?? '') == $role['id'] ? 'selected' : ''; ?>
-                                    <?php echo $role['level'] === $level ? 'selected' : ''; ?>>
+                                    <?php echo $role['level'] === $level ? 'selected' : ''; ?>
+                                    data-level="<?php echo $role['level']; ?>">
                                     <?php echo htmlspecialchars($role['name']); ?> (<?php echo ucfirst($role['level']); ?>)
                                 </option>
                             <?php endforeach; ?>
@@ -346,35 +499,65 @@ $page_subtitle = $level === 'state' ? 'State Coordinator' : 'LGA Coordinator';
                         <label style="display:block;font-weight:600;font-size:0.85rem;color:var(--gray-700);margin-bottom:4px;">
                             Jurisdiction <span style="color:#EF4444;">*</span>
                         </label>
-                        <?php if ($level === 'state'): ?>
-                            <select name="jurisdiction_id" class="form-control" required
-                                    style="width:100%;padding:10px 14px;border:1px solid var(--gray-200);border-radius:10px;font-family:'Inter',sans-serif;font-size:0.85rem;background:white;transition:var(--transition);">
-                                <option value="">Select State...</option>
-                                <?php
-                                $stmt = $db->prepare("SELECT id, name FROM states WHERE is_active = 1 ORDER BY name");
-                                $stmt->execute();
-                                $all_states = $stmt->fetchAll();
-                                foreach ($all_states as $state):
-                                ?>
-                                    <option value="<?php echo $state['id']; ?>"
-                                        <?php echo ($_POST['jurisdiction_id'] ?? '') == $state['id'] ? 'selected' : ''; ?>
-                                        <?php echo $state['id'] == $state_id ? 'selected' : ''; ?>>
-                                        <?php echo htmlspecialchars($state['name']); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        <?php else: ?>
-                            <select name="jurisdiction_id" class="form-control" required
-                                    style="width:100%;padding:10px 14px;border:1px solid var(--gray-200);border-radius:10px;font-family:'Inter',sans-serif;font-size:0.85rem;background:white;transition:var(--transition);">
-                                <option value="">Select LGA...</option>
-                                <?php foreach ($lgas as $lga): ?>
-                                    <option value="<?php echo $lga['id']; ?>"
-                                        <?php echo ($_POST['jurisdiction_id'] ?? '') == $lga['id'] ? 'selected' : ''; ?>>
-                                        <?php echo htmlspecialchars($lga['name']); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        <?php endif; ?>
+                        <div id="jurisdictionContainer">
+                            <?php if ($level === 'state'): ?>
+                                <select name="jurisdiction_id" class="form-control" required id="jurisdictionSelect"
+                                        style="width:100%;padding:10px 14px;border:1px solid var(--gray-200);border-radius:10px;font-family:'Inter',sans-serif;font-size:0.85rem;background:white;transition:var(--transition);">
+                                    <option value="">Select State...</option>
+                                    <?php
+                                    $stmt = $db->prepare("SELECT id, name FROM states WHERE is_active = 1 ORDER BY name");
+                                    $stmt->execute();
+                                    $all_states = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                                    foreach ($all_states as $state):
+                                    ?>
+                                        <option value="<?php echo $state['id']; ?>"
+                                            <?php echo ($_POST['jurisdiction_id'] ?? '') == $state['id'] ? 'selected' : ''; ?>
+                                            <?php echo $state['id'] == $state_id ? 'selected' : ''; ?>>
+                                            <?php echo htmlspecialchars($state['name']); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            <?php elseif ($level === 'lga'): ?>
+                                <select name="jurisdiction_id" class="form-control" required id="jurisdictionSelect"
+                                        style="width:100%;padding:10px 14px;border:1px solid var(--gray-200);border-radius:10px;font-family:'Inter',sans-serif;font-size:0.85rem;background:white;transition:var(--transition);">
+                                    <option value="">Select LGA...</option>
+                                    <?php foreach ($lgas as $lga): ?>
+                                        <option value="<?php echo $lga['id']; ?>"
+                                            <?php echo ($_POST['jurisdiction_id'] ?? '') == $lga['id'] ? 'selected' : ''; ?>
+                                            <?php echo $lga['id'] == $lga_id ? 'selected' : ''; ?>>
+                                            <?php echo htmlspecialchars($lga['name']); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            <?php elseif ($level === 'ward'): ?>
+                                <select name="jurisdiction_id" class="form-control" required id="jurisdictionSelect"
+                                        style="width:100%;padding:10px 14px;border:1px solid var(--gray-200);border-radius:10px;font-family:'Inter',sans-serif;font-size:0.85rem;background:white;transition:var(--transition);">
+                                    <option value="">Select Ward...</option>
+                                    <?php foreach ($wards as $ward): ?>
+                                        <option value="<?php echo $ward['id']; ?>"
+                                            <?php echo ($_POST['jurisdiction_id'] ?? '') == $ward['id'] ? 'selected' : ''; ?>>
+                                            <?php echo htmlspecialchars($ward['name']); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            <?php elseif ($level === 'pu_agent'): ?>
+                                <select name="jurisdiction_id" class="form-control" required id="jurisdictionSelect"
+                                        style="width:100%;padding:10px 14px;border:1px solid var(--gray-200);border-radius:10px;font-family:'Inter',sans-serif;font-size:0.85rem;background:white;transition:var(--transition);">
+                                    <option value="">Select Polling Unit...</option>
+                                    <?php foreach ($polling_units as $pu): ?>
+                                        <option value="<?php echo $pu['id']; ?>"
+                                            <?php echo ($_POST['jurisdiction_id'] ?? '') == $pu['id'] ? 'selected' : ''; ?>>
+                                            <?php echo htmlspecialchars($pu['name']); ?> (<?php echo htmlspecialchars($pu['code']); ?>) - <?php echo htmlspecialchars($pu['ward_name']); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            <?php else: ?>
+                                <select name="jurisdiction_id" class="form-control" required id="jurisdictionSelect"
+                                        style="width:100%;padding:10px 14px;border:1px solid var(--gray-200);border-radius:10px;font-family:'Inter',sans-serif;font-size:0.85rem;background:white;transition:var(--transition);">
+                                    <option value="">Select Jurisdiction...</option>
+                                </select>
+                            <?php endif; ?>
+                        </div>
                     </div>
                     
                     <!-- Password -->
@@ -385,6 +568,9 @@ $page_subtitle = $level === 'state' ? 'State Coordinator' : 'LGA Coordinator';
                         <input type="password" name="password" class="form-control" required
                                placeholder="Min 8 characters"
                                style="width:100%;padding:10px 14px;border:1px solid var(--gray-200);border-radius:10px;font-family:'Inter',sans-serif;font-size:0.85rem;transition:var(--transition);">
+                        <div style="font-size:0.65rem;color:var(--gray-400);margin-top:4px;">
+                            <i class="fas fa-info-circle"></i> Must be at least 8 characters
+                        </div>
                     </div>
                     
                     <!-- Confirm Password -->
@@ -399,16 +585,45 @@ $page_subtitle = $level === 'state' ? 'State Coordinator' : 'LGA Coordinator';
                 </div>
             </div>
             
+            <!-- Options -->
+            <div style="padding-top:16px;border-top:1px solid var(--gray-200);margin-top:8px;">
+                <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;color:var(--gray-600);cursor:pointer;">
+                    <input type="checkbox" name="send_welcome_email" value="1" checked>
+                    <i class="fas fa-envelope" style="color:#3B82F6;"></i>
+                    Send welcome email with credentials
+                </label>
+            </div>
+            
             <!-- Form Actions -->
-            <div style="display:flex;gap:12px;margin-top:24px;padding-top:20px;border-top:1px solid var(--gray-200);flex-wrap:wrap;">
+            <div style="display:flex;gap:12px;margin-top:20px;padding-top:16px;border-top:1px solid var(--gray-200);flex-wrap:wrap;">
                 <button type="submit" class="btn-primary" style="padding:10px 32px;background:var(--primary);color:white;border:none;border-radius:10px;font-family:'Inter',sans-serif;font-weight:600;font-size:0.85rem;cursor:pointer;transition:var(--transition);display:flex;align-items:center;gap:8px;">
                     <i class="fas fa-user-plus"></i> Create Coordinator
                 </button>
-                <a href="state-coordinators.php?id=<?php echo $state_id; ?>" class="btn-secondary" style="padding:10px 32px;background:var(--gray-100);color:var(--gray-700);border:1px solid var(--gray-200);border-radius:10px;text-decoration:none;font-family:'Inter',sans-serif;font-weight:500;font-size:0.85rem;cursor:pointer;transition:var(--transition);display:flex;align-items:center;gap:8px;">
-                    <i class="fas fa-times"></i> Cancel
-                </a>
+                <?php if ($level === 'state' && $state_id > 0): ?>
+                    <a href="state-coordinators.php?id=<?php echo $state_id; ?>" class="btn-secondary" style="padding:10px 32px;background:var(--gray-100);color:var(--gray-700);border:1px solid var(--gray-200);border-radius:10px;text-decoration:none;font-family:'Inter',sans-serif;font-weight:500;font-size:0.85rem;cursor:pointer;transition:var(--transition);display:flex;align-items:center;gap:8px;">
+                        <i class="fas fa-times"></i> Cancel
+                    </a>
+                <?php elseif ($lga_id > 0): ?>
+                    <a href="lga-coordinators.php?id=<?php echo $lga_id; ?>" class="btn-secondary" style="padding:10px 32px;background:var(--gray-100);color:var(--gray-700);border:1px solid var(--gray-200);border-radius:10px;text-decoration:none;font-family:'Inter',sans-serif;font-weight:500;font-size:0.85rem;cursor:pointer;transition:var(--transition);display:flex;align-items:center;gap:8px;">
+                        <i class="fas fa-times"></i> Cancel
+                    </a>
+                <?php endif; ?>
             </div>
         </form>
+
+        <!-- Quick Tips -->
+        <div style="background:#F0FDF4;border-radius:var(--radius);padding:16px 20px;margin-top:20px;border:1px solid #A7F3D0;">
+            <h4 style="font-size:0.85rem;font-weight:600;color:#065F46;margin:0 0 8px;">
+                <i class="fas fa-lightbulb"></i> Coordinator Creation Tips
+            </h4>
+            <ul style="font-size:0.8rem;color:#065F46;margin:0;padding-left:20px;">
+                <li>Use official email addresses for coordinators</li>
+                <li>Assign the correct role based on jurisdiction level</li>
+                <li>Enable "Send welcome email" to notify the coordinator</li>
+                <li>Ensure the jurisdiction matches the selected role</li>
+                <li>Passwords must be at least 8 characters with a mix of letters and numbers</li>
+            </ul>
+        </div>
     </div>
 </main>
 
@@ -438,6 +653,28 @@ $page_subtitle = $level === 'state' ? 'State Coordinator' : 'LGA Coordinator';
 </style>
 
 <script>
+// ============================================================
+// ROLE CHANGE HANDLER - Update jurisdiction options
+// ============================================================
+document.addEventListener('DOMContentLoaded', function() {
+    var roleSelect = document.getElementById('roleSelect');
+    var jurisdictionContainer = document.getElementById('jurisdictionContainer');
+    
+    if (roleSelect) {
+        roleSelect.addEventListener('change', function() {
+            var selectedOption = this.options[this.selectedIndex];
+            var level = selectedOption.getAttribute('data-level');
+            
+            if (level) {
+                // Redirect to the appropriate form with the selected level
+                var currentUrl = new URL(window.location.href);
+                currentUrl.searchParams.set('level', level);
+                window.location.href = currentUrl.toString();
+            }
+        });
+    }
+});
+
 // ============================================================
 // SIDEBAR TOGGLE, DROPDOWNS, PROFILE, SEARCH
 // ============================================================

@@ -1149,3 +1149,351 @@ Stack trace:
 [06-Jul-2026 21:39:37 Africa/Lagos] PHP Deprecated:  number_format(): Passing null to parameter #1 ($num) of type float is deprecated in C:\xampp\htdocs\election\dashboard\national\state-comparison.php on line 391
 [06-Jul-2026 21:39:37 Africa/Lagos] PHP Warning:  Undefined array key "critical_incidents" in C:\xampp\htdocs\election\dashboard\national\state-comparison.php on line 393
 [06-Jul-2026 21:39:37 Africa/Lagos] PHP Warning:  Undefined array key "open_incidents" in C:\xampp\htdocs\election\dashboard\national\state-comparison.php on line 398
+[06-Jul-2026 21:42:21 Africa/Lagos] State Dashboard Data Error: SQLSTATE[HY093]: Invalid parameter number
+[06-Jul-2026 21:42:59 Africa/Lagos] View State Data Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'registered_voters' in field list is ambiguous
+[06-Jul-2026 21:43:00 Africa/Lagos] View State Data Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'registered_voters' in field list is ambiguous
+[06-Jul-2026 21:44:09 Africa/Lagos] View State Data Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'registered_voters' in field list is ambiguous
+[06-Jul-2026 21:44:10 Africa/Lagos] View State Data Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'registered_voters' in field list is ambiguous
+[06-Jul-2026 21:44:11 Africa/Lagos] View State Data Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'registered_voters' in field list is ambiguous
+[06-Jul-2026 21:44:27 Africa/Lagos] View State Data Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'registered_voters' in field list is ambiguous
+[06-Jul-2026 21:44:50 Africa/Lagos] View State Data Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'registered_voters' in field list is ambiguous
+[06-Jul-2026 21:44:51 Africa/Lagos] View State Data Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'registered_voters' in field list is ambiguous
+[06-Jul-2026 21:45:34 Africa/Lagos] State Dashboard Data Error: SQLSTATE[HY093]: Invalid parameter number
+[06-Jul-2026 21:45:37 Africa/Lagos] State Dashboard Data Error: SQLSTATE[HY093]: Invalid parameter number
+[06-Jul-2026 21:48:57 Africa/Lagos] View State Data Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'registered_voters' in field list is ambiguous
+[06-Jul-2026 21:48:59 Africa/Lagos] View State Data Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'registered_voters' in field list is ambiguous
+[06-Jul-2026 21:48:59 Africa/Lagos] View State Data Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'registered_voters' in field list is ambiguous
+[06-Jul-2026 21:49:00 Africa/Lagos] View State Data Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'registered_voters' in field list is ambiguous
+[06-Jul-2026 21:49:01 Africa/Lagos] View State Data Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'registered_voters' in field list is ambiguous
+[06-Jul-2026 21:49:01 Africa/Lagos] View State Data Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'registered_voters' in field list is ambiguous
+[06-Jul-2026 21:49:02 Africa/Lagos] View State Data Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'registered_voters' in field list is ambiguous
+[06-Jul-2026 21:49:02 Africa/Lagos] View State Data Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'registered_voters' in field list is ambiguous
+[06-Jul-2026 21:49:03 Africa/Lagos] View State Data Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'registered_voters' in field list is ambiguous
+[06-Jul-2026 21:50:02 Africa/Lagos] === state-coordinators.php ===
+[06-Jul-2026 21:50:02 Africa/Lagos] GET: Array
+(
+    [id] => 43
+)
+
+[06-Jul-2026 21:50:02 Africa/Lagos] State ID: 43
+[06-Jul-2026 21:50:02 Africa/Lagos] State name found: kano
+[06-Jul-2026 21:50:02 Africa/Lagos] State coordinators found: 0
+[06-Jul-2026 21:50:02 Africa/Lagos] LGA coordinators found: 0
+[06-Jul-2026 21:50:56 Africa/Lagos] === state-coordinators.php ===
+[06-Jul-2026 21:50:56 Africa/Lagos] GET: Array
+(
+    [id] => 43
+)
+
+[06-Jul-2026 21:50:56 Africa/Lagos] State ID: 43
+[06-Jul-2026 21:50:56 Africa/Lagos] State name found: kano
+[06-Jul-2026 21:50:56 Africa/Lagos] State coordinators found: 0
+[06-Jul-2026 21:50:56 Africa/Lagos] LGA coordinators found: 0
+[06-Jul-2026 21:51:03 Africa/Lagos] View State Data Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'registered_voters' in field list is ambiguous
+[06-Jul-2026 21:51:04 Africa/Lagos] View State Data Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'registered_voters' in field list is ambiguous
+[06-Jul-2026 21:54:13 Africa/Lagos] View State - Total voters error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'registered_voters' in field list is ambiguous
+[06-Jul-2026 22:00:29 Africa/Lagos] === coordinators-create.php ===
+[06-Jul-2026 22:00:29 Africa/Lagos] GET: Array
+(
+    [lga] => 794
+    [level] => lga
+)
+
+[06-Jul-2026 22:00:29 Africa/Lagos] State ID: 0
+[06-Jul-2026 22:00:29 Africa/Lagos] Level: lga
+[06-Jul-2026 22:00:29 Africa/Lagos] Redirecting due to invalid state ID
+[06-Jul-2026 22:02:57 Africa/Lagos] View State - Total voters error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'registered_voters' in field list is ambiguous
+[06-Jul-2026 22:03:00 Africa/Lagos] === state-coordinators.php ===
+[06-Jul-2026 22:03:00 Africa/Lagos] GET: Array
+(
+    [id] => 42
+)
+
+[06-Jul-2026 22:03:00 Africa/Lagos] State ID: 42
+[06-Jul-2026 22:03:00 Africa/Lagos] State name found: Jigawa
+[06-Jul-2026 22:03:00 Africa/Lagos] State coordinators found: 0
+[06-Jul-2026 22:03:00 Africa/Lagos] LGA coordinators found: 0
+[06-Jul-2026 22:03:03 Africa/Lagos] === coordinators-create.php ===
+[06-Jul-2026 22:03:03 Africa/Lagos] GET: Array
+(
+    [state] => 42
+    [level] => state
+)
+
+[06-Jul-2026 22:03:03 Africa/Lagos] POST: Array
+(
+)
+
+[06-Jul-2026 22:03:03 Africa/Lagos] State ID: 42
+[06-Jul-2026 22:03:03 Africa/Lagos] LGA ID: 0
+[06-Jul-2026 22:03:03 Africa/Lagos] Level: state
+[06-Jul-2026 22:04:06 Africa/Lagos] === coordinators-create.php ===
+[06-Jul-2026 22:04:06 Africa/Lagos] GET: Array
+(
+    [state] => 42
+    [level] => state
+)
+
+[06-Jul-2026 22:04:06 Africa/Lagos] POST: Array
+(
+    [state_id] => 42
+    [lga_id] => 0
+    [level] => state
+    [first_name] => Aliyu
+    [last_name] => Abubakar
+    [email] => abarshiaminu2005@gmail.com
+    [phone] => +23480348634
+    [role_id] => 4
+    [jurisdiction_id] => 42
+    [password] => Jiddaahh@1
+    [confirm_password] => Jiddaahh@1
+    [send_welcome_email] => 1
+)
+
+[06-Jul-2026 22:04:06 Africa/Lagos] State ID: 42
+[06-Jul-2026 22:04:06 Africa/Lagos] LGA ID: 0
+[06-Jul-2026 22:04:06 Africa/Lagos] Level: state
+[06-Jul-2026 22:04:06 Africa/Lagos] User created with ID: 16
+[06-Jul-2026 22:04:14 Africa/Lagos] === state-coordinators.php ===
+[06-Jul-2026 22:04:14 Africa/Lagos] GET: Array
+(
+    [id] => 42
+    [success] => 1
+)
+
+[06-Jul-2026 22:04:14 Africa/Lagos] State ID: 42
+[06-Jul-2026 22:04:14 Africa/Lagos] State name found: Jigawa
+[06-Jul-2026 22:04:14 Africa/Lagos] State coordinators found: 1
+[06-Jul-2026 22:04:14 Africa/Lagos] LGA coordinators found: 0
+[06-Jul-2026 22:05:39 Africa/Lagos] === coordinators-create.php ===
+[06-Jul-2026 22:05:39 Africa/Lagos] GET: Array
+(
+    [state] => 42
+    [level] => lga
+)
+
+[06-Jul-2026 22:05:39 Africa/Lagos] POST: Array
+(
+)
+
+[06-Jul-2026 22:05:39 Africa/Lagos] State ID: 42
+[06-Jul-2026 22:05:39 Africa/Lagos] LGA ID: 0
+[06-Jul-2026 22:05:39 Africa/Lagos] Level: lga
+[06-Jul-2026 22:05:50 Africa/Lagos] === state-coordinators.php ===
+[06-Jul-2026 22:05:50 Africa/Lagos] GET: Array
+(
+    [id] => 42
+)
+
+[06-Jul-2026 22:05:50 Africa/Lagos] State ID: 42
+[06-Jul-2026 22:05:50 Africa/Lagos] State name found: Jigawa
+[06-Jul-2026 22:05:50 Africa/Lagos] State coordinators found: 1
+[06-Jul-2026 22:05:50 Africa/Lagos] LGA coordinators found: 0
+[06-Jul-2026 22:05:56 Africa/Lagos] === coordinators-create.php ===
+[06-Jul-2026 22:05:56 Africa/Lagos] GET: Array
+(
+    [state] => 42
+    [level] => state
+)
+
+[06-Jul-2026 22:05:56 Africa/Lagos] POST: Array
+(
+)
+
+[06-Jul-2026 22:05:56 Africa/Lagos] State ID: 42
+[06-Jul-2026 22:05:56 Africa/Lagos] LGA ID: 0
+[06-Jul-2026 22:05:56 Africa/Lagos] Level: state
+[06-Jul-2026 22:06:05 Africa/Lagos] === state-coordinators.php ===
+[06-Jul-2026 22:06:05 Africa/Lagos] GET: Array
+(
+    [id] => 42
+)
+
+[06-Jul-2026 22:06:05 Africa/Lagos] State ID: 42
+[06-Jul-2026 22:06:05 Africa/Lagos] State name found: Jigawa
+[06-Jul-2026 22:06:05 Africa/Lagos] State coordinators found: 1
+[06-Jul-2026 22:06:05 Africa/Lagos] LGA coordinators found: 0
+[06-Jul-2026 22:06:55 Africa/Lagos] Incidents Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'tenant_id' in where clause is ambiguous
+[06-Jul-2026 22:06:56 Africa/Lagos] PHP Deprecated:  number_format(): Passing null to parameter #1 ($num) of type float is deprecated in C:\xampp\htdocs\election\dashboard\national\incidents.php on line 300
+[06-Jul-2026 22:06:56 Africa/Lagos] PHP Deprecated:  number_format(): Passing null to parameter #1 ($num) of type float is deprecated in C:\xampp\htdocs\election\dashboard\national\incidents.php on line 314
+[06-Jul-2026 22:06:56 Africa/Lagos] PHP Deprecated:  number_format(): Passing null to parameter #1 ($num) of type float is deprecated in C:\xampp\htdocs\election\dashboard\national\incidents.php on line 321
+[06-Jul-2026 22:06:56 Africa/Lagos] PHP Deprecated:  number_format(): Passing null to parameter #1 ($num) of type float is deprecated in C:\xampp\htdocs\election\dashboard\national\incidents.php on line 328
+[06-Jul-2026 22:07:39 Africa/Lagos] Incidents Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'tenant_id' in where clause is ambiguous
+[06-Jul-2026 22:07:39 Africa/Lagos] PHP Deprecated:  number_format(): Passing null to parameter #1 ($num) of type float is deprecated in C:\xampp\htdocs\election\dashboard\national\incidents.php on line 300
+[06-Jul-2026 22:07:39 Africa/Lagos] PHP Deprecated:  number_format(): Passing null to parameter #1 ($num) of type float is deprecated in C:\xampp\htdocs\election\dashboard\national\incidents.php on line 314
+[06-Jul-2026 22:07:39 Africa/Lagos] PHP Deprecated:  number_format(): Passing null to parameter #1 ($num) of type float is deprecated in C:\xampp\htdocs\election\dashboard\national\incidents.php on line 321
+[06-Jul-2026 22:07:39 Africa/Lagos] PHP Deprecated:  number_format(): Passing null to parameter #1 ($num) of type float is deprecated in C:\xampp\htdocs\election\dashboard\national\incidents.php on line 328
+[06-Jul-2026 22:08:21 Africa/Lagos] Incidents Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'tenant_id' in where clause is ambiguous
+[06-Jul-2026 22:08:21 Africa/Lagos] PHP Deprecated:  number_format(): Passing null to parameter #1 ($num) of type float is deprecated in C:\xampp\htdocs\election\dashboard\national\incidents.php on line 300
+[06-Jul-2026 22:08:21 Africa/Lagos] PHP Deprecated:  number_format(): Passing null to parameter #1 ($num) of type float is deprecated in C:\xampp\htdocs\election\dashboard\national\incidents.php on line 314
+[06-Jul-2026 22:08:21 Africa/Lagos] PHP Deprecated:  number_format(): Passing null to parameter #1 ($num) of type float is deprecated in C:\xampp\htdocs\election\dashboard\national\incidents.php on line 321
+[06-Jul-2026 22:08:21 Africa/Lagos] PHP Deprecated:  number_format(): Passing null to parameter #1 ($num) of type float is deprecated in C:\xampp\htdocs\election\dashboard\national\incidents.php on line 328
+[06-Jul-2026 22:09:04 Africa/Lagos] Incidents Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'tenant_id' in where clause is ambiguous
+[06-Jul-2026 22:09:04 Africa/Lagos] PHP Deprecated:  number_format(): Passing null to parameter #1 ($num) of type float is deprecated in C:\xampp\htdocs\election\dashboard\national\incidents.php on line 300
+[06-Jul-2026 22:09:04 Africa/Lagos] PHP Deprecated:  number_format(): Passing null to parameter #1 ($num) of type float is deprecated in C:\xampp\htdocs\election\dashboard\national\incidents.php on line 314
+[06-Jul-2026 22:09:04 Africa/Lagos] PHP Deprecated:  number_format(): Passing null to parameter #1 ($num) of type float is deprecated in C:\xampp\htdocs\election\dashboard\national\incidents.php on line 321
+[06-Jul-2026 22:09:04 Africa/Lagos] PHP Deprecated:  number_format(): Passing null to parameter #1 ($num) of type float is deprecated in C:\xampp\htdocs\election\dashboard\national\incidents.php on line 328
+[06-Jul-2026 22:12:11 Africa/Lagos] === state-coordinators.php ===
+[06-Jul-2026 22:12:11 Africa/Lagos] GET: Array
+(
+    [id] => 43
+)
+
+[06-Jul-2026 22:12:11 Africa/Lagos] State ID: 43
+[06-Jul-2026 22:12:11 Africa/Lagos] State name found: kano
+[06-Jul-2026 22:12:12 Africa/Lagos] State coordinators found: 0
+[06-Jul-2026 22:12:12 Africa/Lagos] LGA coordinators found: 0
+[06-Jul-2026 22:12:25 Africa/Lagos] === state-coordinators.php ===
+[06-Jul-2026 22:12:25 Africa/Lagos] GET: Array
+(
+    [id] => 42
+)
+
+[06-Jul-2026 22:12:25 Africa/Lagos] State ID: 42
+[06-Jul-2026 22:12:25 Africa/Lagos] State name found: Jigawa
+[06-Jul-2026 22:12:25 Africa/Lagos] State coordinators found: 1
+[06-Jul-2026 22:12:25 Africa/Lagos] LGA coordinators found: 0
+[06-Jul-2026 22:13:06 Africa/Lagos] === state-coordinators.php ===
+[06-Jul-2026 22:13:06 Africa/Lagos] GET: Array
+(
+    [id] => 42
+)
+
+[06-Jul-2026 22:13:06 Africa/Lagos] State ID: 42
+[06-Jul-2026 22:13:06 Africa/Lagos] State name found: Jigawa
+[06-Jul-2026 22:13:06 Africa/Lagos] State coordinators found: 1
+[06-Jul-2026 22:13:06 Africa/Lagos] LGA coordinators found: 0
+[06-Jul-2026 22:14:50 Africa/Lagos] === state-coordinators.php ===
+[06-Jul-2026 22:14:50 Africa/Lagos] GET: Array
+(
+    [id] => 42
+    [updated] => 1
+)
+
+[06-Jul-2026 22:14:50 Africa/Lagos] State ID: 42
+[06-Jul-2026 22:14:50 Africa/Lagos] State name found: Jigawa
+[06-Jul-2026 22:14:50 Africa/Lagos] State coordinators found: 1
+[06-Jul-2026 22:14:50 Africa/Lagos] LGA coordinators found: 0
+[06-Jul-2026 22:15:03 Africa/Lagos] === state-coordinators.php ===
+[06-Jul-2026 22:15:03 Africa/Lagos] GET: Array
+(
+    [id] => 42
+    [updated] => 1
+)
+
+[06-Jul-2026 22:15:03 Africa/Lagos] State ID: 42
+[06-Jul-2026 22:15:03 Africa/Lagos] State name found: Jigawa
+[06-Jul-2026 22:15:03 Africa/Lagos] State coordinators found: 1
+[06-Jul-2026 22:15:03 Africa/Lagos] LGA coordinators found: 0
+[06-Jul-2026 22:16:00 Africa/Lagos] Activity logs error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'tenant_id' in where clause is ambiguous
+[06-Jul-2026 22:18:30 Africa/Lagos] Incidents Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'tenant_id' in where clause is ambiguous
+[06-Jul-2026 22:20:20 Africa/Lagos] Incidents Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'tenant_id' in where clause is ambiguous
+[06-Jul-2026 22:21:24 Africa/Lagos] === state-coordinators.php ===
+[06-Jul-2026 22:21:24 Africa/Lagos] GET: Array
+(
+    [id] => 43
+)
+
+[06-Jul-2026 22:21:24 Africa/Lagos] State ID: 43
+[06-Jul-2026 22:21:24 Africa/Lagos] State name found: kano
+[06-Jul-2026 22:21:24 Africa/Lagos] State coordinators found: 0
+[06-Jul-2026 22:21:24 Africa/Lagos] LGA coordinators found: 0
+[06-Jul-2026 22:21:29 Africa/Lagos] View State - Total voters error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'registered_voters' in field list is ambiguous
+[06-Jul-2026 22:21:42 Africa/Lagos] === state-coordinators.php ===
+[06-Jul-2026 22:21:42 Africa/Lagos] GET: Array
+(
+    [id] => 42
+)
+
+[06-Jul-2026 22:21:42 Africa/Lagos] State ID: 42
+[06-Jul-2026 22:21:42 Africa/Lagos] State name found: Jigawa
+[06-Jul-2026 22:21:42 Africa/Lagos] State coordinators found: 1
+[06-Jul-2026 22:21:42 Africa/Lagos] LGA coordinators found: 0
+[06-Jul-2026 22:21:51 Africa/Lagos] === state-coordinators.php ===
+[06-Jul-2026 22:21:51 Africa/Lagos] GET: Array
+(
+    [id] => 42
+)
+
+[06-Jul-2026 22:21:51 Africa/Lagos] State ID: 42
+[06-Jul-2026 22:21:51 Africa/Lagos] State name found: Jigawa
+[06-Jul-2026 22:21:51 Africa/Lagos] State coordinators found: 1
+[06-Jul-2026 22:21:51 Africa/Lagos] LGA coordinators found: 0
+[06-Jul-2026 22:22:33 Africa/Lagos] Activity logs error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'tenant_id' in where clause is ambiguous
+[06-Jul-2026 22:23:25 Africa/Lagos] Incidents Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'tenant_id' in where clause is ambiguous
+[06-Jul-2026 22:23:37 Africa/Lagos] Incidents Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'tenant_id' in where clause is ambiguous
+[06-Jul-2026 22:25:07 Africa/Lagos] Incidents Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'tenant_id' in where clause is ambiguous
+[06-Jul-2026 22:25:40 Africa/Lagos] === coordinators-create.php ===
+[06-Jul-2026 22:25:40 Africa/Lagos] GET: Array
+(
+    [pu] => 3
+    [level] => pu_agent
+)
+
+[06-Jul-2026 22:25:40 Africa/Lagos] POST: Array
+(
+)
+
+[06-Jul-2026 22:25:40 Africa/Lagos] State ID: 0
+[06-Jul-2026 22:25:40 Africa/Lagos] LGA ID: 0
+[06-Jul-2026 22:25:40 Africa/Lagos] Level: pu_agent
+[06-Jul-2026 22:25:54 Africa/Lagos] === coordinators-create.php ===
+[06-Jul-2026 22:25:54 Africa/Lagos] GET: Array
+(
+    [pu] => 3
+    [level] => pu_agent
+)
+
+[06-Jul-2026 22:25:54 Africa/Lagos] POST: Array
+(
+)
+
+[06-Jul-2026 22:25:54 Africa/Lagos] State ID: 0
+[06-Jul-2026 22:25:54 Africa/Lagos] LGA ID: 0
+[06-Jul-2026 22:25:54 Africa/Lagos] Level: pu_agent
+[06-Jul-2026 22:30:49 Africa/Lagos] Incidents Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'tenant_id' in where clause is ambiguous
+[06-Jul-2026 22:31:10 Africa/Lagos] Incidents Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'tenant_id' in where clause is ambiguous
+[06-Jul-2026 22:32:00 Africa/Lagos] === state-coordinators.php ===
+[06-Jul-2026 22:32:00 Africa/Lagos] GET: Array
+(
+    [id] => 42
+)
+
+[06-Jul-2026 22:32:00 Africa/Lagos] State ID: 42
+[06-Jul-2026 22:32:00 Africa/Lagos] State name found: Jigawa
+[06-Jul-2026 22:32:00 Africa/Lagos] State coordinators found: 1
+[06-Jul-2026 22:32:00 Africa/Lagos] LGA coordinators found: 0
+[06-Jul-2026 22:32:20 Africa/Lagos] === state-coordinators.php ===
+[06-Jul-2026 22:32:20 Africa/Lagos] GET: Array
+(
+    [id] => 42
+    [suspended] => 1
+)
+
+[06-Jul-2026 22:32:20 Africa/Lagos] State ID: 42
+[06-Jul-2026 22:32:20 Africa/Lagos] State name found: Jigawa
+[06-Jul-2026 22:32:20 Africa/Lagos] State coordinators found: 1
+[06-Jul-2026 22:32:20 Africa/Lagos] LGA coordinators found: 0
+[06-Jul-2026 22:32:35 Africa/Lagos] === state-coordinators.php ===
+[06-Jul-2026 22:32:35 Africa/Lagos] GET: Array
+(
+    [id] => 42
+    [updated] => 1
+)
+
+[06-Jul-2026 22:32:35 Africa/Lagos] State ID: 42
+[06-Jul-2026 22:32:35 Africa/Lagos] State name found: Jigawa
+[06-Jul-2026 22:32:35 Africa/Lagos] State coordinators found: 1
+[06-Jul-2026 22:32:35 Africa/Lagos] LGA coordinators found: 0
+[06-Jul-2026 22:32:52 Africa/Lagos] Activity logs error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'tenant_id' in where clause is ambiguous
+[06-Jul-2026 22:33:30 Africa/Lagos] === state-coordinators.php ===
+[06-Jul-2026 22:33:30 Africa/Lagos] GET: Array
+(
+    [id] => 42
+)
+
+[06-Jul-2026 22:33:30 Africa/Lagos] State ID: 42
+[06-Jul-2026 22:33:30 Africa/Lagos] State name found: Jigawa
+[06-Jul-2026 22:33:30 Africa/Lagos] State coordinators found: 1
+[06-Jul-2026 22:33:30 Africa/Lagos] LGA coordinators found: 0
+[06-Jul-2026 22:35:21 Africa/Lagos] View State - Total voters error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'registered_voters' in field list is ambiguous

@@ -39,10 +39,11 @@ $db = getDB();
 // FIRST - Check if state exists
 // ============================================================
 $state_exists = false;
+$state_data = null;
 try {
     $stmt = $db->prepare("SELECT id, name, capital, is_active FROM states WHERE id = ?");
     $stmt->execute([$state_id]);
-    $state_check = $stmt->fetch();
+    $state_check = $stmt->fetch(PDO::FETCH_ASSOC);
     if ($state_check) {
         $state_exists = true;
         $state_data = $state_check;
@@ -59,132 +60,235 @@ if (!$state_exists) {
 }
 
 // ============================================================
-// FETCH FULL STATE DATA WITH STATISTICS - Simplified queries
+// FETCH FULL STATE DATA WITH STATISTICS - Using try-catch for each query
 // ============================================================
 try {
-    // Get state data
+    // Get full state data
     $stmt = $db->prepare("SELECT * FROM states WHERE id = ?");
     $stmt->execute([$state_id]);
-    $state_data = $stmt->fetch();
+    $state_full = $stmt->fetch(PDO::FETCH_ASSOC);
     
-    if (!$state_data) {
-        header('Location: monitor-states.php?error=state_not_found');
-        exit();
+    if ($state_full) {
+        $state_data = array_merge($state_data, $state_full);
     }
-    
-    // Get LGAs count
+} catch (Exception $e) {
+    error_log("View State - Full data error: " . $e->getMessage());
+    // Continue with available data
+}
+
+// Get LGAs count
+try {
     $stmt = $db->prepare("SELECT COUNT(*) as count FROM lgas WHERE state_id = ? AND is_active = 1");
     $stmt->execute([$state_id]);
-    $lga_count = $stmt->fetch();
-    $state_data['total_lgas'] = $lga_count['count'] ?? 0;
-    $state_data['active_lgas'] = $lga_count['count'] ?? 0;
-    
-    // Get Wards count
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_data['total_lgas'] = $result['count'] ?? 0;
+    $state_data['active_lgas'] = $result['count'] ?? 0;
+} catch (Exception $e) {
+    error_log("View State - LGAs count error: " . $e->getMessage());
+    $state_data['total_lgas'] = 0;
+    $state_data['active_lgas'] = 0;
+}
+
+// Get Wards count
+try {
     $stmt = $db->prepare("SELECT COUNT(*) as count FROM wards w JOIN lgas l ON w.lga_id = l.id WHERE l.state_id = ? AND w.is_active = 1");
     $stmt->execute([$state_id]);
-    $ward_count = $stmt->fetch();
-    $state_data['total_wards'] = $ward_count['count'] ?? 0;
-    
-    // Get Polling Units count
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_data['total_wards'] = $result['count'] ?? 0;
+} catch (Exception $e) {
+    error_log("View State - Wards count error: " . $e->getMessage());
+    $state_data['total_wards'] = 0;
+}
+
+// Get Polling Units count
+try {
     $stmt = $db->prepare("SELECT COUNT(*) as count FROM polling_units pu JOIN wards w ON pu.ward_id = w.id JOIN lgas l ON w.lga_id = l.id WHERE l.state_id = ? AND pu.is_active = 1");
     $stmt->execute([$state_id]);
-    $pu_count = $stmt->fetch();
-    $state_data['total_pus'] = $pu_count['count'] ?? 0;
-    
-    // Get total voters
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_data['total_pus'] = $result['count'] ?? 0;
+} catch (Exception $e) {
+    error_log("View State - PUs count error: " . $e->getMessage());
+    $state_data['total_pus'] = 0;
+}
+
+// Get total voters
+try {
     $stmt = $db->prepare("SELECT COALESCE(SUM(registered_voters), 0) as total FROM polling_units pu JOIN wards w ON pu.ward_id = w.id JOIN lgas l ON w.lga_id = l.id WHERE l.state_id = ?");
     $stmt->execute([$state_id]);
-    $voters = $stmt->fetch();
-    $state_data['total_voters'] = $voters['total'] ?? 0;
-    
-    // Get State Coordinators
-    $stmt = $db->prepare("SELECT COUNT(*) as count FROM users u JOIN roles r ON u.role_id = r.id WHERE u.tenant_id = ? AND r.level = 'state' AND u.jurisdiction_id = ? AND u.status = 'active' AND u.deleted_at IS NULL");
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_data['total_voters'] = $result['total'] ?? 0;
+} catch (Exception $e) {
+    error_log("View State - Total voters error: " . $e->getMessage());
+    $state_data['total_voters'] = 0;
+}
+
+// Get State Coordinators
+try {
+    $stmt = $db->prepare("SELECT COUNT(*) as count FROM users u JOIN roles r ON u.role_id = r.id WHERE u.tenant_id = ? AND r.level = 'state' AND u.jurisdiction_id = ? AND u.status = 'active' AND (u.deleted_at IS NULL OR u.deleted_at = '0000-00-00 00:00:00')");
     $stmt->execute([$tenant_id, $state_id]);
-    $coords = $stmt->fetch();
-    $state_data['coordinators'] = $coords['count'] ?? 0;
-    
-    // Get LGA Coordinators
-    $stmt = $db->prepare("SELECT COUNT(*) as count FROM users u JOIN roles r ON u.role_id = r.id WHERE u.tenant_id = ? AND r.level = 'lga' AND u.jurisdiction_id IN (SELECT id FROM lgas WHERE state_id = ?) AND u.status = 'active' AND u.deleted_at IS NULL");
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_data['coordinators'] = $result['count'] ?? 0;
+} catch (Exception $e) {
+    error_log("View State - Coordinators error: " . $e->getMessage());
+    $state_data['coordinators'] = 0;
+}
+
+// Get LGA Coordinators
+try {
+    $stmt = $db->prepare("SELECT COUNT(*) as count FROM users u JOIN roles r ON u.role_id = r.id WHERE u.tenant_id = ? AND r.level = 'lga' AND u.jurisdiction_id IN (SELECT id FROM lgas WHERE state_id = ?) AND u.status = 'active' AND (u.deleted_at IS NULL OR u.deleted_at = '0000-00-00 00:00:00')");
     $stmt->execute([$tenant_id, $state_id]);
-    $lga_coords = $stmt->fetch();
-    $state_data['lga_coordinators'] = $lga_coords['count'] ?? 0;
-    
-    // Get Agents
-    $stmt = $db->prepare("SELECT COUNT(*) as count FROM users u JOIN roles r ON u.role_id = r.id WHERE u.tenant_id = ? AND r.level = 'pu_agent' AND u.jurisdiction_id IN (SELECT id FROM polling_units WHERE ward_id IN (SELECT id FROM wards WHERE lga_id IN (SELECT id FROM lgas WHERE state_id = ?))) AND u.status = 'active' AND u.deleted_at IS NULL");
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_data['lga_coordinators'] = $result['count'] ?? 0;
+} catch (Exception $e) {
+    error_log("View State - LGA Coordinators error: " . $e->getMessage());
+    $state_data['lga_coordinators'] = 0;
+}
+
+// Get Agents
+try {
+    $stmt = $db->prepare("SELECT COUNT(*) as count FROM users u JOIN roles r ON u.role_id = r.id WHERE u.tenant_id = ? AND r.level = 'pu_agent' AND u.jurisdiction_id IN (SELECT id FROM polling_units WHERE ward_id IN (SELECT id FROM wards WHERE lga_id IN (SELECT id FROM lgas WHERE state_id = ?))) AND u.status = 'active' AND (u.deleted_at IS NULL OR u.deleted_at = '0000-00-00 00:00:00')");
     $stmt->execute([$tenant_id, $state_id]);
-    $agents = $stmt->fetch();
-    $state_data['agents'] = $agents['count'] ?? 0;
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_data['agents'] = $result['count'] ?? 0;
+} catch (Exception $e) {
+    error_log("View State - Agents error: " . $e->getMessage());
+    $state_data['agents'] = 0;
+}
+
+// Get Elections count - Skip JSON if it fails
+try {
+    $stmt = $db->prepare("SELECT COUNT(*) as count FROM elections WHERE tenant_id = ? AND deleted_at IS NULL AND states_json IS NOT NULL AND states_json != ''");
+    $stmt->execute([$tenant_id]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $total_elections = $result['count'] ?? 0;
     
-    // Get Elections count
-    $stmt = $db->prepare("SELECT COUNT(*) as count FROM elections WHERE tenant_id = ? AND deleted_at IS NULL AND JSON_CONTAINS(states_json, JSON_QUOTE(?))");
-    $stmt->execute([$tenant_id, $state_id]);
-    $elections = $stmt->fetch();
-    $state_data['election_count'] = $elections['count'] ?? 0;
-    
-    // Get Active Elections
-    $stmt = $db->prepare("SELECT COUNT(*) as count FROM elections WHERE tenant_id = ? AND deleted_at IS NULL AND status = 'active' AND JSON_CONTAINS(states_json, JSON_QUOTE(?))");
-    $stmt->execute([$tenant_id, $state_id]);
-    $active_elections = $stmt->fetch();
-    $state_data['active_elections'] = $active_elections['count'] ?? 0;
-    
-    // Get Total Results
+    // Try JSON filter only if we have elections
+    if ($total_elections > 0) {
+        $stmt = $db->prepare("SELECT COUNT(*) as count FROM elections WHERE tenant_id = ? AND deleted_at IS NULL AND states_json IS NOT NULL AND states_json != '' AND JSON_CONTAINS(states_json, JSON_QUOTE(?))");
+        $stmt->execute([$tenant_id, $state_id]);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        $state_data['election_count'] = $result['count'] ?? 0;
+    } else {
+        $state_data['election_count'] = 0;
+    }
+} catch (Exception $e) {
+    error_log("View State - Elections count error: " . $e->getMessage());
+    $state_data['election_count'] = 0;
+}
+
+// Get Active Elections
+try {
+    $total_elections = $state_data['election_count'] ?? 0;
+    if ($total_elections > 0) {
+        $stmt = $db->prepare("SELECT COUNT(*) as count FROM elections WHERE tenant_id = ? AND deleted_at IS NULL AND status = 'active' AND states_json IS NOT NULL AND states_json != '' AND JSON_CONTAINS(states_json, JSON_QUOTE(?))");
+        $stmt->execute([$tenant_id, $state_id]);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        $state_data['active_elections'] = $result['count'] ?? 0;
+    } else {
+        $state_data['active_elections'] = 0;
+    }
+} catch (Exception $e) {
+    error_log("View State - Active elections error: " . $e->getMessage());
+    $state_data['active_elections'] = 0;
+}
+
+// Get Total Results
+try {
     $stmt = $db->prepare("SELECT COUNT(*) as count FROM results_ec8a r JOIN polling_units pu ON r.pu_id = pu.id JOIN wards w ON pu.ward_id = w.id JOIN lgas l ON w.lga_id = l.id WHERE r.tenant_id = ? AND l.state_id = ?");
     $stmt->execute([$tenant_id, $state_id]);
-    $total_results = $stmt->fetch();
-    $state_data['total_results'] = $total_results['count'] ?? 0;
-    
-    // Get Verified Results
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_data['total_results'] = $result['count'] ?? 0;
+} catch (Exception $e) {
+    error_log("View State - Total results error: " . $e->getMessage());
+    $state_data['total_results'] = 0;
+}
+
+// Get Verified Results
+try {
     $stmt = $db->prepare("SELECT COUNT(*) as count FROM results_ec8a r JOIN polling_units pu ON r.pu_id = pu.id JOIN wards w ON pu.ward_id = w.id JOIN lgas l ON w.lga_id = l.id WHERE r.tenant_id = ? AND l.state_id = ? AND r.status = 'verified'");
     $stmt->execute([$tenant_id, $state_id]);
-    $verified_results = $stmt->fetch();
-    $state_data['verified_results'] = $verified_results['count'] ?? 0;
-    
-    // Get Pending Results
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_data['verified_results'] = $result['count'] ?? 0;
+} catch (Exception $e) {
+    error_log("View State - Verified results error: " . $e->getMessage());
+    $state_data['verified_results'] = 0;
+}
+
+// Get Pending Results
+try {
     $stmt = $db->prepare("SELECT COUNT(*) as count FROM results_ec8a r JOIN polling_units pu ON r.pu_id = pu.id JOIN wards w ON pu.ward_id = w.id JOIN lgas l ON w.lga_id = l.id WHERE r.tenant_id = ? AND l.state_id = ? AND r.status = 'pending'");
     $stmt->execute([$tenant_id, $state_id]);
-    $pending_results = $stmt->fetch();
-    $state_data['pending_results'] = $pending_results['count'] ?? 0;
-    
-    // Get Flagged Results
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_data['pending_results'] = $result['count'] ?? 0;
+} catch (Exception $e) {
+    error_log("View State - Pending results error: " . $e->getMessage());
+    $state_data['pending_results'] = 0;
+}
+
+// Get Flagged Results
+try {
     $stmt = $db->prepare("SELECT COUNT(*) as count FROM results_ec8a r JOIN polling_units pu ON r.pu_id = pu.id JOIN wards w ON pu.ward_id = w.id JOIN lgas l ON w.lga_id = l.id WHERE r.tenant_id = ? AND l.state_id = ? AND r.status = 'flagged'");
     $stmt->execute([$tenant_id, $state_id]);
-    $flagged_results = $stmt->fetch();
-    $state_data['flagged_results'] = $flagged_results['count'] ?? 0;
-    
-    // Get Total Incidents
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_data['flagged_results'] = $result['count'] ?? 0;
+} catch (Exception $e) {
+    error_log("View State - Flagged results error: " . $e->getMessage());
+    $state_data['flagged_results'] = 0;
+}
+
+// Get Total Incidents
+try {
     $stmt = $db->prepare("SELECT COUNT(*) as count FROM incidents WHERE tenant_id = ? AND state_id = ?");
     $stmt->execute([$tenant_id, $state_id]);
-    $total_incidents = $stmt->fetch();
-    $state_data['total_incidents'] = $total_incidents['count'] ?? 0;
-    
-    // Get Reported Incidents
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_data['total_incidents'] = $result['count'] ?? 0;
+} catch (Exception $e) {
+    error_log("View State - Total incidents error: " . $e->getMessage());
+    $state_data['total_incidents'] = 0;
+}
+
+// Get Reported Incidents
+try {
     $stmt = $db->prepare("SELECT COUNT(*) as count FROM incidents WHERE tenant_id = ? AND state_id = ? AND status = 'reported'");
     $stmt->execute([$tenant_id, $state_id]);
-    $reported_incidents = $stmt->fetch();
-    $state_data['reported_incidents'] = $reported_incidents['count'] ?? 0;
-    
-    // Get Investigating Incidents
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_data['reported_incidents'] = $result['count'] ?? 0;
+} catch (Exception $e) {
+    error_log("View State - Reported incidents error: " . $e->getMessage());
+    $state_data['reported_incidents'] = 0;
+}
+
+// Get Investigating Incidents
+try {
     $stmt = $db->prepare("SELECT COUNT(*) as count FROM incidents WHERE tenant_id = ? AND state_id = ? AND status = 'investigating'");
     $stmt->execute([$tenant_id, $state_id]);
-    $investigating_incidents = $stmt->fetch();
-    $state_data['investigating_incidents'] = $investigating_incidents['count'] ?? 0;
-    
-    // Get Resolved Incidents
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_data['investigating_incidents'] = $result['count'] ?? 0;
+} catch (Exception $e) {
+    error_log("View State - Investigating incidents error: " . $e->getMessage());
+    $state_data['investigating_incidents'] = 0;
+}
+
+// Get Resolved Incidents
+try {
     $stmt = $db->prepare("SELECT COUNT(*) as count FROM incidents WHERE tenant_id = ? AND state_id = ? AND status = 'resolved'");
     $stmt->execute([$tenant_id, $state_id]);
-    $resolved_incidents = $stmt->fetch();
-    $state_data['resolved_incidents'] = $resolved_incidents['count'] ?? 0;
-    
-    // Get Critical Incidents
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_data['resolved_incidents'] = $result['count'] ?? 0;
+} catch (Exception $e) {
+    error_log("View State - Resolved incidents error: " . $e->getMessage());
+    $state_data['resolved_incidents'] = 0;
+}
+
+// Get Critical Incidents
+try {
     $stmt = $db->prepare("SELECT COUNT(*) as count FROM incidents WHERE tenant_id = ? AND state_id = ? AND severity = 'critical'");
     $stmt->execute([$tenant_id, $state_id]);
-    $critical_incidents = $stmt->fetch();
-    $state_data['critical_incidents'] = $critical_incidents['count'] ?? 0;
-    
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_data['critical_incidents'] = $result['count'] ?? 0;
 } catch (Exception $e) {
-    error_log("View State Data Error: " . $e->getMessage());
-    header('Location: monitor-states.php?error=database_error');
-    exit();
+    error_log("View State - Critical incidents error: " . $e->getMessage());
+    $state_data['critical_incidents'] = 0;
 }
 
 // ============================================================
@@ -195,14 +299,15 @@ try {
     $stmt = $db->prepare("
         SELECT a.*, u.full_name as user_name
         FROM activity_logs a
-        JOIN users u ON a.user_id = u.id
+        LEFT JOIN users u ON a.user_id = u.id
         WHERE a.tenant_id = ? 
         ORDER BY a.created_at DESC
         LIMIT 15
     ");
     $stmt->execute([$tenant_id]);
-    $recent_activities = $stmt->fetchAll();
+    $recent_activities = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
+    error_log("View State - Recent activities error: " . $e->getMessage());
     $recent_activities = [];
 }
 
@@ -226,8 +331,9 @@ try {
         LIMIT 10
     ");
     $stmt->execute([$tenant_id, $state_id]);
-    $top_lgas = $stmt->fetchAll();
+    $top_lgas = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
+    error_log("View State - Top LGAs error: " . $e->getMessage());
     $top_lgas = [];
 }
 
@@ -244,8 +350,7 @@ include '../includes/sidebar.php';
 $page_title = 'State Details';
 $page_subtitle = $state_data['name'] ?? 'State';
 ?>
-<!-- Rest of the HTML remains the same -->
-
+<!-- HTML remains the same -->
 <main class="main-content">
     <?php include '../includes/header.php'; ?>
     

@@ -461,11 +461,7 @@ $page_subtitle = 'Nationwide overview of all states';
             <a href="state-comparison.php" class="quick-action-btn" style="display:flex;align-items:center;gap:10px;padding:12px 16px;background:white;border-radius:var(--radius);border:1px solid var(--gray-200);text-decoration:none;color:var(--gray-700);font-weight:500;transition:var(--transition);">
                 <i class="fas fa-chart-bar" style="color:var(--primary);"></i>
                 <span>Compare States</span>
-            </a>
-            <a href="state-coordinators.php" class="quick-action-btn" style="display:flex;align-items:center;gap:10px;padding:12px 16px;background:white;border-radius:var(--radius);border:1px solid var(--gray-200);text-decoration:none;color:var(--gray-700);font-weight:500;transition:var(--transition);">
-                <i class="fas fa-user-tie" style="color:var(--secondary);"></i>
-                <span>Manage Coordinators</span>
-            </a>
+            </a> 
             <a href="broadcasts-create.php?target=states" class="quick-action-btn" style="display:flex;align-items:center;gap:10px;padding:12px 16px;background:white;border-radius:var(--radius);border:1px solid var(--gray-200);text-decoration:none;color:var(--gray-700);font-weight:500;transition:var(--transition);">
                 <i class="fas fa-bullhorn" style="color:var(--warning);"></i>
                 <span>Broadcast to All States</span>

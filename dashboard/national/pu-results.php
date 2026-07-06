@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// NATIONAL COORDINATOR - POLLING UNIT RESULTS (CLEAN VERSION)
+// NATIONAL COORDINATOR - POLLING UNIT RESULTS
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -77,45 +77,11 @@ try {
 }
 
 // ============================================================
-// FETCH RESULTS WITH FILTERS
+// FETCH RESULTS
 // ============================================================
-$status_filter = isset($_GET['status']) ? trim($_GET['status']) : '';
-$search = isset($_GET['search']) ? trim($_GET['search']) : '';
-$page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
-$limit = 15;
-$offset = ($page - 1) * $limit;
-
-$where_clauses = ['r.tenant_id = ?', 'r.pu_id = ?'];
-$params = [$tenant_id, $pu_id];
-
-if (!empty($status_filter)) {
-    $where_clauses[] = 'r.status = ?';
-    $params[] = $status_filter;
-}
-
-if (!empty($search)) {
-    $where_clauses[] = '(r.pu_name LIKE ? OR u.full_name LIKE ?)';
-    $params[] = "%$search%";
-    $params[] = "%$search%";
-}
-
-$where_sql = implode(' AND ', $where_clauses);
-
 $results = [];
-$total_results = 0;
 
 try {
-    // Count total
-    $count_stmt = $db->prepare("
-        SELECT COUNT(*) 
-        FROM results_ec8a r
-        LEFT JOIN users u ON r.agent_id = u.id
-        WHERE $where_sql
-    ");
-    $count_stmt->execute($params);
-    $total_results = $count_stmt->fetchColumn();
-
-    // Fetch results
     $stmt = $db->prepare("
         SELECT 
             r.*,
@@ -125,13 +91,10 @@ try {
         FROM results_ec8a r
         LEFT JOIN users u ON r.agent_id = u.id
         LEFT JOIN users vu ON r.verified_by = vu.id
-        WHERE $where_sql
+        WHERE r.tenant_id = ? AND r.pu_id = ?
         ORDER BY r.created_at DESC
-        LIMIT ? OFFSET ?
     ");
-    
-    $query_params = array_merge($params, [$limit, $offset]);
-    $stmt->execute($query_params);
+    $stmt->execute([$tenant_id, $pu_id]);
     $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
 } catch (Exception $e) {
@@ -163,10 +126,8 @@ foreach ($results as $result) {
     $stats['rejected_votes'] += $result['rejected_votes'] ?? 0;
 }
 
-$total_pages = ceil($total_results / $limit);
-
 // ============================================================
-// STATUS COLORS AND LABELS
+// STATUS COLORS
 // ============================================================
 $status_colors = [
     'pending' => '#F59E0B',
@@ -215,20 +176,15 @@ $page_subtitle = $pu_data['name'] ?? 'Polling Unit';
                     <p style="color:var(--gray-500);margin:2px 0 0;">
                         <i class="fas fa-flag-checkered"></i> 
                         <?php echo htmlspecialchars($pu_data['name']); ?> • 
-                        <?php echo number_format($stats['total']); ?> results • 
-                        <?php echo number_format($stats['verified']); ?> verified
+                        <?php echo number_format($stats['total']); ?> results
                     </p>
                     <p style="color:var(--gray-400);font-size:0.75rem;margin:2px 0 0;">
                         <?php echo htmlspecialchars($ward_name); ?> • <?php echo htmlspecialchars($lga_name); ?> • <?php echo htmlspecialchars($state_name); ?>
-                        • Code: <?php echo htmlspecialchars($pu_data['code'] ?? 'N/A'); ?>
                     </p>
                 </div>
                 <div style="display:flex;gap:8px;flex-wrap:wrap;">
                     <a href="pu-dashboard.php?id=<?php echo $pu_id; ?>" class="btn-secondary" style="padding:8px 20px;background:var(--gray-100);color:var(--gray-700);border:1px solid var(--gray-200);border-radius:10px;text-decoration:none;font-weight:500;font-size:0.8rem;display:inline-flex;align-items:center;gap:6px;">
                         <i class="fas fa-arrow-left"></i> Back to PU
-                    </a>
-                    <a href="reports.php?type=pu&id=<?php echo $pu_id; ?>" class="btn-primary" style="padding:8px 20px;background:var(--primary);color:white;border:none;border-radius:10px;text-decoration:none;font-weight:600;font-size:0.8rem;display:inline-flex;align-items:center;gap:6px;">
-                        <i class="fas fa-file-pdf"></i> Export Report
                     </a>
                 </div>
             </div>
@@ -279,62 +235,27 @@ $page_subtitle = $pu_data['name'] ?? 'Polling Unit';
             </div>
         </div>
 
-        <!-- Filters -->
-        <div style="background:white;border-radius:var(--radius);padding:12px 16px;margin-bottom:16px;border:1px solid var(--gray-200);">
-            <form method="GET" action="" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
-                <input type="hidden" name="id" value="<?php echo $pu_id; ?>">
-                
-                <div style="flex:1;min-width:150px;">
-                    <div class="search-box" style="width:100%;">
-                        <i class="fas fa-search"></i>
-                        <input type="text" name="search" placeholder="Search agent or PU..." value="<?php echo htmlspecialchars($search); ?>" />
-                    </div>
-                </div>
-                
-                <div style="min-width:130px;">
-                    <select name="status" class="form-select" style="width:100%;padding:6px 12px;border:1px solid var(--gray-200);border-radius:8px;font-family:'Inter',sans-serif;font-size:0.75rem;background:white;">
-                        <option value="">All Status</option>
-                        <?php foreach ($status_labels as $key => $label): ?>
-                            <option value="<?php echo $key; ?>" <?php echo $status_filter == $key ? 'selected' : ''; ?>>
-                                <?php echo $label; ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-                
-                <button type="submit" class="btn-primary" style="padding:6px 16px;background:var(--primary);color:white;border:none;border-radius:8px;font-family:'Inter',sans-serif;font-weight:600;font-size:0.75rem;cursor:pointer;transition:var(--transition);">
-                    <i class="fas fa-filter"></i> Filter
-                </button>
-                
-                <?php if (!empty($search) || !empty($status_filter)): ?>
-                    <a href="?id=<?php echo $pu_id; ?>" class="btn-reset" style="padding:6px 12px;background:var(--gray-100);color:var(--gray-600);border:none;border-radius:8px;font-family:'Inter',sans-serif;font-weight:500;font-size:0.75rem;cursor:pointer;text-decoration:none;transition:var(--transition);">
-                        <i class="fas fa-times"></i> Clear
-                    </a>
-                <?php endif; ?>
-            </form>
-        </div>
-
         <!-- Results Table -->
         <div style="background:white;border-radius:var(--radius);overflow:hidden;border:1px solid var(--gray-200);">
-            <div style="padding:10px 16px;border-bottom:1px solid var(--gray-200);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-                <h4 style="font-size:0.85rem;font-weight:600;margin:0;">
+            <div style="padding:12px 20px;border-bottom:1px solid var(--gray-200);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+                <h4 style="font-size:0.9rem;font-weight:600;margin:0;">
                     <i class="fas fa-list" style="color:var(--primary);margin-right:6px;"></i>
                     Result Records
                 </h4>
-                <span style="font-size:0.7rem;color:var(--gray-500);"><?php echo count($results); ?> of <?php echo number_format($total_results); ?></span>
+                <span style="font-size:0.75rem;color:var(--gray-500);"><?php echo count($results); ?> results</span>
             </div>
             
             <?php if (count($results) > 0): ?>
                 <div style="overflow-x:auto;">
-                    <table style="width:100%;border-collapse:collapse;font-size:0.75rem;">
+                    <table style="width:100%;border-collapse:collapse;font-size:0.8rem;">
                         <thead style="background:var(--gray-50);border-bottom:2px solid var(--gray-200);">
                             <tr>
-                                <th style="padding:8px 12px;text-align:left;font-weight:600;color:var(--gray-600);">Agent</th>
-                                <th style="padding:8px 12px;text-align:center;font-weight:600;color:var(--gray-600);">Votes</th>
-                                <th style="padding:8px 12px;text-align:center;font-weight:600;color:var(--gray-600);">Status</th>
-                                <th style="padding:8px 12px;text-align:center;font-weight:600;color:var(--gray-600);">Verified By</th>
-                                <th style="padding:8px 12px;text-align:center;font-weight:600;color:var(--gray-600);">Submitted</th>
-                                <th style="padding:8px 12px;text-align:center;font-weight:600;color:var(--gray-600);">Actions</th>
+                                <th style="padding:10px 14px;text-align:left;font-weight:600;color:var(--gray-600);">Agent</th>
+                                <th style="padding:10px 14px;text-align:center;font-weight:600;color:var(--gray-600);">Votes</th>
+                                <th style="padding:10px 14px;text-align:center;font-weight:600;color:var(--gray-600);">Status</th>
+                                <th style="padding:10px 14px;text-align:center;font-weight:600;color:var(--gray-600);">Verified By</th>
+                                <th style="padding:10px 14px;text-align:center;font-weight:600;color:var(--gray-600);">Submitted</th>
+                                <th style="padding:10px 14px;text-align:center;font-weight:600;color:var(--gray-600);">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -343,13 +264,13 @@ $page_subtitle = $pu_data['name'] ?? 'Polling Unit';
                                 $status_label = $status_labels[$result['status']] ?? ucfirst($result['status']);
                             ?>
                                 <tr style="border-bottom:1px solid var(--gray-100);transition:var(--transition);hover:background:var(--gray-50);">
-                                    <td style="padding:8px 12px;">
-                                        <div style="font-weight:500;font-size:0.8rem;"><?php echo htmlspecialchars($result['agent_name'] ?? 'Unknown'); ?></div>
-                                        <div style="font-size:0.6rem;color:var(--gray-400);"><?php echo htmlspecialchars($result['agent_phone'] ?? 'N/A'); ?></div>
+                                    <td style="padding:10px 14px;">
+                                        <div style="font-weight:500;font-size:0.85rem;"><?php echo htmlspecialchars($result['agent_name'] ?? 'Unknown'); ?></div>
+                                        <div style="font-size:0.65rem;color:var(--gray-400);"><?php echo htmlspecialchars($result['agent_phone'] ?? 'N/A'); ?></div>
                                     </td>
-                                    <td style="padding:8px 12px;text-align:center;">
-                                        <div style="font-weight:600;font-size:0.9rem;"><?php echo number_format($result['total_votes_cast']); ?></div>
-                                        <div style="font-size:0.55rem;color:var(--gray-400);">
+                                    <td style="padding:10px 14px;text-align:center;">
+                                        <div style="font-weight:600;font-size:1rem;"><?php echo number_format($result['total_votes_cast']); ?></div>
+                                        <div style="font-size:0.6rem;color:var(--gray-400);">
                                             Valid: <?php echo number_format($result['valid_votes']); ?> • 
                                             Rejected: <?php echo number_format($result['rejected_votes']); ?>
                                         </div>
@@ -357,7 +278,7 @@ $page_subtitle = $pu_data['name'] ?? 'Polling Unit';
                                             $party_votes = json_decode($result['party_votes_json'], true);
                                             if ($party_votes && is_array($party_votes)):
                                         ?>
-                                            <div style="font-size:0.55rem;color:var(--gray-500);margin-top:2px;">
+                                            <div style="font-size:0.6rem;color:var(--gray-500);margin-top:2px;">
                                                 <?php 
                                                 $display_votes = array_slice($party_votes, 0, 3);
                                                 foreach ($display_votes as $party => $votes): 
@@ -370,44 +291,44 @@ $page_subtitle = $pu_data['name'] ?? 'Polling Unit';
                                             </div>
                                         <?php endif; endif; ?>
                                     </td>
-                                    <td style="padding:8px 12px;text-align:center;">
-                                        <span style="display:inline-block;padding:2px 10px;border-radius:10px;font-size:0.6rem;font-weight:600;background:<?php echo $status_color; ?>20;color:<?php echo $status_color; ?>;">
+                                    <td style="padding:10px 14px;text-align:center;">
+                                        <span style="display:inline-block;padding:2px 12px;border-radius:12px;font-size:0.65rem;font-weight:600;background:<?php echo $status_color; ?>20;color:<?php echo $status_color; ?>;">
                                             <?php echo $status_label; ?>
                                         </span>
                                     </td>
-                                    <td style="padding:8px 12px;text-align:center;font-size:0.7rem;">
+                                    <td style="padding:10px 14px;text-align:center;font-size:0.75rem;">
                                         <?php if ($result['verified_by']): ?>
                                             <div><?php echo htmlspecialchars($result['verified_by_name'] ?? 'Unknown'); ?></div>
-                                            <div style="font-size:0.55rem;color:var(--gray-400);">
-                                                <?php echo date('M j, Y', strtotime($result['verified_at'])); ?>
+                                            <div style="font-size:0.6rem;color:var(--gray-400);">
+                                                <?php echo date('M j, Y g:i A', strtotime($result['verified_at'])); ?>
                                             </div>
                                         <?php else: ?>
                                             <span style="color:var(--gray-400);">—</span>
                                         <?php endif; ?>
                                     </td>
-                                    <td style="padding:8px 12px;text-align:center;font-size:0.65rem;color:var(--gray-500);">
+                                    <td style="padding:10px 14px;text-align:center;font-size:0.7rem;color:var(--gray-500);">
                                         <?php echo date('M j, Y', strtotime($result['created_at'])); ?>
-                                        <div style="font-size:0.55rem;color:var(--gray-400);">
+                                        <div style="font-size:0.6rem;color:var(--gray-400);">
                                             <?php echo date('g:i A', strtotime($result['created_at'])); ?>
                                         </div>
                                     </td>
-                                    <td style="padding:8px 12px;text-align:center;">
-                                        <div style="display:flex;gap:3px;justify-content:center;flex-wrap:wrap;">
-                                            <a href="result-view.php?id=<?php echo $result['id']; ?>" class="btn-sm" style="padding:2px 8px;border-radius:4px;background:var(--primary);color:white;text-decoration:none;font-size:0.6rem;" title="View">
+                                    <td style="padding:10px 14px;text-align:center;">
+                                        <div style="display:flex;gap:4px;justify-content:center;flex-wrap:wrap;">
+                                            <a href="result-view.php?id=<?php echo $result['id']; ?>" class="btn-sm" style="padding:3px 10px;border-radius:6px;background:var(--primary);color:white;text-decoration:none;font-size:0.65rem;" title="View">
                                                 <i class="fas fa-eye"></i>
                                             </a>
                                             <?php if ($result['status'] === 'pending'): ?>
-                                                <a href="result-verify.php?id=<?php echo $result['id']; ?>" class="btn-sm" style="padding:2px 8px;border-radius:4px;background:#10B981;color:white;text-decoration:none;font-size:0.6rem;" title="Verify">
+                                                <a href="result-verify.php?id=<?php echo $result['id']; ?>" class="btn-sm" style="padding:3px 10px;border-radius:6px;background:#10B981;color:white;text-decoration:none;font-size:0.65rem;" title="Verify">
                                                     <i class="fas fa-check"></i>
                                                 </a>
                                             <?php endif; ?>
                                             <?php if ($result['status'] === 'flagged' || $result['status'] === 'pending'): ?>
-                                                <a href="result-flag.php?id=<?php echo $result['id']; ?>" class="btn-sm" style="padding:2px 8px;border-radius:4px;background:#EF4444;color:white;text-decoration:none;font-size:0.6rem;" title="Flag">
+                                                <a href="result-flag.php?id=<?php echo $result['id']; ?>" class="btn-sm" style="padding:3px 10px;border-radius:6px;background:#EF4444;color:white;text-decoration:none;font-size:0.65rem;" title="Flag">
                                                     <i class="fas fa-flag"></i>
                                                 </a>
                                             <?php endif; ?>
                                             <?php if (!empty($result['photo_url'])): ?>
-                                                <a href="<?php echo $result['photo_url']; ?>" target="_blank" class="btn-sm" style="padding:2px 8px;border-radius:4px;background:#8B5CF6;color:white;text-decoration:none;font-size:0.6rem;" title="View Photo">
+                                                <a href="<?php echo $result['photo_url']; ?>" target="_blank" class="btn-sm" style="padding:3px 10px;border-radius:6px;background:#8B5CF6;color:white;text-decoration:none;font-size:0.65rem;" title="View Photo">
                                                     <i class="fas fa-image"></i>
                                                 </a>
                                             <?php endif; ?>
@@ -419,82 +340,34 @@ $page_subtitle = $pu_data['name'] ?? 'Polling Unit';
                     </table>
                 </div>
             <?php else: ?>
-                <div style="padding:40px 20px;text-align:center;color:var(--gray-500);">
-                    <i class="fas fa-file-alt" style="font-size:2rem;display:block;margin-bottom:8px;color:var(--gray-300);"></i>
-                    <p style="font-size:0.85rem;">No results found for this polling unit.</p>
+                <div style="padding:60px 20px;text-align:center;color:var(--gray-500);">
+                    <i class="fas fa-file-alt" style="font-size:3rem;display:block;margin-bottom:12px;color:var(--gray-300);"></i>
+                    <h3 style="font-size:1.1rem;font-weight:600;color:var(--gray-600);margin:0 0 8px;">No Results Found</h3>
+                    <p style="font-size:0.85rem;color:var(--gray-400);margin:0;">No results have been submitted for this polling unit yet.</p>
                 </div>
             <?php endif; ?>
         </div>
-
-        <!-- Pagination -->
-        <?php if ($total_pages > 1): ?>
-            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding:10px 0;">
-                <div style="font-size:0.7rem;color:var(--gray-500);">
-                    Showing <?php echo (($page - 1) * $limit) + 1; ?> - <?php echo min($page * $limit, $total_results); ?> of <?php echo number_format($total_results); ?>
-                </div>
-                <div style="display:flex;gap:4px;flex-wrap:wrap;">
-                    <?php if ($page > 1): ?>
-                        <a href="?id=<?php echo $pu_id; ?>&page=<?php echo $page - 1; ?>&search=<?php echo urlencode($search); ?>&status=<?php echo urlencode($status_filter); ?>" 
-                           class="btn-page" style="padding:4px 10px;border:1px solid var(--gray-200);border-radius:6px;text-decoration:none;color:var(--gray-600);font-size:0.7rem;transition:var(--transition);">
-                            <i class="fas fa-chevron-left"></i>
-                        </a>
-                    <?php endif; ?>
-                    
-                    <?php 
-                    $start_page = max(1, $page - 2);
-                    $end_page = min($total_pages, $page + 2);
-                    if ($start_page > 1) {
-                        echo '<a href="?id=' . $pu_id . '&page=1&search=' . urlencode($search) . '&status=' . urlencode($status_filter) . '" class="btn-page" style="padding:4px 10px;border:1px solid var(--gray-200);border-radius:6px;text-decoration:none;color:var(--gray-600);font-size:0.7rem;transition:var(--transition);">1</a>';
-                        if ($start_page > 2) echo '<span style="padding:4px 6px;color:var(--gray-400);font-size:0.7rem;">...</span>';
-                    }
-                    for ($i = $start_page; $i <= $end_page; $i++):
-                    ?>
-                        <a href="?id=<?php echo $pu_id; ?>&page=<?php echo $i; ?>&search=<?php echo urlencode($search); ?>&status=<?php echo urlencode($status_filter); ?>" 
-                           class="btn-page <?php echo $i == $page ? 'active' : ''; ?>" 
-                           style="padding:4px 10px;border:1px solid <?php echo $i == $page ? 'var(--primary)' : 'var(--gray-200)'; ?>;border-radius:6px;text-decoration:none;color:<?php echo $i == $page ? 'white' : 'var(--gray-600)'; ?>;font-size:0.7rem;transition:var(--transition);background:<?php echo $i == $page ? 'var(--primary)' : 'transparent'; ?>;">
-                            <?php echo $i; ?>
-                        </a>
-                    <?php endfor; 
-                    if ($end_page < $total_pages) {
-                        if ($end_page < $total_pages - 1) echo '<span style="padding:4px 6px;color:var(--gray-400);font-size:0.7rem;">...</span>';
-                        echo '<a href="?id=' . $pu_id . '&page=' . $total_pages . '&search=' . urlencode($search) . '&status=' . urlencode($status_filter) . '" class="btn-page" style="padding:4px 10px;border:1px solid var(--gray-200);border-radius:6px;text-decoration:none;color:var(--gray-600);font-size:0.7rem;transition:var(--transition);">' . $total_pages . '</a>';
-                    }
-                    ?>
-                    
-                    <?php if ($page < $total_pages): ?>
-                        <a href="?id=<?php echo $pu_id; ?>&page=<?php echo $page + 1; ?>&search=<?php echo urlencode($search); ?>&status=<?php echo urlencode($status_filter); ?>" 
-                           class="btn-page" style="padding:4px 10px;border:1px solid var(--gray-200);border-radius:6px;text-decoration:none;color:var(--gray-600);font-size:0.7rem;transition:var(--transition);">
-                            <i class="fas fa-chevron-right"></i>
-                        </a>
-                    <?php endif; ?>
-                </div>
-            </div>
-        <?php endif; ?>
     </div>
 </main>
 
 <style>
 .btn-sm:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-.btn-page:hover { background: var(--gray-50); border-color: var(--gray-300); }
-.btn-page.active { background: var(--primary); color: white; border-color: var(--primary); }
-.btn-page.active:hover { background: var(--primary-dark); }
 .btn-secondary:hover { background: var(--gray-200); transform: translateY(-1px); }
-.btn-primary:hover { background: var(--primary-dark); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.3); }
 
 .stat-icon.teal { background: #CCFBF1; color: #0D9488; }
 .stat-icon.pink { background: #FCE7F3; color: #DB2777; }
 
 .stats-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 12px;
-    margin-bottom: 16px;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 14px;
+    margin-bottom: 20px;
 }
 
 @media (max-width: 768px) {
     .stats-grid { grid-template-columns: repeat(2, 1fr); }
-    table { font-size: 0.65rem; }
-    th, td { padding: 4px 6px !important; }
+    table { font-size: 0.7rem; }
+    th, td { padding: 6px 8px !important; }
 }
 </style>
 

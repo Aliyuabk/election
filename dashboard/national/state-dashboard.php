@@ -42,7 +42,7 @@ $state_data = null;
 try {
     $stmt = $db->prepare("SELECT id, name, capital, is_active FROM states WHERE id = ?");
     $stmt->execute([$state_id]);
-    $state_data = $stmt->fetch();
+    $state_data = $stmt->fetch(PDO::FETCH_ASSOC);
     
     // If state doesn't exist, redirect
     if (!$state_data) {
@@ -59,43 +59,125 @@ try {
 // FETCH FULL STATE DATA WITH STATISTICS
 // ============================================================
 try {
-    $stmt = $db->prepare("
-        SELECT 
-            s.*,
-            (SELECT COUNT(*) FROM lgas WHERE state_id = s.id AND is_active = 1) as total_lgas,
-            (SELECT COUNT(*) FROM wards w JOIN lgas l ON w.lga_id = l.id WHERE l.state_id = s.id AND w.is_active = 1) as total_wards,
-            (SELECT COUNT(*) FROM polling_units pu JOIN wards w ON pu.ward_id = w.id JOIN lgas l ON w.lga_id = l.id WHERE l.state_id = s.id AND pu.is_active = 1) as total_pus,
-            (SELECT COUNT(*) FROM users u JOIN roles r ON u.role_id = r.id WHERE u.tenant_id = ? AND r.level = 'state' AND u.jurisdiction_id = s.id AND u.status = 'active') as coordinators,
-            (SELECT COUNT(*) FROM users u JOIN roles r ON u.role_id = r.id WHERE u.tenant_id = ? AND r.level = 'lga' AND u.jurisdiction_id IN (SELECT id FROM lgas WHERE state_id = s.id) AND u.status = 'active') as lga_coordinators,
-            (SELECT COUNT(*) FROM users u JOIN roles r ON u.role_id = r.id WHERE u.tenant_id = ? AND r.level = 'pu_agent' AND u.jurisdiction_id IN (SELECT id FROM polling_units WHERE ward_id IN (SELECT id FROM wards WHERE lga_id IN (SELECT id FROM lgas WHERE state_id = s.id))) AND u.status = 'active') as agents,
-            (SELECT COUNT(*) FROM elections e WHERE e.tenant_id = ? AND e.deleted_at IS NULL AND JSON_CONTAINS(e.states_json, JSON_QUOTE(s.id))) as election_count,
-            (SELECT COUNT(*) FROM elections e WHERE e.tenant_id = ? AND e.deleted_at IS NULL AND JSON_CONTAINS(e.states_json, JSON_QUOTE(s.id)) AND e.status = 'active') as active_elections,
-            (SELECT COUNT(*) FROM elections e WHERE e.tenant_id = ? AND e.deleted_at IS NULL AND JSON_CONTAINS(e.states_json, JSON_QUOTE(s.id)) AND e.status = 'upcoming') as upcoming_elections,
-            (SELECT COUNT(*) FROM elections e WHERE e.tenant_id = ? AND e.deleted_at IS NULL AND JSON_CONTAINS(e.states_json, JSON_QUOTE(s.id)) AND e.status = 'completed') as completed_elections,
-            (SELECT COUNT(*) FROM results_ec8a r JOIN polling_units pu ON r.pu_id = pu.id JOIN wards w ON pu.ward_id = w.id JOIN lgas l ON w.lga_id = l.id WHERE r.tenant_id = ? AND l.state_id = s.id) as total_results,
-            (SELECT COUNT(*) FROM results_ec8a r JOIN polling_units pu ON r.pu_id = pu.id JOIN wards w ON pu.ward_id = w.id JOIN lgas l ON w.lga_id = l.id WHERE r.tenant_id = ? AND l.state_id = s.id AND r.status = 'verified') as verified_results,
-            (SELECT COUNT(*) FROM results_ec8a r JOIN polling_units pu ON r.pu_id = pu.id JOIN wards w ON pu.ward_id = w.id JOIN lgas l ON w.lga_id = l.id WHERE r.tenant_id = ? AND l.state_id = s.id AND r.status = 'pending') as pending_results,
-            (SELECT COUNT(*) FROM results_ec8a r JOIN polling_units pu ON r.pu_id = pu.id JOIN wards w ON pu.ward_id = w.id JOIN lgas l ON w.lga_id = l.id WHERE r.tenant_id = ? AND l.state_id = s.id AND r.status = 'flagged') as flagged_results,
-            (SELECT COUNT(*) FROM incidents i WHERE i.tenant_id = ? AND i.state_id = s.id) as total_incidents,
-            (SELECT COUNT(*) FROM incidents i WHERE i.tenant_id = ? AND i.state_id = s.id AND i.status IN ('reported', 'investigating')) as open_incidents,
-            (SELECT COUNT(*) FROM incidents i WHERE i.tenant_id = ? AND i.state_id = s.id AND i.status = 'resolved') as resolved_incidents,
-            (SELECT COUNT(*) FROM incidents i WHERE i.tenant_id = ? AND i.state_id = s.id AND i.severity = 'critical') as critical_incidents,
-            (SELECT COUNT(*) FROM broadcasts b WHERE b.tenant_id = ? AND JSON_CONTAINS(b.target_ids_json, JSON_QUOTE(s.id)) AND b.status IN ('scheduled', 'sending')) as active_broadcasts,
-            (SELECT COUNT(*) FROM agent_assignments aa WHERE aa.tenant_id = ? AND aa.state_id = s.id AND aa.status = 'active') as active_assignments
-        FROM states s
-        WHERE s.id = ?
-    ");
+    // Get LGAs count
+    $stmt = $db->prepare("SELECT COUNT(*) as count FROM lgas WHERE state_id = ? AND is_active = 1");
+    $stmt->execute([$state_id]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_data['total_lgas'] = $result['count'] ?? 0;
     
-    $stmt->execute([
-        $tenant_id, $tenant_id, $tenant_id,
-        $tenant_id, $tenant_id, $tenant_id, $tenant_id,
-        $tenant_id, $tenant_id, $tenant_id, $tenant_id,
-        $tenant_id, $tenant_id, $tenant_id,
-        $tenant_id, $tenant_id, $tenant_id,
-        $tenant_id,
-        $state_id
-    ]);
-    $state_data = $stmt->fetch();
+    // Get Wards count
+    $stmt = $db->prepare("SELECT COUNT(*) as count FROM wards w JOIN lgas l ON w.lga_id = l.id WHERE l.state_id = ? AND w.is_active = 1");
+    $stmt->execute([$state_id]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_data['total_wards'] = $result['count'] ?? 0;
+    
+    // Get Polling Units count
+    $stmt = $db->prepare("SELECT COUNT(*) as count FROM polling_units pu JOIN wards w ON pu.ward_id = w.id JOIN lgas l ON w.lga_id = l.id WHERE l.state_id = ? AND pu.is_active = 1");
+    $stmt->execute([$state_id]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_data['total_pus'] = $result['count'] ?? 0;
+    
+    // Get State Coordinators
+    $stmt = $db->prepare("SELECT COUNT(*) as count FROM users u JOIN roles r ON u.role_id = r.id WHERE u.tenant_id = ? AND r.level = 'state' AND u.jurisdiction_id = ? AND u.status = 'active' AND (u.deleted_at IS NULL OR u.deleted_at = '0000-00-00 00:00:00')");
+    $stmt->execute([$tenant_id, $state_id]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_data['coordinators'] = $result['count'] ?? 0;
+    
+    // Get LGA Coordinators
+    $stmt = $db->prepare("SELECT COUNT(*) as count FROM users u JOIN roles r ON u.role_id = r.id WHERE u.tenant_id = ? AND r.level = 'lga' AND u.jurisdiction_id IN (SELECT id FROM lgas WHERE state_id = ?) AND u.status = 'active' AND (u.deleted_at IS NULL OR u.deleted_at = '0000-00-00 00:00:00')");
+    $stmt->execute([$tenant_id, $state_id]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_data['lga_coordinators'] = $result['count'] ?? 0;
+    
+    // Get Agents
+    $stmt = $db->prepare("SELECT COUNT(*) as count FROM users u JOIN roles r ON u.role_id = r.id WHERE u.tenant_id = ? AND r.level = 'pu_agent' AND u.jurisdiction_id IN (SELECT id FROM polling_units WHERE ward_id IN (SELECT id FROM wards WHERE lga_id IN (SELECT id FROM lgas WHERE state_id = ?))) AND u.status = 'active' AND (u.deleted_at IS NULL OR u.deleted_at = '0000-00-00 00:00:00')");
+    $stmt->execute([$tenant_id, $state_id]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_data['agents'] = $result['count'] ?? 0;
+    
+    // Get Elections count
+    $stmt = $db->prepare("SELECT COUNT(*) as count FROM elections WHERE tenant_id = ? AND deleted_at IS NULL AND states_json IS NOT NULL AND states_json != '' AND JSON_CONTAINS(states_json, JSON_QUOTE(?))");
+    $stmt->execute([$tenant_id, $state_id]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_data['election_count'] = $result['count'] ?? 0;
+    
+    // Get Active Elections
+    $stmt = $db->prepare("SELECT COUNT(*) as count FROM elections WHERE tenant_id = ? AND deleted_at IS NULL AND status = 'active' AND states_json IS NOT NULL AND states_json != '' AND JSON_CONTAINS(states_json, JSON_QUOTE(?))");
+    $stmt->execute([$tenant_id, $state_id]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_data['active_elections'] = $result['count'] ?? 0;
+    
+    // Get Upcoming Elections
+    $stmt = $db->prepare("SELECT COUNT(*) as count FROM elections WHERE tenant_id = ? AND deleted_at IS NULL AND status = 'upcoming' AND states_json IS NOT NULL AND states_json != '' AND JSON_CONTAINS(states_json, JSON_QUOTE(?))");
+    $stmt->execute([$tenant_id, $state_id]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_data['upcoming_elections'] = $result['count'] ?? 0;
+    
+    // Get Completed Elections
+    $stmt = $db->prepare("SELECT COUNT(*) as count FROM elections WHERE tenant_id = ? AND deleted_at IS NULL AND status = 'completed' AND states_json IS NOT NULL AND states_json != '' AND JSON_CONTAINS(states_json, JSON_QUOTE(?))");
+    $stmt->execute([$tenant_id, $state_id]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_data['completed_elections'] = $result['count'] ?? 0;
+    
+    // Get Total Results
+    $stmt = $db->prepare("SELECT COUNT(*) as count FROM results_ec8a r JOIN polling_units pu ON r.pu_id = pu.id JOIN wards w ON pu.ward_id = w.id JOIN lgas l ON w.lga_id = l.id WHERE r.tenant_id = ? AND l.state_id = ?");
+    $stmt->execute([$tenant_id, $state_id]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_data['total_results'] = $result['count'] ?? 0;
+    
+    // Get Verified Results
+    $stmt = $db->prepare("SELECT COUNT(*) as count FROM results_ec8a r JOIN polling_units pu ON r.pu_id = pu.id JOIN wards w ON pu.ward_id = w.id JOIN lgas l ON w.lga_id = l.id WHERE r.tenant_id = ? AND l.state_id = ? AND r.status = 'verified'");
+    $stmt->execute([$tenant_id, $state_id]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_data['verified_results'] = $result['count'] ?? 0;
+    
+    // Get Pending Results
+    $stmt = $db->prepare("SELECT COUNT(*) as count FROM results_ec8a r JOIN polling_units pu ON r.pu_id = pu.id JOIN wards w ON pu.ward_id = w.id JOIN lgas l ON w.lga_id = l.id WHERE r.tenant_id = ? AND l.state_id = ? AND r.status = 'pending'");
+    $stmt->execute([$tenant_id, $state_id]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_data['pending_results'] = $result['count'] ?? 0;
+    
+    // Get Flagged Results
+    $stmt = $db->prepare("SELECT COUNT(*) as count FROM results_ec8a r JOIN polling_units pu ON r.pu_id = pu.id JOIN wards w ON pu.ward_id = w.id JOIN lgas l ON w.lga_id = l.id WHERE r.tenant_id = ? AND l.state_id = ? AND r.status = 'flagged'");
+    $stmt->execute([$tenant_id, $state_id]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_data['flagged_results'] = $result['count'] ?? 0;
+    
+    // Get Total Incidents
+    $stmt = $db->prepare("SELECT COUNT(*) as count FROM incidents WHERE tenant_id = ? AND state_id = ?");
+    $stmt->execute([$tenant_id, $state_id]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_data['total_incidents'] = $result['count'] ?? 0;
+    
+    // Get Open Incidents
+    $stmt = $db->prepare("SELECT COUNT(*) as count FROM incidents WHERE tenant_id = ? AND state_id = ? AND status IN ('reported', 'investigating')");
+    $stmt->execute([$tenant_id, $state_id]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_data['open_incidents'] = $result['count'] ?? 0;
+    
+    // Get Resolved Incidents
+    $stmt = $db->prepare("SELECT COUNT(*) as count FROM incidents WHERE tenant_id = ? AND state_id = ? AND status = 'resolved'");
+    $stmt->execute([$tenant_id, $state_id]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_data['resolved_incidents'] = $result['count'] ?? 0;
+    
+    // Get Critical Incidents
+    $stmt = $db->prepare("SELECT COUNT(*) as count FROM incidents WHERE tenant_id = ? AND state_id = ? AND severity = 'critical'");
+    $stmt->execute([$tenant_id, $state_id]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_data['critical_incidents'] = $result['count'] ?? 0;
+    
+    // Get Active Broadcasts
+    $stmt = $db->prepare("SELECT COUNT(*) as count FROM broadcasts WHERE tenant_id = ? AND status IN ('scheduled', 'sending')");
+    $stmt->execute([$tenant_id]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_data['active_broadcasts'] = $result['count'] ?? 0;
+    
+    // Get Active Assignments
+    $stmt = $db->prepare("SELECT COUNT(*) as count FROM agent_assignments WHERE tenant_id = ? AND state_id = ? AND status = 'active'");
+    $stmt->execute([$tenant_id, $state_id]);
+    $result = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_data['active_assignments'] = $result['count'] ?? 0;
     
 } catch (Exception $e) {
     error_log("State Dashboard Data Error: " . $e->getMessage());
@@ -115,8 +197,8 @@ try {
             l.registered_voters,
             (SELECT COUNT(*) FROM wards WHERE lga_id = l.id AND is_active = 1) as ward_count,
             (SELECT COUNT(*) FROM polling_units pu WHERE pu.ward_id IN (SELECT id FROM wards WHERE lga_id = l.id) AND pu.is_active = 1) as pu_count,
-            (SELECT COUNT(*) FROM users u JOIN roles r ON u.role_id = r.id WHERE u.tenant_id = ? AND r.level = 'lga' AND u.jurisdiction_id = l.id AND u.status = 'active') as coordinators,
-            (SELECT COUNT(*) FROM users u JOIN roles r ON u.role_id = r.id WHERE u.tenant_id = ? AND r.level = 'pu_agent' AND u.jurisdiction_id IN (SELECT id FROM polling_units WHERE ward_id IN (SELECT id FROM wards WHERE lga_id = l.id)) AND u.status = 'active') as agents,
+            (SELECT COUNT(*) FROM users u JOIN roles r ON u.role_id = r.id WHERE u.tenant_id = ? AND r.level = 'lga' AND u.jurisdiction_id = l.id AND u.status = 'active' AND (u.deleted_at IS NULL OR u.deleted_at = '0000-00-00 00:00:00')) as coordinators,
+            (SELECT COUNT(*) FROM users u JOIN roles r ON u.role_id = r.id WHERE u.tenant_id = ? AND r.level = 'pu_agent' AND u.jurisdiction_id IN (SELECT id FROM polling_units WHERE ward_id IN (SELECT id FROM wards WHERE lga_id = l.id)) AND u.status = 'active' AND (u.deleted_at IS NULL OR u.deleted_at = '0000-00-00 00:00:00')) as agents,
             (SELECT COUNT(*) FROM results_ec8a r WHERE r.tenant_id = ? AND r.lga_id = l.id) as total_results,
             (SELECT COUNT(*) FROM results_ec8a r WHERE r.tenant_id = ? AND r.lga_id = l.id AND r.status = 'verified') as verified_results,
             (SELECT COUNT(*) FROM results_ec8a r WHERE r.tenant_id = ? AND r.lga_id = l.id AND r.status = 'pending') as pending_results,
@@ -126,7 +208,7 @@ try {
         ORDER BY l.name ASC
     ");
     $stmt->execute([$tenant_id, $tenant_id, $tenant_id, $tenant_id, $tenant_id, $tenant_id, $state_id]);
-    $lgas = $stmt->fetchAll();
+    $lgas = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     $lgas = [];
 }
