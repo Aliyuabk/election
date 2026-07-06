@@ -1497,3 +1497,24 @@ Stack trace:
 [06-Jul-2026 22:33:30 Africa/Lagos] State coordinators found: 1
 [06-Jul-2026 22:33:30 Africa/Lagos] LGA coordinators found: 0
 [06-Jul-2026 22:35:21 Africa/Lagos] View State - Total voters error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'registered_voters' in field list is ambiguous
+[06-Jul-2026 22:44:09 Africa/Lagos] Elections Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'tenant_id' in where clause is ambiguous
+[06-Jul-2026 22:46:22 Africa/Lagos] Elections Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'tenant_id' in where clause is ambiguous
+[06-Jul-2026 22:46:46 Africa/Lagos] Elections Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'tenant_id' in where clause is ambiguous
+[06-Jul-2026 22:46:48 Africa/Lagos] Elections Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'tenant_id' in where clause is ambiguous
+[06-Jul-2026 22:46:53 Africa/Lagos] Elections Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'tenant_id' in where clause is ambiguous
+[06-Jul-2026 22:47:16 Africa/Lagos] Elections Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'tenant_id' in where clause is ambiguous
+[06-Jul-2026 22:49:13 Africa/Lagos] Settings Error: SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'key ASC' at line 1
+[06-Jul-2026 22:52:17 Africa/Lagos] Settings Error: SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'key ASC' at line 1
+[06-Jul-2026 23:16:42 Africa/Lagos] Elections Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'tenant_id' in where clause is ambiguous
+[06-Jul-2026 23:17:07 Africa/Lagos] Elections Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'tenant_id' in where clause is ambiguous
+[06-Jul-2026 23:17:18 Africa/Lagos] Elections Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'tenant_id' in where clause is ambiguous
+[06-Jul-2026 23:18:30 Africa/Lagos] Elections Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'tenant_id' in where clause is ambiguous
+[06-Jul-2026 23:19:26 Africa/Lagos] Election View Error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'e.updated_by' in 'on clause'
+[06-Jul-2026 23:19:26 Africa/Lagos] Elections Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'tenant_id' in where clause is ambiguous
+[06-Jul-2026 23:23:51 Africa/Lagos] Pending Results Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'tenant_id' in where clause is ambiguous
+[06-Jul-2026 23:24:56 Africa/Lagos] Pending Results Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'tenant_id' in where clause is ambiguous
+[06-Jul-2026 23:25:02 Africa/Lagos] Pending Results Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'tenant_id' in where clause is ambiguous
+[06-Jul-2026 23:26:53 Africa/Lagos] Pending Results Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'tenant_id' in where clause is ambiguous
+[06-Jul-2026 23:31:13 Africa/Lagos] Elections Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'tenant_id' in where clause is ambiguous
+[06-Jul-2026 23:31:25 Africa/Lagos] Pending Results Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'tenant_id' in where clause is ambiguous
+[06-Jul-2026 23:31:34 Africa/Lagos] Settings Error: SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'key ASC' at line 1
