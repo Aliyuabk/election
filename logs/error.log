@@ -1054,3 +1054,98 @@ Stack trace:
 [06-Jul-2026 18:29:40 Africa/Lagos] Email send failed to aliyuabubakarjdh@gmail.com: SMTP Error: Could not connect to SMTP host. Failed to connect to server SMTP server error: Failed to connect to server Additional SMTP info: php_network_getaddresses: getaddrinfo for smtp.gmail.com failed: No such host is known. 
 [06-Jul-2026 18:29:54 Africa/Lagos] Redirecting to: ../dashboard/client-admin/ for role: client_admin
 [06-Jul-2026 18:30:57 Africa/Lagos] Email send failed to aliyuabubakarjdh@gmail.com: SMTP Error: Could not connect to SMTP host. SMTP server error: QUIT command failed
+[06-Jul-2026 21:37:13 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: national
+[06-Jul-2026 21:38:57 Africa/Lagos] View State Data Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'registered_voters' in field list is ambiguous
+[06-Jul-2026 21:39:00 Africa/Lagos] State Dashboard Data Error: SQLSTATE[HY093]: Invalid parameter number
+[06-Jul-2026 21:39:02 Africa/Lagos] === state-coordinators.php ===
+[06-Jul-2026 21:39:02 Africa/Lagos] GET: Array
+(
+    [id] => 42
+)
+
+[06-Jul-2026 21:39:02 Africa/Lagos] State ID: 42
+[06-Jul-2026 21:39:02 Africa/Lagos] State name found: Jigawa
+[06-Jul-2026 21:39:02 Africa/Lagos] State coordinators found: 0
+[06-Jul-2026 21:39:02 Africa/Lagos] LGA coordinators found: 0
+[06-Jul-2026 21:39:07 Africa/Lagos] === state-coordinators.php ===
+[06-Jul-2026 21:39:07 Africa/Lagos] GET: Array
+(
+)
+
+[06-Jul-2026 21:39:07 Africa/Lagos] State ID: 0
+[06-Jul-2026 21:39:07 Africa/Lagos] State ID from session: 0
+[06-Jul-2026 21:39:07 Africa/Lagos] Redirecting due to invalid state ID
+[06-Jul-2026 21:39:09 Africa/Lagos] === state-coordinators.php ===
+[06-Jul-2026 21:39:09 Africa/Lagos] GET: Array
+(
+)
+
+[06-Jul-2026 21:39:09 Africa/Lagos] State ID: 0
+[06-Jul-2026 21:39:09 Africa/Lagos] State ID from session: 0
+[06-Jul-2026 21:39:09 Africa/Lagos] Redirecting due to invalid state ID
+[06-Jul-2026 21:39:11 Africa/Lagos] === state-coordinators.php ===
+[06-Jul-2026 21:39:11 Africa/Lagos] GET: Array
+(
+)
+
+[06-Jul-2026 21:39:11 Africa/Lagos] State ID: 0
+[06-Jul-2026 21:39:11 Africa/Lagos] State ID from session: 0
+[06-Jul-2026 21:39:11 Africa/Lagos] Redirecting due to invalid state ID
+[06-Jul-2026 21:39:12 Africa/Lagos] === state-coordinators.php ===
+[06-Jul-2026 21:39:12 Africa/Lagos] GET: Array
+(
+)
+
+[06-Jul-2026 21:39:12 Africa/Lagos] State ID: 0
+[06-Jul-2026 21:39:12 Africa/Lagos] State ID from session: 0
+[06-Jul-2026 21:39:12 Africa/Lagos] Redirecting due to invalid state ID
+[06-Jul-2026 21:39:12 Africa/Lagos] === state-coordinators.php ===
+[06-Jul-2026 21:39:12 Africa/Lagos] GET: Array
+(
+)
+
+[06-Jul-2026 21:39:12 Africa/Lagos] State ID: 0
+[06-Jul-2026 21:39:12 Africa/Lagos] State ID from session: 0
+[06-Jul-2026 21:39:12 Africa/Lagos] Redirecting due to invalid state ID
+[06-Jul-2026 21:39:14 Africa/Lagos] === state-coordinators.php ===
+[06-Jul-2026 21:39:14 Africa/Lagos] GET: Array
+(
+)
+
+[06-Jul-2026 21:39:14 Africa/Lagos] State ID: 0
+[06-Jul-2026 21:39:14 Africa/Lagos] State ID from session: 0
+[06-Jul-2026 21:39:14 Africa/Lagos] Redirecting due to invalid state ID
+[06-Jul-2026 21:39:29 Africa/Lagos] View State Data Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'registered_voters' in field list is ambiguous
+[06-Jul-2026 21:39:37 Africa/Lagos] PHP Warning:  Undefined array key "region" in C:\xampp\htdocs\election\dashboard\national\state-comparison.php on line 207
+[06-Jul-2026 21:39:37 Africa/Lagos] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\election\dashboard\national\state-comparison.php on line 207
+[06-Jul-2026 21:39:37 Africa/Lagos] PHP Warning:  Undefined array key "total_lgas" in C:\xampp\htdocs\election\dashboard\national\state-comparison.php on line 233
+[06-Jul-2026 21:39:37 Africa/Lagos] PHP Deprecated:  number_format(): Passing null to parameter #1 ($num) of type float is deprecated in C:\xampp\htdocs\election\dashboard\national\state-comparison.php on line 233
+[06-Jul-2026 21:39:37 Africa/Lagos] PHP Warning:  Undefined array key "total_wards" in C:\xampp\htdocs\election\dashboard\national\state-comparison.php on line 245
+[06-Jul-2026 21:39:37 Africa/Lagos] PHP Deprecated:  number_format(): Passing null to parameter #1 ($num) of type float is deprecated in C:\xampp\htdocs\election\dashboard\national\state-comparison.php on line 245
+[06-Jul-2026 21:39:37 Africa/Lagos] PHP Warning:  Undefined array key "total_pus" in C:\xampp\htdocs\election\dashboard\national\state-comparison.php on line 257
+[06-Jul-2026 21:39:37 Africa/Lagos] PHP Deprecated:  number_format(): Passing null to parameter #1 ($num) of type float is deprecated in C:\xampp\htdocs\election\dashboard\national\state-comparison.php on line 257
+[06-Jul-2026 21:39:37 Africa/Lagos] PHP Warning:  Undefined array key "total_pus" in C:\xampp\htdocs\election\dashboard\national\state-comparison.php on line 260
+[06-Jul-2026 21:39:37 Africa/Lagos] PHP Warning:  Undefined array key "total_voters" in C:\xampp\htdocs\election\dashboard\national\state-comparison.php on line 274
+[06-Jul-2026 21:39:37 Africa/Lagos] PHP Deprecated:  number_format(): Passing null to parameter #1 ($num) of type float is deprecated in C:\xampp\htdocs\election\dashboard\national\state-comparison.php on line 274
+[06-Jul-2026 21:39:37 Africa/Lagos] PHP Warning:  Undefined array key "total_voters" in C:\xampp\htdocs\election\dashboard\national\state-comparison.php on line 277
+[06-Jul-2026 21:39:37 Africa/Lagos] PHP Warning:  Undefined array key "coordinators" in C:\xampp\htdocs\election\dashboard\national\state-comparison.php on line 291
+[06-Jul-2026 21:39:37 Africa/Lagos] PHP Deprecated:  number_format(): Passing null to parameter #1 ($num) of type float is deprecated in C:\xampp\htdocs\election\dashboard\national\state-comparison.php on line 291
+[06-Jul-2026 21:39:37 Africa/Lagos] PHP Warning:  Undefined array key "agents" in C:\xampp\htdocs\election\dashboard\national\state-comparison.php on line 303
+[06-Jul-2026 21:39:37 Africa/Lagos] PHP Deprecated:  number_format(): Passing null to parameter #1 ($num) of type float is deprecated in C:\xampp\htdocs\election\dashboard\national\state-comparison.php on line 303
+[06-Jul-2026 21:39:37 Africa/Lagos] PHP Warning:  Undefined array key "election_count" in C:\xampp\htdocs\election\dashboard\national\state-comparison.php on line 320
+[06-Jul-2026 21:39:37 Africa/Lagos] PHP Deprecated:  number_format(): Passing null to parameter #1 ($num) of type float is deprecated in C:\xampp\htdocs\election\dashboard\national\state-comparison.php on line 320
+[06-Jul-2026 21:39:37 Africa/Lagos] PHP Warning:  Undefined array key "total_results" in C:\xampp\htdocs\election\dashboard\national\state-comparison.php on line 332
+[06-Jul-2026 21:39:37 Africa/Lagos] PHP Deprecated:  number_format(): Passing null to parameter #1 ($num) of type float is deprecated in C:\xampp\htdocs\election\dashboard\national\state-comparison.php on line 332
+[06-Jul-2026 21:39:37 Africa/Lagos] PHP Warning:  Undefined array key "verified_results" in C:\xampp\htdocs\election\dashboard\national\state-comparison.php on line 349
+[06-Jul-2026 21:39:37 Africa/Lagos] PHP Deprecated:  number_format(): Passing null to parameter #1 ($num) of type float is deprecated in C:\xampp\htdocs\election\dashboard\national\state-comparison.php on line 349
+[06-Jul-2026 21:39:37 Africa/Lagos] PHP Warning:  Undefined array key "progress" in C:\xampp\htdocs\election\dashboard\national\state-comparison.php on line 365
+[06-Jul-2026 21:39:37 Africa/Lagos] PHP Warning:  Undefined array key "progress" in C:\xampp\htdocs\election\dashboard\national\state-comparison.php on line 365
+[06-Jul-2026 21:39:37 Africa/Lagos] PHP Warning:  Undefined array key "progress" in C:\xampp\htdocs\election\dashboard\national\state-comparison.php on line 370
+[06-Jul-2026 21:39:37 Africa/Lagos] PHP Warning:  Undefined array key "progress" in C:\xampp\htdocs\election\dashboard\national\state-comparison.php on line 373
+[06-Jul-2026 21:39:37 Africa/Lagos] PHP Warning:  Undefined array key "pending_results" in C:\xampp\htdocs\election\dashboard\national\state-comparison.php on line 376
+[06-Jul-2026 21:39:37 Africa/Lagos] PHP Deprecated:  number_format(): Passing null to parameter #1 ($num) of type float is deprecated in C:\xampp\htdocs\election\dashboard\national\state-comparison.php on line 376
+[06-Jul-2026 21:39:37 Africa/Lagos] PHP Warning:  Undefined array key "total_incidents" in C:\xampp\htdocs\election\dashboard\national\state-comparison.php on line 390
+[06-Jul-2026 21:39:37 Africa/Lagos] PHP Warning:  Undefined array key "total_incidents" in C:\xampp\htdocs\election\dashboard\national\state-comparison.php on line 391
+[06-Jul-2026 21:39:37 Africa/Lagos] PHP Deprecated:  number_format(): Passing null to parameter #1 ($num) of type float is deprecated in C:\xampp\htdocs\election\dashboard\national\state-comparison.php on line 391
+[06-Jul-2026 21:39:37 Africa/Lagos] PHP Warning:  Undefined array key "critical_incidents" in C:\xampp\htdocs\election\dashboard\national\state-comparison.php on line 393
+[06-Jul-2026 21:39:37 Africa/Lagos] PHP Warning:  Undefined array key "open_incidents" in C:\xampp\htdocs\election\dashboard\national\state-comparison.php on line 398
