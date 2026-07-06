@@ -1,7 +1,6 @@
 <?php
 // ============================================================
 // 5G ELECTION GURU - FUNCTIONS
-// Complete rewrite with all fixes
 // ============================================================
 
 require_once __DIR__ . '/../email/vendor/autoload.php';
@@ -38,8 +37,132 @@ function sendEmail($to, $subject, $body, $altBody = '') {
         $mail->send();
         return ['success' => true, 'message' => 'Email sent successfully'];
     } catch (Exception $e) {
+        error_log("Email send failed to $to: " . $mail->ErrorInfo);
         return ['success' => false, 'message' => $mail->ErrorInfo];
     }
+}
+
+// ============================================================
+// 2. SEND BROADCAST EMAILS
+// ============================================================
+
+function sendBroadcastEmails($recipients, $subject, $message, $sender_name = '') {
+    $sent_count = 0;
+    $failed_count = 0;
+    $errors = [];
+    
+    if (empty($sender_name)) {
+        $sender_name = APP_NAME;
+    }
+    
+    foreach ($recipients as $recipient) {
+        $email = is_array($recipient) ? ($recipient['email'] ?? '') : $recipient;
+        $name = is_array($recipient) ? ($recipient['full_name'] ?? $recipient['name'] ?? 'User') : 'User';
+        
+        if (empty($email)) {
+            continue;
+        }
+        
+        $email_body = '
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body { font-family: Arial, sans-serif; background: #f4f6fa; padding: 20px; }
+                .container { max-width: 600px; margin: 0 auto; background: white; border-radius: 12px; padding: 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+                .header { text-align: center; margin-bottom: 30px; }
+                .header h1 { color: #0F4C81; margin: 0; }
+                .message-box { background: #F8FAFC; padding: 20px; border-radius: 12px; margin: 20px 0; border-left: 4px solid #0F4C81; }
+                .footer { text-align: center; color: #64748B; font-size: 12px; margin-top: 30px; border-top: 1px solid #E2E8F0; padding-top: 20px; }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>📢 ' . APP_NAME . '</h1>
+                    <p style="color: #64748B;">Broadcast Message</p>
+                </div>
+                <p>Hello ' . htmlspecialchars($name) . ',</p>
+                <div class="message-box">
+                    <p>' . nl2br(htmlspecialchars($message)) . '</p>
+                </div>
+                <p style="color: #64748B; font-size: 14px;">
+                    This is an automated message from ' . APP_NAME . '.
+                    Please do not reply to this email.
+                </p>
+                <div class="footer">
+                    &copy; ' . date('Y') . ' ' . APP_NAME . '. All rights reserved.
+                </div>
+            </div>
+        </body>
+        </html>
+        ';
+        
+        $result = sendEmail($email, $subject, $email_body, strip_tags($message));
+        
+        if ($result['success']) {
+            $sent_count++;
+        } else {
+            $failed_count++;
+            $errors[] = $email . ': ' . $result['message'];
+        }
+    }
+    
+    return [
+        'success' => $sent_count > 0,
+        'sent' => $sent_count,
+        'failed' => $failed_count,
+        'errors' => $errors,
+        'total' => count($recipients)
+    ];
+}
+
+// ============================================================
+// 3. GET BROADCAST RECIPIENTS
+// ============================================================
+
+function getBroadcastRecipients($tenant_id, $target_audience, $target_ids = []) {
+    $db = getDB();
+    $recipients = [];
+    
+    try {
+        if ($target_audience === 'all') {
+            $stmt = $db->prepare("
+                SELECT email, full_name FROM users 
+                WHERE tenant_id = ? AND status = 'active' 
+                AND email IS NOT NULL AND email != ''
+                AND (deleted_at IS NULL OR deleted_at = '0000-00-00 00:00:00')
+            ");
+            $stmt->execute([$tenant_id]);
+            $recipients = $stmt->fetchAll();
+        } elseif ($target_audience === 'state' && !empty($target_ids)) {
+            $placeholders = implode(',', array_fill(0, count($target_ids), '?'));
+            $stmt = $db->prepare("
+                SELECT u.email, u.full_name FROM users u
+                WHERE u.tenant_id = ? AND u.status = 'active'
+                AND u.jurisdiction_id IN ($placeholders)
+                AND u.email IS NOT NULL AND u.email != ''
+                AND (u.deleted_at IS NULL OR u.deleted_at = '0000-00-00 00:00:00')
+            ");
+            $stmt->execute(array_merge([$tenant_id], $target_ids));
+            $recipients = $stmt->fetchAll();
+        } elseif ($target_audience === 'role_specific' && !empty($target_ids)) {
+            $placeholders = implode(',', array_fill(0, count($target_ids), '?'));
+            $stmt = $db->prepare("
+                SELECT u.email, u.full_name FROM users u
+                WHERE u.tenant_id = ? AND u.status = 'active'
+                AND u.role_id IN ($placeholders)
+                AND u.email IS NOT NULL AND u.email != ''
+                AND (u.deleted_at IS NULL OR u.deleted_at = '0000-00-00 00:00:00')
+            ");
+            $stmt->execute(array_merge([$tenant_id], $target_ids));
+            $recipients = $stmt->fetchAll();
+        }
+    } catch (Exception $e) {
+        error_log("Get recipients error: " . $e->getMessage());
+    }
+    
+    return $recipients;
 }
 
 function sendOTPEmail($email, $otp, $name = '') {
