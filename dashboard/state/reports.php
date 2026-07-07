@@ -30,6 +30,8 @@ $tenant_id = SessionManager::get('tenant_id');
 $report_type = isset($_GET['type']) ? $_GET['type'] : '';
 $format = isset($_GET['format']) ? $_GET['format'] : 'pdf';
 $lga_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
+$ward_id = isset($_GET['ward']) ? intval($_GET['ward']) : 0;
+$pu_id = isset($_GET['pu']) ? intval($_GET['pu']) : 0;
 $selected_lgas = isset($_GET['lgas']) ? $_GET['lgas'] : '';
 
 $db = getDB();
@@ -61,16 +63,33 @@ try {
 }
 
 // ============================================================
-// FETCH LGA NAME FOR DISPLAY
+// FETCH LOCATION NAMES FOR DISPLAY
 // ============================================================
-$lga_name = '';
-if ($lga_id > 0) {
+$location_name = '';
+
+if ($pu_id > 0) {
     try {
-        $stmt = $db->prepare("SELECT name FROM lgas WHERE id = ? AND state_id = ?");
-        $stmt->execute([$lga_id, $state_id]);
-        $lga_name = $stmt->fetchColumn() ?: 'LGA';
+        $stmt = $db->prepare("SELECT name FROM polling_units WHERE id = ?");
+        $stmt->execute([$pu_id]);
+        $location_name = $stmt->fetchColumn() ?: 'Polling Unit';
     } catch (Exception $e) {
-        $lga_name = 'LGA';
+        $location_name = 'Polling Unit';
+    }
+} elseif ($ward_id > 0) {
+    try {
+        $stmt = $db->prepare("SELECT name FROM wards WHERE id = ?");
+        $stmt->execute([$ward_id]);
+        $location_name = $stmt->fetchColumn() ?: 'Ward';
+    } catch (Exception $e) {
+        $location_name = 'Ward';
+    }
+} elseif ($lga_id > 0) {
+    try {
+        $stmt = $db->prepare("SELECT name FROM lgas WHERE id = ?");
+        $stmt->execute([$lga_id]);
+        $location_name = $stmt->fetchColumn() ?: 'LGA';
+    } catch (Exception $e) {
+        $location_name = 'LGA';
     }
 }
 
@@ -178,26 +197,45 @@ $page_subtitle = 'Generate and export reports';
                 </form>
             </div>
 
-            <!-- Election Report -->
+            <!-- Ward Report -->
             <div style="background:white;border-radius:var(--radius);padding:20px;border:1px solid var(--gray-200);transition:var(--transition);hover:transform:translateY(-4px);hover:box-shadow:var(--shadow-hover);">
                 <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
                     <div style="width:48px;height:48px;border-radius:12px;background:#FEF3C7;display:flex;align-items:center;justify-content:center;color:#F59E0B;font-size:1.2rem;">
-                        <i class="fas fa-vote-yea"></i>
+                        <i class="fas fa-layer-group"></i>
                     </div>
                     <div>
-                        <h3 style="font-size:0.9rem;font-weight:600;margin:0;">Election Report</h3>
-                        <p style="font-size:0.7rem;color:var(--gray-500);margin:0;">Election summary</p>
+                        <h3 style="font-size:0.9rem;font-weight:600;margin:0;">Ward Report</h3>
+                        <p style="font-size:0.7rem;color:var(--gray-500);margin:0;">Detailed ward analysis</p>
                     </div>
                 </div>
-                <p style="font-size:0.8rem;color:var(--gray-600);margin-bottom:12px;">Election results, turnout, and performance summary for <?php echo htmlspecialchars($state_name); ?>.</p>
-                <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                    <a href="reports-generate.php?type=election&state=<?php echo $state_id; ?>&format=pdf" class="btn-sm" style="padding:6px 16px;border-radius:8px;background:#EF4444;color:white;text-decoration:none;font-size:0.7rem;display:inline-flex;align-items:center;gap:4px;">
-                        <i class="fas fa-file-pdf"></i> PDF
-                    </a>
-                    <a href="reports-generate.php?type=election&state=<?php echo $state_id; ?>&format=excel" class="btn-sm" style="padding:6px 16px;border-radius:8px;background:#10B981;color:white;text-decoration:none;font-size:0.7rem;display:inline-flex;align-items:center;gap:4px;">
-                        <i class="fas fa-file-excel"></i> Excel
-                    </a>
-                </div>
+                <form method="GET" action="reports-generate.php" style="display:flex;flex-direction:column;gap:8px;">
+                    <input type="hidden" name="type" value="ward">
+                    <input type="hidden" name="format" value="pdf">
+                    <select name="ward" class="form-control" style="width:100%;padding:8px 12px;border:1px solid var(--gray-200);border-radius:8px;font-size:0.8rem;background:white;">
+                        <option value="">Select Ward...</option>
+                        <?php foreach ($lgas as $lga): 
+                            $wards = [];
+                            try {
+                                $stmt = $db->prepare("SELECT id, name FROM wards WHERE lga_id = ? AND is_active = 1 ORDER BY name");
+                                $stmt->execute([$lga['id']]);
+                                $wards = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                            } catch (Exception $e) {}
+                            foreach ($wards as $ward):
+                        ?>
+                            <option value="<?php echo $ward['id']; ?>" <?php echo $ward_id == $ward['id'] ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($lga['name']); ?> - <?php echo htmlspecialchars($ward['name']); ?>
+                            </option>
+                        <?php endforeach; endforeach; ?>
+                    </select>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                        <button type="submit" name="format" value="pdf" class="btn-sm" style="padding:6px 16px;border-radius:8px;background:#EF4444;color:white;border:none;font-size:0.7rem;cursor:pointer;display:inline-flex;align-items:center;gap:4px;">
+                            <i class="fas fa-file-pdf"></i> PDF
+                        </button>
+                        <button type="submit" name="format" value="excel" class="btn-sm" style="padding:6px 16px;border-radius:8px;background:#10B981;color:white;border:none;font-size:0.7rem;cursor:pointer;display:inline-flex;align-items:center;gap:4px;">
+                            <i class="fas fa-file-excel"></i> Excel
+                        </button>
+                    </div>
+                </form>
             </div>
 
             <!-- Incident Report -->
@@ -331,11 +369,11 @@ $page_subtitle = 'Generate and export reports';
                 <a href="reports-generate.php?type=state&id=<?php echo $state_id; ?>&format=excel" class="btn-sm" style="padding:6px 16px;border-radius:8px;background:#10B981;color:white;text-decoration:none;font-size:0.75rem;display:inline-flex;align-items:center;gap:4px;">
                     <i class="fas fa-file-excel"></i> State Report (Excel)
                 </a>
-                <a href="reports-generate.php?type=election&state=<?php echo $state_id; ?>&format=pdf" class="btn-sm" style="padding:6px 16px;border-radius:8px;background:#8B5CF6;color:white;text-decoration:none;font-size:0.75rem;display:inline-flex;align-items:center;gap:4px;">
-                    <i class="fas fa-file-pdf"></i> Election Summary
-                </a>
                 <a href="reports-generate.php?type=incident&state=<?php echo $state_id; ?>&format=pdf" class="btn-sm" style="padding:6px 16px;border-radius:8px;background:#EF4444;color:white;text-decoration:none;font-size:0.75rem;display:inline-flex;align-items:center;gap:4px;">
                     <i class="fas fa-file-pdf"></i> Incident Summary
+                </a>
+                <a href="reports-generate.php?type=agents&state=<?php echo $state_id; ?>&format=pdf" class="btn-sm" style="padding:6px 16px;border-radius:8px;background:#8B5CF6;color:white;text-decoration:none;font-size:0.75rem;display:inline-flex;align-items:center;gap:4px;">
+                    <i class="fas fa-file-pdf"></i> Agent Performance
                 </a>
             </div>
         </div>

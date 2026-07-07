@@ -1531,3 +1531,7 @@ Stack trace:
 [07-Jul-2026 21:13:54 Africa/Lagos] Monitor LGAs Error: SQLSTATE[HY093]: Invalid parameter number
 [07-Jul-2026 21:14:01 Africa/Lagos] Monitor LGAs Error: SQLSTATE[HY093]: Invalid parameter number
 [07-Jul-2026 21:16:51 Africa/Lagos] Monitor LGAs Error: SQLSTATE[HY093]: Invalid parameter number
+[07-Jul-2026 22:06:03 Africa/Lagos] Monitor LGAs Error: SQLSTATE[HY093]: Invalid parameter number
+[07-Jul-2026 22:08:30 Africa/Lagos] Monitor LGAs Error: SQLSTATE[HY093]: Invalid parameter number
+[07-Jul-2026 22:10:27 Africa/Lagos] Monitor LGAs Error: SQLSTATE[HY093]: Invalid parameter number
+[07-Jul-2026 22:24:32 Africa/Lagos] Monitor LGAs Error: SQLSTATE[HY093]: Invalid parameter number
