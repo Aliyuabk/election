@@ -1518,3 +1518,16 @@ Stack trace:
 [06-Jul-2026 23:31:13 Africa/Lagos] Elections Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'tenant_id' in where clause is ambiguous
 [06-Jul-2026 23:31:25 Africa/Lagos] Pending Results Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'tenant_id' in where clause is ambiguous
 [06-Jul-2026 23:31:34 Africa/Lagos] Settings Error: SQLSTATE[42000]: Syntax error or access violation: 1064 You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'key ASC' at line 1
+[07-Jul-2026 19:33:45 Africa/Lagos] Redirecting to: ../dashboard/client-admin/ for role: client_admin
+[07-Jul-2026 19:34:22 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: national
+[07-Jul-2026 19:35:10 Africa/Lagos] View State - Total voters error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'registered_voters' in field list is ambiguous
+[07-Jul-2026 20:45:12 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: state
+[07-Jul-2026 20:51:46 Africa/Lagos] Monitor LGAs Error: SQLSTATE[HY093]: Invalid parameter number
+[07-Jul-2026 21:00:54 Africa/Lagos] Monitor LGAs Error: SQLSTATE[HY093]: Invalid parameter number
+[07-Jul-2026 21:01:20 Africa/Lagos] Monitor LGAs Error: SQLSTATE[HY093]: Invalid parameter number
+[07-Jul-2026 21:01:27 Africa/Lagos] Monitor LGAs Error: SQLSTATE[HY093]: Invalid parameter number
+[07-Jul-2026 21:11:36 Africa/Lagos] Monitor LGAs Error: SQLSTATE[HY093]: Invalid parameter number
+[07-Jul-2026 21:13:53 Africa/Lagos] Monitor LGAs Error: SQLSTATE[HY093]: Invalid parameter number
+[07-Jul-2026 21:13:54 Africa/Lagos] Monitor LGAs Error: SQLSTATE[HY093]: Invalid parameter number
+[07-Jul-2026 21:14:01 Africa/Lagos] Monitor LGAs Error: SQLSTATE[HY093]: Invalid parameter number
+[07-Jul-2026 21:16:51 Africa/Lagos] Monitor LGAs Error: SQLSTATE[HY093]: Invalid parameter number
