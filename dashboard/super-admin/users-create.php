@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// USER CREATE - SUPER ADMINISTRATOR (PRO STYLE)
+// USER CREATE - SUPER ADMINISTRATOR (WITH JURISDICTION)
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -69,6 +69,41 @@ try {
 }
 
 // ============================================================
+// FETCH STATES, LGAS, WARDS, POLLING UNITS FOR JURISDICTION
+// ============================================================
+$states = [];
+try {
+    $stmt = $db->query("SELECT id, name FROM states WHERE is_active = 1 ORDER BY name");
+    $states = $stmt->fetchAll();
+} catch (Exception $e) {
+    // Continue
+}
+
+$lgas = [];
+try {
+    $stmt = $db->query("SELECT id, name, state_id FROM lgas WHERE is_active = 1 ORDER BY name");
+    $lgas = $stmt->fetchAll();
+} catch (Exception $e) {
+    // Continue
+}
+
+$wards = [];
+try {
+    $stmt = $db->query("SELECT id, name, lga_id FROM wards WHERE is_active = 1 ORDER BY name");
+    $wards = $stmt->fetchAll();
+} catch (Exception $e) {
+    // Continue
+}
+
+$polling_units = [];
+try {
+    $stmt = $db->query("SELECT id, name, code, ward_id FROM polling_units WHERE is_active = 1 ORDER BY name");
+    $polling_units = $stmt->fetchAll();
+} catch (Exception $e) {
+    // Continue
+}
+
+// ============================================================
 // HANDLE FORM SUBMISSION
 // ============================================================
 $error = '';
@@ -88,6 +123,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'two_factor_enabled' => isset($_POST['two_factor_enabled']) ? 1 : 0,
         'gender' => $_POST['gender'] ?? '',
         'date_of_birth' => $_POST['date_of_birth'] ?? null,
+        // Jurisdiction fields
+        'state_id' => !empty($_POST['state_id']) ? (int)$_POST['state_id'] : null,
+        'lga_id' => !empty($_POST['lga_id']) ? (int)$_POST['lga_id'] : null,
+        'ward_id' => !empty($_POST['ward_id']) ? (int)$_POST['ward_id'] : null,
+        'pu_id' => !empty($_POST['pu_id']) ? (int)$_POST['pu_id'] : null,
+        'jurisdiction_type' => $_POST['jurisdiction_type'] ?? null,
+        'jurisdiction_id' => !empty($_POST['jurisdiction_id']) ? (int)$_POST['jurisdiction_id'] : null,
     ];
 
     $errors = [];
@@ -121,6 +163,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = 'Password must be at least 8 characters long.';
     }
     
+    // Validate jurisdiction based on role
+    $role_level = '';
+    foreach ($roles as $role) {
+        if ($role['id'] == $form_data['role_id']) {
+            $role_level = $role['level'];
+            break;
+        }
+    }
+    
+    if ($role_level === 'state' && empty($form_data['state_id'])) {
+        $errors[] = 'Please select a state for State Coordinator.';
+    }
+    
+    if ($role_level === 'lga' && (empty($form_data['state_id']) || empty($form_data['lga_id']))) {
+        $errors[] = 'Please select both State and LGA for LGA Coordinator.';
+    }
+    
+    if ($role_level === 'ward' && (empty($form_data['state_id']) || empty($form_data['lga_id']) || empty($form_data['ward_id']))) {
+        $errors[] = 'Please select State, LGA, and Ward for Ward Coordinator.';
+    }
+    
+    if ($role_level === 'pu_agent' && (empty($form_data['state_id']) || empty($form_data['lga_id']) || empty($form_data['ward_id']) || empty($form_data['pu_id']))) {
+        $errors[] = 'Please select State, LGA, Ward, and Polling Unit for PU Agent.';
+    }
+    
     // Check if email already exists
     if (!empty($form_data['email'])) {
         try {
@@ -146,16 +213,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Hash password
             $password_hash = password_hash($form_data['password'], PASSWORD_DEFAULT);
             
+            // Determine jurisdiction fields
+            $jurisdiction_type = null;
+            $jurisdiction_id = null;
+            
+            if ($role_level === 'state' && !empty($form_data['state_id'])) {
+                $jurisdiction_type = 'state';
+                $jurisdiction_id = $form_data['state_id'];
+            } elseif ($role_level === 'lga' && !empty($form_data['lga_id'])) {
+                $jurisdiction_type = 'lga';
+                $jurisdiction_id = $form_data['lga_id'];
+            } elseif ($role_level === 'ward' && !empty($form_data['ward_id'])) {
+                $jurisdiction_type = 'ward';
+                $jurisdiction_id = $form_data['ward_id'];
+            } elseif ($role_level === 'pu_agent' && !empty($form_data['pu_id'])) {
+                $jurisdiction_type = 'pu';
+                $jurisdiction_id = $form_data['pu_id'];
+            }
+            
             // Insert user
             $stmt = $db->prepare("
                 INSERT INTO users (
                     tenant_id, user_code, role_id, first_name, last_name,
                     email, phone, password_hash, status, two_factor_enabled,
-                    gender, date_of_birth, created_by, created_at
+                    gender, date_of_birth, state_id, lga_id, ward_id, pu_id,
+                    jurisdiction_type, jurisdiction_id, created_by, created_at
                 ) VALUES (
                     ?, ?, ?, ?, ?,
                     ?, ?, ?, ?, ?,
-                    ?, ?, ?, NOW()
+                    ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, NOW()
                 )
             ");
             
@@ -172,6 +259,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $form_data['two_factor_enabled'],
                 $form_data['gender'] ?: null,
                 $form_data['date_of_birth'] ?: null,
+                $form_data['state_id'],
+                $form_data['lga_id'],
+                $form_data['ward_id'],
+                $form_data['pu_id'],
+                $jurisdiction_type,
+                $jurisdiction_id,
                 SessionManager::get('user_id')
             ]);
             
@@ -193,7 +286,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
             
-            // Send welcome email (wrap in try-catch so it doesn't break the process)
+            // Send welcome email
             try {
                 $subject = "Welcome to " . APP_NAME;
                 $message = "Dear {$form_data['first_name']},\n\n";
@@ -236,7 +329,6 @@ $user_email = SessionManager::get('user_email', 'admin@example.com');
 include 'includes/base.php';
 include 'includes/sidebar.php';
 ?>
-<!-- Rest of HTML remains the same -->
 <style>
     /* ============================================================
        USER CREATE - PRO STYLES
@@ -476,7 +568,6 @@ include 'includes/sidebar.php';
         font-size: 1.1rem;
     }
 
-    /* Tenant pre-select notice */
     .tenant-notice {
         background: #EFF6FF;
         border: 1px solid #BFDBFE;
@@ -487,9 +578,39 @@ include 'includes/sidebar.php';
         display: flex;
         align-items: center;
         gap: 10px;
+        margin-top: 10px;
     }
     .tenant-notice i {
         font-size: 1rem;
+    }
+
+    .jurisdiction-section {
+        background: #F8FAFC;
+        border-radius: 12px;
+        padding: 16px 20px;
+        border: 1px dashed var(--gray-300);
+        display: none;
+        grid-column: 1 / -1;
+    }
+    .jurisdiction-section.active {
+        display: block;
+    }
+    .jurisdiction-section .section-label {
+        font-weight: 600;
+        font-size: 0.82rem;
+        color: var(--gray-700);
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .jurisdiction-section .section-label i {
+        color: var(--primary);
+    }
+    .jurisdiction-section .jurisdiction-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
     }
 
     @media (max-width: 768px) {
@@ -510,6 +631,9 @@ include 'includes/sidebar.php';
         .page-header {
             flex-direction: column;
             align-items: flex-start;
+        }
+        .jurisdiction-section .jurisdiction-grid {
+            grid-template-columns: 1fr;
         }
     }
     @media (max-width: 480px) {
@@ -569,7 +693,7 @@ include 'includes/sidebar.php';
             <div class="form-subtitle">
                 Fill in the details below to create a new user account.
                 <?php if ($pre_selected_tenant > 0 && !empty($pre_selected_tenant_name)): ?>
-                    <div class="tenant-notice" style="margin-top:10px;">
+                    <div class="tenant-notice">
                         <i class="fas fa-building"></i>
                         <span>User will be created for: <strong><?php echo htmlspecialchars($pre_selected_tenant_name); ?></strong></span>
                     </div>
@@ -667,6 +791,58 @@ include 'includes/sidebar.php';
                     <div class="form-group">
                         <label for="date_of_birth">Date of Birth</label>
                         <input type="date" name="date_of_birth" id="date_of_birth" value="<?php echo htmlspecialchars($form_data['date_of_birth'] ?? ''); ?>">
+                    </div>
+
+                    <!-- Jurisdiction Section -->
+                    <div class="form-section-title">
+                        <i class="fas fa-map-marker-alt"></i> Jurisdiction
+                    </div>
+                    
+                    <div class="form-group full-width">
+                        <div class="jurisdiction-section" id="jurisdictionSection">
+                            <div class="section-label">
+                                <i class="fas fa-info-circle"></i> 
+                                <span id="jurisdictionLabel">Select jurisdiction for this user</span>
+                            </div>
+                            <div class="jurisdiction-grid">
+                                <div class="form-group" id="stateGroup">
+                                    <label for="state_id">State <span class="required">*</span></label>
+                                    <select name="state_id" id="state_id">
+                                        <option value="">Select State</option>
+                                        <?php foreach ($states as $state): ?>
+                                            <option value="<?php echo $state['id']; ?>" <?php echo ($form_data['state_id'] ?? '') == $state['id'] ? 'selected' : ''; ?>>
+                                                <?php echo htmlspecialchars($state['name']); ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group" id="lgaGroup" style="display:none;">
+                                    <label for="lga_id">LGA <span class="required">*</span></label>
+                                    <select name="lga_id" id="lga_id">
+                                        <option value="">Select LGA</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group" id="wardGroup" style="display:none;">
+                                    <label for="ward_id">Ward <span class="required">*</span></label>
+                                    <select name="ward_id" id="ward_id">
+                                        <option value="">Select Ward</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group" id="puGroup" style="display:none;">
+                                    <label for="pu_id">Polling Unit <span class="required">*</span></label>
+                                    <select name="pu_id" id="pu_id">
+                                        <option value="">Select Polling Unit</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="help-text">
+                            <i class="fas fa-info-circle"></i> 
+                            Jurisdiction selection will appear based on the selected role.
+                        </div>
                     </div>
 
                     <!-- Security -->
@@ -787,6 +963,179 @@ if (profileBtn && profileMenu) {
 }
 
 // ============================================================
+// ROLE-BASED JURISDICTION
+// ============================================================
+var roleSelect = document.getElementById('role_id');
+var jurisdictionSection = document.getElementById('jurisdictionSection');
+var jurisdictionLabel = document.getElementById('jurisdictionLabel');
+
+var stateSelect = document.getElementById('state_id');
+var lgaSelect = document.getElementById('lga_id');
+var wardSelect = document.getElementById('ward_id');
+var puSelect = document.getElementById('pu_id');
+
+var stateGroup = document.getElementById('stateGroup');
+var lgaGroup = document.getElementById('lgaGroup');
+var wardGroup = document.getElementById('wardGroup');
+var puGroup = document.getElementById('puGroup');
+
+// Role level mapping
+var roleLevels = {
+    <?php foreach ($roles as $role): ?>
+        <?php echo $role['id']; ?>: '<?php echo $role['level']; ?>',
+    <?php endforeach; ?>
+};
+
+function updateJurisdiction() {
+    var roleId = parseInt(roleSelect.value);
+    var level = roleLevels[roleId] || '';
+    
+    // Hide all groups first
+    stateGroup.style.display = 'none';
+    lgaGroup.style.display = 'none';
+    wardGroup.style.display = 'none';
+    puGroup.style.display = 'none';
+    jurisdictionSection.classList.remove('active');
+    
+    // Clear dependent selects
+    lgaSelect.innerHTML = '<option value="">Select LGA</option>';
+    wardSelect.innerHTML = '<option value="">Select Ward</option>';
+    puSelect.innerHTML = '<option value="">Select Polling Unit</option>';
+    
+    if (level === 'state') {
+        jurisdictionSection.classList.add('active');
+        jurisdictionLabel.textContent = 'Select State for State Coordinator';
+        stateGroup.style.display = 'block';
+        stateSelect.setAttribute('required', 'required');
+        document.getElementById('state_id').closest('.form-group').querySelector('.required').style.display = 'inline';
+    } else if (level === 'lga') {
+        jurisdictionSection.classList.add('active');
+        jurisdictionLabel.textContent = 'Select State and LGA for LGA Coordinator';
+        stateGroup.style.display = 'block';
+        lgaGroup.style.display = 'block';
+        stateSelect.setAttribute('required', 'required');
+        lgaSelect.setAttribute('required', 'required');
+    } else if (level === 'ward') {
+        jurisdictionSection.classList.add('active');
+        jurisdictionLabel.textContent = 'Select State, LGA, and Ward for Ward Coordinator';
+        stateGroup.style.display = 'block';
+        lgaGroup.style.display = 'block';
+        wardGroup.style.display = 'block';
+        stateSelect.setAttribute('required', 'required');
+        lgaSelect.setAttribute('required', 'required');
+        wardSelect.setAttribute('required', 'required');
+    } else if (level === 'pu_agent') {
+        jurisdictionSection.classList.add('active');
+        jurisdictionLabel.textContent = 'Select State, LGA, Ward, and Polling Unit for PU Agent';
+        stateGroup.style.display = 'block';
+        lgaGroup.style.display = 'block';
+        wardGroup.style.display = 'block';
+        puGroup.style.display = 'block';
+        stateSelect.setAttribute('required', 'required');
+        lgaSelect.setAttribute('required', 'required');
+        wardSelect.setAttribute('required', 'required');
+        puSelect.setAttribute('required', 'required');
+    } else {
+        // For other roles (super_admin, client_admin, etc.)
+        jurisdictionSection.classList.remove('active');
+        stateSelect.removeAttribute('required');
+        lgaSelect.removeAttribute('required');
+        wardSelect.removeAttribute('required');
+        puSelect.removeAttribute('required');
+    }
+}
+
+// Role change event
+roleSelect.addEventListener('change', updateJurisdiction);
+
+// State change -> Load LGAs
+stateSelect.addEventListener('change', function() {
+    var stateId = this.value;
+    lgaSelect.innerHTML = '<option value="">Loading...</option>';
+    wardSelect.innerHTML = '<option value="">Select Ward</option>';
+    puSelect.innerHTML = '<option value="">Select Polling Unit</option>';
+    
+    if (stateId) {
+        fetch('ajax/get-lgas.php?state_id=' + stateId)
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                lgaSelect.innerHTML = '<option value="">Select LGA</option>';
+                data.forEach(function(lga) {
+                    var option = document.createElement('option');
+                    option.value = lga.id;
+                    option.textContent = lga.name;
+                    lgaSelect.appendChild(option);
+                });
+            })
+            .catch(function() {
+                lgaSelect.innerHTML = '<option value="">Error loading LGAs</option>';
+            });
+    } else {
+        lgaSelect.innerHTML = '<option value="">Select LGA</option>';
+    }
+});
+
+// LGA change -> Load Wards
+lgaSelect.addEventListener('change', function() {
+    var lgaId = this.value;
+    wardSelect.innerHTML = '<option value="">Loading...</option>';
+    puSelect.innerHTML = '<option value="">Select Polling Unit</option>';
+    
+    if (lgaId) {
+        fetch('ajax/get-wards.php?lga_id=' + lgaId)
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                wardSelect.innerHTML = '<option value="">Select Ward</option>';
+                data.forEach(function(ward) {
+                    var option = document.createElement('option');
+                    option.value = ward.id;
+                    option.textContent = ward.name;
+                    wardSelect.appendChild(option);
+                });
+            })
+            .catch(function() {
+                wardSelect.innerHTML = '<option value="">Error loading Wards</option>';
+            });
+    } else {
+        wardSelect.innerHTML = '<option value="">Select Ward</option>';
+    }
+});
+
+// Ward change -> Load Polling Units
+wardSelect.addEventListener('change', function() {
+    var wardId = this.value;
+    puSelect.innerHTML = '<option value="">Loading...</option>';
+    
+    if (wardId) {
+        fetch('ajax/get-polling-units.php?ward_id=' + wardId)
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                puSelect.innerHTML = '<option value="">Select Polling Unit</option>';
+                data.forEach(function(pu) {
+                    var option = document.createElement('option');
+                    option.value = pu.id;
+                    option.textContent = pu.name + ' (' + pu.code + ')';
+                    puSelect.appendChild(option);
+                });
+            })
+            .catch(function() {
+                puSelect.innerHTML = '<option value="">Error loading Polling Units</option>';
+            });
+    } else {
+        puSelect.innerHTML = '<option value="">Select Polling Unit</option>';
+    }
+});
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    updateJurisdiction();
+    // Trigger state change if pre-selected
+    if (stateSelect.value) {
+        stateSelect.dispatchEvent(new Event('change'));
+    }
+});
+
+// ============================================================
 // FORM VALIDATION
 // ============================================================
 document.getElementById('userForm').addEventListener('submit', function(e) {
@@ -841,7 +1190,6 @@ document.getElementById('userForm').addEventListener('submit', function(e) {
     
     if (!isValid) {
         e.preventDefault();
-        // Scroll to first error
         var firstError = document.querySelector('.error');
         if (firstError) {
             firstError.focus();

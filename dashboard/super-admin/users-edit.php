@@ -25,6 +25,14 @@ if (SessionManager::get('role_level') !== 'super_admin') {
 $db = getDB();
 
 // ============================================================
+// GENERATE CSRF TOKEN
+// ============================================================
+if (empty($_SESSION['csrf_token'])) {
+    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+}
+$csrf_token = $_SESSION['csrf_token'];
+
+// ============================================================
 // GET USER ID
 // ============================================================
 $user_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
@@ -52,7 +60,7 @@ try {
         WHERE u.id = ? AND u.deleted_at IS NULL
     ");
     $stmt->execute([$user_id]);
-    $user = $stmt->fetch();
+    $user = $stmt->fetch(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     // Continue
 }
@@ -67,8 +75,9 @@ if (!$user) {
 // ============================================================
 $roles = [];
 try {
-    $stmt = $db->query("SELECT id, name, level FROM roles WHERE is_active = 1 ORDER BY name");
-    $roles = $stmt->fetchAll();
+    $stmt = $db->prepare("SELECT id, name, level FROM roles WHERE is_active = 1 ORDER BY name");
+    $stmt->execute();
+    $roles = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     // Continue
 }
@@ -78,8 +87,48 @@ try {
 // ============================================================
 $tenants = [];
 try {
-    $stmt = $db->query("SELECT id, name FROM tenants WHERE deleted_at IS NULL ORDER BY name");
-    $tenants = $stmt->fetchAll();
+    $stmt = $db->prepare("SELECT id, name FROM tenants WHERE deleted_at IS NULL ORDER BY name");
+    $stmt->execute();
+    $tenants = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    // Continue
+}
+
+// ============================================================
+// FETCH STATES, LGAS, WARDS, POLLING UNITS FOR JURISDICTION
+// ============================================================
+$states = [];
+try {
+    $stmt = $db->prepare("SELECT id, name FROM states WHERE is_active = 1 ORDER BY name");
+    $stmt->execute();
+    $states = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    // Continue
+}
+
+$lgas = [];
+try {
+    $stmt = $db->prepare("SELECT id, name, state_id FROM lgas WHERE is_active = 1 ORDER BY name");
+    $stmt->execute();
+    $lgas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    // Continue
+}
+
+$wards = [];
+try {
+    $stmt = $db->prepare("SELECT id, name, lga_id FROM wards WHERE is_active = 1 ORDER BY name");
+    $stmt->execute();
+    $wards = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    // Continue
+}
+
+$polling_units = [];
+try {
+    $stmt = $db->prepare("SELECT id, name, code, ward_id FROM polling_units WHERE is_active = 1 ORDER BY name");
+    $stmt->execute();
+    $polling_units = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     // Continue
 }
@@ -92,178 +141,280 @@ $success = '';
 $form_data = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Check if this is a quick action (suspend/activate)
-    $action = $_POST['action'] ?? '';
-    
-    if ($action === 'suspend' || $action === 'activate') {
-        try {
-            $status = ($action === 'activate') ? 'active' : 'suspended';
-            $stmt = $db->prepare("UPDATE users SET status = ?, updated_at = NOW() WHERE id = ?");
-            $stmt->execute([$status, $user_id]);
-            
-            if ($stmt->rowCount() > 0) {
-                $action_msg = $action === 'activate' ? 'activated' : 'suspended';
-                $success = "User {$action_msg} successfully!";
-                logActivity(SessionManager::get('user_id'), "user_{$action_msg}", "User ID: $user_id");
-                
-                // Refresh user data
-                $stmt = $db->prepare("SELECT * FROM users WHERE id = ? AND deleted_at IS NULL");
-                $stmt->execute([$user_id]);
-                $user = $stmt->fetch();
-            }
-        } catch (Exception $e) {
-            $error = 'Error: ' . $e->getMessage();
-        }
+    // Verify CSRF token
+    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
+        $error = 'Security validation failed. Please try again.';
     } else {
-        // Regular form update
-        $form_data = [
-            'tenant_id' => (int)($_POST['tenant_id'] ?? 0),
-            'first_name' => trim($_POST['first_name'] ?? ''),
-            'last_name' => trim($_POST['last_name'] ?? ''),
-            'email' => trim($_POST['email'] ?? ''),
-            'phone' => trim($_POST['phone'] ?? ''),
-            'role_id' => (int)($_POST['role_id'] ?? 0),
-            'status' => $_POST['status'] ?? 'active',
-            'two_factor_enabled' => isset($_POST['two_factor_enabled']) ? 1 : 0,
-            'gender' => $_POST['gender'] ?? '',
-            'date_of_birth' => $_POST['date_of_birth'] ?? null,
-            'password' => $_POST['password'] ?? '',
-        ];
-
-        $errors = [];
+        // Check if this is a quick action (suspend/activate)
+        $action = $_POST['action'] ?? '';
         
-        if (empty($form_data['tenant_id'])) {
-            $errors[] = 'Tenant is required.';
-        }
-        
-        if (empty($form_data['first_name'])) {
-            $errors[] = 'First name is required.';
-        }
-        
-        if (empty($form_data['last_name'])) {
-            $errors[] = 'Last name is required.';
-        }
-        
-        if (empty($form_data['email'])) {
-            $errors[] = 'Email is required.';
-        } elseif (!filter_var($form_data['email'], FILTER_VALIDATE_EMAIL)) {
-            $errors[] = 'Invalid email address.';
-        }
-        
-        if (empty($form_data['role_id'])) {
-            $errors[] = 'Role is required.';
-        }
-        
-        // Check if email already exists (excluding current user)
-        if (!empty($form_data['email'])) {
+        if ($action === 'suspend' || $action === 'activate') {
             try {
-                $stmt = $db->prepare("SELECT id FROM users WHERE email = ? AND id != ? AND deleted_at IS NULL");
-                $stmt->execute([$form_data['email'], $user_id]);
-                if ($stmt->fetch()) {
-                    $errors[] = 'Email already registered by another user.';
+                $status = ($action === 'activate') ? 'active' : 'suspended';
+                $stmt = $db->prepare("UPDATE users SET status = ?, updated_at = NOW() WHERE id = ?");
+                $stmt->execute([$status, $user_id]);
+                
+                if ($stmt->rowCount() > 0) {
+                    $action_msg = $action === 'activate' ? 'activated' : 'suspended';
+                    $success = "User {$action_msg} successfully!";
+                    logActivity(SessionManager::get('user_id'), "user_{$action_msg}", "User ID: $user_id");
+                    
+                    // Refresh user data
+                    $stmt = $db->prepare("SELECT * FROM users WHERE id = ? AND deleted_at IS NULL");
+                    $stmt->execute([$user_id]);
+                    $user = $stmt->fetch(PDO::FETCH_ASSOC);
                 }
             } catch (Exception $e) {
-                // Continue
-            }
-        }
-
-        if (empty($errors)) {
-            try {
-                // Build update query
-                $update_fields = [];
-                $params = [];
-                
-                $update_fields[] = "tenant_id = ?";
-                $params[] = $form_data['tenant_id'];
-                
-                $update_fields[] = "first_name = ?";
-                $params[] = $form_data['first_name'];
-                
-                $update_fields[] = "last_name = ?";
-                $params[] = $form_data['last_name'];
-                
-                $update_fields[] = "email = ?";
-                $params[] = $form_data['email'];
-                
-                $update_fields[] = "phone = ?";
-                $params[] = $form_data['phone'];
-                
-                $update_fields[] = "role_id = ?";
-                $params[] = $form_data['role_id'];
-                
-                $update_fields[] = "status = ?";
-                $params[] = $form_data['status'];
-                
-                $update_fields[] = "two_factor_enabled = ?";
-                $params[] = $form_data['two_factor_enabled'];
-                
-                $update_fields[] = "gender = ?";
-                $params[] = $form_data['gender'] ?: null;
-                
-                $update_fields[] = "date_of_birth = ?";
-                $params[] = $form_data['date_of_birth'] ?: null;
-                
-                // Update password if provided
-                if (!empty($form_data['password']) && strlen($form_data['password']) >= 8) {
-                    $update_fields[] = "password_hash = ?";
-                    $params[] = password_hash($form_data['password'], PASSWORD_DEFAULT);
-                }
-                
-                $update_fields[] = "updated_at = NOW()";
-                $params[] = $user_id;
-                
-                $sql = "UPDATE users SET " . implode(", ", $update_fields) . " WHERE id = ?";
-                $stmt = $db->prepare($sql);
-                $stmt->execute($params);
-                
-                // If password was changed, send email
-                if (!empty($form_data['password']) && strlen($form_data['password']) >= 8) {
-                    try {
-                        $subject = "Password Updated - " . APP_NAME;
-                        $message = "Your password has been updated.\n\n";
-                        $message .= "New Password: {$form_data['password']}\n\n";
-                        $message .= "Please change your password after logging in.\n\n";
-                        $message .= "Login: " . APP_URL . "/auth/login.php\n\n";
-                        $message .= "Best regards,\n" . APP_NAME . " Team";
-                        sendEmail($form_data['email'], $subject, $message);
-                    } catch (Exception $e) {
-                        error_log("Password update email failed: " . $e->getMessage());
-                    }
-                }
-                
-                logActivity(
-                    SessionManager::get('user_id'),
-                    'user_updated',
-                    "Updated user: {$form_data['first_name']} {$form_data['last_name']} (ID: $user_id)"
-                );
-                
-                $success = "User updated successfully!";
-                
-                // Refresh user data
-                $stmt = $db->prepare("
-                    SELECT 
-                        u.*,
-                        r.name as role_name,
-                        r.level as role_level,
-                        t.name as tenant_name,
-                        t.slug as tenant_slug
-                    FROM users u
-                    LEFT JOIN roles r ON u.role_id = r.id
-                    LEFT JOIN tenants t ON u.tenant_id = t.id
-                    WHERE u.id = ? AND u.deleted_at IS NULL
-                ");
-                $stmt->execute([$user_id]);
-                $user = $stmt->fetch();
-                
-            } catch (PDOException $e) {
-                $error = 'Database error updating user: ' . $e->getMessage();
-                error_log("User update PDO Error: " . $e->getMessage());
-            } catch (Exception $e) {
-                $error = 'Error updating user: ' . $e->getMessage();
-                error_log("User update Error: " . $e->getMessage() . " in " . $e->getFile() . " line " . $e->getLine());
+                $error = 'Error: ' . $e->getMessage();
             }
         } else {
-            $error = implode('<br>', $errors);
+            // Regular form update
+            $form_data = [
+                'tenant_id' => (int)($_POST['tenant_id'] ?? 0),
+                'first_name' => trim($_POST['first_name'] ?? ''),
+                'last_name' => trim($_POST['last_name'] ?? ''),
+                'email' => trim($_POST['email'] ?? ''),
+                'phone' => trim($_POST['phone'] ?? ''),
+                'role_id' => (int)($_POST['role_id'] ?? 0),
+                'status' => $_POST['status'] ?? 'active',
+                'two_factor_enabled' => isset($_POST['two_factor_enabled']) ? 1 : 0,
+                'gender' => $_POST['gender'] ?? '',
+                'date_of_birth' => $_POST['date_of_birth'] ?? null,
+                'password' => $_POST['password'] ?? '',
+                // Jurisdiction fields
+                'state_id' => !empty($_POST['state_id']) ? (int)$_POST['state_id'] : null,
+                'lga_id' => !empty($_POST['lga_id']) ? (int)$_POST['lga_id'] : null,
+                'ward_id' => !empty($_POST['ward_id']) ? (int)$_POST['ward_id'] : null,
+                'pu_id' => !empty($_POST['pu_id']) ? (int)$_POST['pu_id'] : null,
+                'jurisdiction_type' => $_POST['jurisdiction_type'] ?? null,
+                'jurisdiction_id' => !empty($_POST['jurisdiction_id']) ? (int)$_POST['jurisdiction_id'] : null,
+            ];
+
+            $errors = [];
+            
+            if (empty($form_data['tenant_id'])) {
+                $errors[] = 'Tenant is required.';
+            }
+            
+            if (empty($form_data['first_name'])) {
+                $errors[] = 'First name is required.';
+            }
+            
+            if (empty($form_data['last_name'])) {
+                $errors[] = 'Last name is required.';
+            }
+            
+            if (empty($form_data['email'])) {
+                $errors[] = 'Email is required.';
+            } elseif (!filter_var($form_data['email'], FILTER_VALIDATE_EMAIL)) {
+                $errors[] = 'Invalid email address.';
+            }
+            
+            if (empty($form_data['role_id'])) {
+                $errors[] = 'Role is required.';
+            }
+            
+            // Validate jurisdiction based on role
+            $role_level = '';
+            foreach ($roles as $role) {
+                if ($role['id'] == $form_data['role_id']) {
+                    $role_level = $role['level'];
+                    break;
+                }
+            }
+            
+            if ($role_level === 'state' && empty($form_data['state_id'])) {
+                $errors[] = 'Please select a state for State Coordinator.';
+            }
+            
+            if ($role_level === 'lga' && (empty($form_data['state_id']) || empty($form_data['lga_id']))) {
+                $errors[] = 'Please select both State and LGA for LGA Coordinator.';
+            }
+            
+            if ($role_level === 'ward' && (empty($form_data['state_id']) || empty($form_data['lga_id']) || empty($form_data['ward_id']))) {
+                $errors[] = 'Please select State, LGA, and Ward for Ward Coordinator.';
+            }
+            
+            if ($role_level === 'pu_agent' && (empty($form_data['state_id']) || empty($form_data['lga_id']) || empty($form_data['ward_id']) || empty($form_data['pu_id']))) {
+                $errors[] = 'Please select State, LGA, Ward, and Polling Unit for PU Agent.';
+            }
+            
+            // Check if email already exists (excluding current user)
+            if (!empty($form_data['email'])) {
+                try {
+                    $stmt = $db->prepare("SELECT id FROM users WHERE email = ? AND id != ? AND deleted_at IS NULL");
+                    $stmt->execute([$form_data['email'], $user_id]);
+                    if ($stmt->fetch(PDO::FETCH_ASSOC)) {
+                        $errors[] = 'Email already registered by another user.';
+                    }
+                } catch (Exception $e) {
+                    // Continue
+                }
+            }
+
+            if (empty($errors)) {
+                try {
+                    // Begin transaction
+                    $db->beginTransaction();
+                    
+                    // Build update query
+                    $update_fields = [];
+                    $params = [];
+                    
+                    $update_fields[] = "tenant_id = ?";
+                    $params[] = $form_data['tenant_id'];
+                    
+                    $update_fields[] = "first_name = ?";
+                    $params[] = $form_data['first_name'];
+                    
+                    $update_fields[] = "last_name = ?";
+                    $params[] = $form_data['last_name'];
+                    
+                    $update_fields[] = "email = ?";
+                    $params[] = $form_data['email'];
+                    
+                    $update_fields[] = "phone = ?";
+                    $params[] = $form_data['phone'];
+                    
+                    $update_fields[] = "role_id = ?";
+                    $params[] = $form_data['role_id'];
+                    
+                    $update_fields[] = "status = ?";
+                    $params[] = $form_data['status'];
+                    
+                    $update_fields[] = "two_factor_enabled = ?";
+                    $params[] = $form_data['two_factor_enabled'];
+                    
+                    $update_fields[] = "gender = ?";
+                    $params[] = $form_data['gender'] ?: null;
+                    
+                    $update_fields[] = "date_of_birth = ?";
+                    $params[] = $form_data['date_of_birth'] ?: null;
+                    
+                    // Update jurisdiction fields
+                    $update_fields[] = "state_id = ?";
+                    $params[] = $form_data['state_id'];
+                    
+                    $update_fields[] = "lga_id = ?";
+                    $params[] = $form_data['lga_id'];
+                    
+                    $update_fields[] = "ward_id = ?";
+                    $params[] = $form_data['ward_id'];
+                    
+                    $update_fields[] = "pu_id = ?";
+                    $params[] = $form_data['pu_id'];
+                    
+                    // Determine jurisdiction type and ID
+                    $jurisdiction_type = null;
+                    $jurisdiction_id = null;
+                    
+                    if ($role_level === 'state' && !empty($form_data['state_id'])) {
+                        $jurisdiction_type = 'state';
+                        $jurisdiction_id = $form_data['state_id'];
+                    } elseif ($role_level === 'lga' && !empty($form_data['lga_id'])) {
+                        $jurisdiction_type = 'lga';
+                        $jurisdiction_id = $form_data['lga_id'];
+                    } elseif ($role_level === 'ward' && !empty($form_data['ward_id'])) {
+                        $jurisdiction_type = 'ward';
+                        $jurisdiction_id = $form_data['ward_id'];
+                    } elseif ($role_level === 'pu_agent' && !empty($form_data['pu_id'])) {
+                        $jurisdiction_type = 'pu';
+                        $jurisdiction_id = $form_data['pu_id'];
+                    }
+                    
+                    $update_fields[] = "jurisdiction_type = ?";
+                    $params[] = $jurisdiction_type;
+                    
+                    $update_fields[] = "jurisdiction_id = ?";
+                    $params[] = $jurisdiction_id;
+                    
+                    // Update password if provided
+                    if (!empty($form_data['password']) && strlen($form_data['password']) >= 8) {
+                        $update_fields[] = "password_hash = ?";
+                        $params[] = password_hash($form_data['password'], PASSWORD_DEFAULT);
+                    }
+                    
+                    $update_fields[] = "updated_at = NOW()";
+                    $params[] = $user_id;
+                    
+                    $sql = "UPDATE users SET " . implode(", ", $update_fields) . " WHERE id = ?";
+                    $stmt = $db->prepare($sql);
+                    $stmt->execute($params);
+                    
+                    // Commit transaction
+                    $db->commit();
+                    
+                    // If password was changed, send password reset email (not plain text)
+                    if (!empty($form_data['password']) && strlen($form_data['password']) >= 8) {
+                        try {
+                            // Generate secure password reset token
+                            $reset_token = bin2hex(random_bytes(32));
+                            $token_hash = password_hash($reset_token, PASSWORD_DEFAULT);
+                            
+                            // Store reset token
+                            $stmt = $db->prepare("
+                                INSERT INTO password_resets (user_id, token, expires_at) 
+                                VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 24 HOUR))
+                            ");
+                            $stmt->execute([$user_id, $token_hash]);
+                            
+                            $reset_link = APP_URL . "/auth/reset-password.php?token=" . urlencode($reset_token) . "&email=" . urlencode($form_data['email']);
+                            
+                            $subject = "Password Updated - " . APP_NAME;
+                            $message = "Dear {$form_data['first_name']},\n\n";
+                            $message .= "Your password has been updated by an administrator.\n\n";
+                            $message .= "To set a new password, please click the link below:\n";
+                            $message .= $reset_link . "\n\n";
+                            $message .= "This link will expire in 24 hours.\n\n";
+                            $message .= "If you did not request this change, please contact support immediately.\n\n";
+                            $message .= "Best regards,\n" . APP_NAME . " Team";
+                            
+                            sendEmail($form_data['email'], $subject, $message);
+                        } catch (Exception $e) {
+                            error_log("Password update email failed: " . $e->getMessage());
+                        }
+                    }
+                    
+                    logActivity(
+                        SessionManager::get('user_id'),
+                        'user_updated',
+                        "Updated user: {$form_data['first_name']} {$form_data['last_name']} (ID: $user_id)"
+                    );
+                    
+                    $success = "User updated successfully!";
+                    
+                    // Refresh user data
+                    $stmt = $db->prepare("
+                        SELECT 
+                            u.*,
+                            r.name as role_name,
+                            r.level as role_level,
+                            t.name as tenant_name,
+                            t.slug as tenant_slug
+                        FROM users u
+                        LEFT JOIN roles r ON u.role_id = r.id
+                        LEFT JOIN tenants t ON u.tenant_id = t.id
+                        WHERE u.id = ? AND u.deleted_at IS NULL
+                    ");
+                    $stmt->execute([$user_id]);
+                    $user = $stmt->fetch(PDO::FETCH_ASSOC);
+                    
+                    // Regenerate CSRF token
+                    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+                    $csrf_token = $_SESSION['csrf_token'];
+                    
+                } catch (PDOException $e) {
+                    $db->rollBack();
+                    $error = 'Database error updating user: ' . $e->getMessage();
+                    error_log("User update PDO Error: " . $e->getMessage());
+                } catch (Exception $e) {
+                    $db->rollBack();
+                    $error = 'Error updating user: ' . $e->getMessage();
+                    error_log("User update Error: " . $e->getMessage() . " in " . $e->getFile() . " line " . $e->getLine());
+                }
+            } else {
+                $error = implode('<br>', $errors);
+            }
         }
     }
 }
@@ -275,8 +426,6 @@ $user_email = SessionManager::get('user_email', 'admin@example.com');
 include 'includes/base.php';
 include 'includes/sidebar.php';
 ?>
-<!-- Rest of HTML remains the same -->
-<!-- Rest of the HTML remains the same -->
 <style>
     /* ============================================================
        USER EDIT - PRO STYLES
@@ -544,6 +693,35 @@ include 'includes/sidebar.php';
         gap: 10px;
     }
 
+    .jurisdiction-section {
+        background: #F8FAFC;
+        border-radius: 12px;
+        padding: 16px 20px;
+        border: 1px dashed var(--gray-300);
+        display: none;
+        grid-column: 1 / -1;
+    }
+    .jurisdiction-section.active {
+        display: block;
+    }
+    .jurisdiction-section .section-label {
+        font-weight: 600;
+        font-size: 0.82rem;
+        color: var(--gray-700);
+        margin-bottom: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .jurisdiction-section .section-label i {
+        color: var(--primary);
+    }
+    .jurisdiction-section .jurisdiction-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
+    }
+
     /* Modal */
     .modal-overlay {
         display: none;
@@ -651,6 +829,7 @@ include 'includes/sidebar.php';
         .profile-header { padding: 16px; }
         .profile-header .user-avatar-lg { width: 56px; height: 56px; font-size: 1.2rem; }
         .profile-header .user-info h2 { font-size: 1rem; }
+        .jurisdiction-section .jurisdiction-grid { grid-template-columns: 1fr; }
     }
     @media (max-width: 480px) {
         .form-container { padding: 16px; }
@@ -721,7 +900,9 @@ include 'includes/sidebar.php';
             <div class="form-title">Edit User</div>
             <div class="form-subtitle">Update user information for <?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?>.</div>
             
-            <form method="POST" action="">
+            <form method="POST" action="" id="userForm">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
+                
                 <div class="form-grid">
                     <!-- Account Details -->
                     <div class="form-section-title">Account Details</div>
@@ -740,7 +921,7 @@ include 'includes/sidebar.php';
                     
                     <div class="form-group">
                         <label>Role <span class="required">*</span></label>
-                        <select name="role_id" required>
+                        <select name="role_id" id="role_id" required>
                             <option value="">Select Role</option>
                             <?php foreach ($roles as $role): ?>
                                 <option value="<?php echo $role['id']; ?>" <?php echo ($user['role_id'] == $role['id']) ? 'selected' : ''; ?>>
@@ -808,13 +989,86 @@ include 'includes/sidebar.php';
                         <input type="date" name="date_of_birth" value="<?php echo htmlspecialchars($user['date_of_birth'] ?? ''); ?>">
                     </div>
 
+                    <!-- Jurisdiction Section -->
+                    <div class="form-section-title">
+                        <i class="fas fa-map-marker-alt"></i> Jurisdiction
+                    </div>
+                    
+                    <div class="form-group full-width">
+                        <div class="jurisdiction-section" id="jurisdictionSection">
+                            <div class="section-label">
+                                <i class="fas fa-info-circle"></i> 
+                                <span id="jurisdictionLabel">Select jurisdiction for this user</span>
+                            </div>
+                            <div class="jurisdiction-grid">
+                                <div class="form-group" id="stateGroup">
+                                    <label for="state_id">State <span class="required">*</span></label>
+                                    <select name="state_id" id="state_id">
+                                        <option value="">Select State</option>
+                                        <?php foreach ($states as $state): ?>
+                                            <option value="<?php echo $state['id']; ?>" <?php echo ($user['state_id'] ?? '') == $state['id'] ? 'selected' : ''; ?>>
+                                                <?php echo htmlspecialchars($state['name']); ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group" id="lgaGroup" style="display:none;">
+                                    <label for="lga_id">LGA <span class="required">*</span></label>
+                                    <select name="lga_id" id="lga_id">
+                                        <option value="">Select LGA</option>
+                                        <?php if ($user['lga_id']): ?>
+                                            <?php foreach ($lgas as $lga): ?>
+                                                <?php if ($lga['id'] == $user['lga_id']): ?>
+                                                    <option value="<?php echo $lga['id']; ?>" selected><?php echo htmlspecialchars($lga['name']); ?></option>
+                                                <?php endif; ?>
+                                            <?php endforeach; ?>
+                                        <?php endif; ?>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group" id="wardGroup" style="display:none;">
+                                    <label for="ward_id">Ward <span class="required">*</span></label>
+                                    <select name="ward_id" id="ward_id">
+                                        <option value="">Select Ward</option>
+                                        <?php if ($user['ward_id']): ?>
+                                            <?php foreach ($wards as $ward): ?>
+                                                <?php if ($ward['id'] == $user['ward_id']): ?>
+                                                    <option value="<?php echo $ward['id']; ?>" selected><?php echo htmlspecialchars($ward['name']); ?></option>
+                                                <?php endif; ?>
+                                            <?php endforeach; ?>
+                                        <?php endif; ?>
+                                    </select>
+                                </div>
+                                
+                                <div class="form-group" id="puGroup" style="display:none;">
+                                    <label for="pu_id">Polling Unit <span class="required">*</span></label>
+                                    <select name="pu_id" id="pu_id">
+                                        <option value="">Select Polling Unit</option>
+                                        <?php if ($user['pu_id']): ?>
+                                            <?php foreach ($polling_units as $pu): ?>
+                                                <?php if ($pu['id'] == $user['pu_id']): ?>
+                                                    <option value="<?php echo $pu['id']; ?>" selected><?php echo htmlspecialchars($pu['name']); ?> (<?php echo htmlspecialchars($pu['code']); ?>)</option>
+                                                <?php endif; ?>
+                                            <?php endforeach; ?>
+                                        <?php endif; ?>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="help-text">
+                            <i class="fas fa-info-circle"></i> 
+                            Jurisdiction selection will appear based on the selected role.
+                        </div>
+                    </div>
+
                     <!-- Security -->
                     <div class="form-section-title">Security</div>
                     
                     <div class="form-group full-width">
                         <label>New Password</label>
                         <input type="password" name="password" placeholder="Leave blank to keep current password" minlength="8">
-                        <div class="help-text">Enter a new password only if you want to change it. Min 8 characters. User will be notified via email.</div>
+                        <div class="help-text">Enter a new password only if you want to change it. Min 8 characters. User will receive a secure link to update their password.</div>
                     </div>
                 </div>
                 
@@ -851,6 +1105,7 @@ CONFIRMATION MODAL
         <div class="modal-footer">
             <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
             <form method="POST" action="" id="confirmForm">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
                 <input type="hidden" name="action" id="confirmAction" value="">
                 <button type="submit" class="btn btn-danger" id="confirmBtn">Confirm</button>
             </form>
@@ -946,6 +1201,251 @@ if (profileBtn && profileMenu) {
 }
 
 // ============================================================
+// ROLE-BASED JURISDICTION
+// ============================================================
+var roleSelect = document.getElementById('role_id');
+var jurisdictionSection = document.getElementById('jurisdictionSection');
+var jurisdictionLabel = document.getElementById('jurisdictionLabel');
+
+var stateSelect = document.getElementById('state_id');
+var lgaSelect = document.getElementById('lga_id');
+var wardSelect = document.getElementById('ward_id');
+var puSelect = document.getElementById('pu_id');
+
+var stateGroup = document.getElementById('stateGroup');
+var lgaGroup = document.getElementById('lgaGroup');
+var wardGroup = document.getElementById('wardGroup');
+var puGroup = document.getElementById('puGroup');
+
+// Role level mapping
+var roleLevels = {
+    <?php foreach ($roles as $role): ?>
+        <?php echo $role['id']; ?>: '<?php echo $role['level']; ?>',
+    <?php endforeach; ?>
+};
+
+// Store current selected values
+var currentStateId = '<?php echo $user['state_id'] ?? ''; ?>';
+var currentLgaId = '<?php echo $user['lga_id'] ?? ''; ?>';
+var currentWardId = '<?php echo $user['ward_id'] ?? ''; ?>';
+var currentPuId = '<?php echo $user['pu_id'] ?? ''; ?>';
+
+function updateJurisdiction() {
+    var roleId = parseInt(roleSelect.value);
+    var level = roleLevels[roleId] || '';
+    
+    // Hide all groups first
+    stateGroup.style.display = 'none';
+    lgaGroup.style.display = 'none';
+    wardGroup.style.display = 'none';
+    puGroup.style.display = 'none';
+    jurisdictionSection.classList.remove('active');
+    
+    // Clear dependent selects
+    lgaSelect.innerHTML = '<option value="">Select LGA</option>';
+    wardSelect.innerHTML = '<option value="">Select Ward</option>';
+    puSelect.innerHTML = '<option value="">Select Polling Unit</option>';
+    
+    if (level === 'state') {
+        jurisdictionSection.classList.add('active');
+        jurisdictionLabel.textContent = 'Select State for State Coordinator';
+        stateGroup.style.display = 'block';
+        stateSelect.setAttribute('required', 'required');
+    } else if (level === 'lga') {
+        jurisdictionSection.classList.add('active');
+        jurisdictionLabel.textContent = 'Select State and LGA for LGA Coordinator';
+        stateGroup.style.display = 'block';
+        lgaGroup.style.display = 'block';
+        stateSelect.setAttribute('required', 'required');
+        lgaSelect.setAttribute('required', 'required');
+        // Load LGAs for current state
+        if (stateSelect.value) {
+            loadLgas(stateSelect.value, currentLgaId);
+        }
+    } else if (level === 'ward') {
+        jurisdictionSection.classList.add('active');
+        jurisdictionLabel.textContent = 'Select State, LGA, and Ward for Ward Coordinator';
+        stateGroup.style.display = 'block';
+        lgaGroup.style.display = 'block';
+        wardGroup.style.display = 'block';
+        stateSelect.setAttribute('required', 'required');
+        lgaSelect.setAttribute('required', 'required');
+        wardSelect.setAttribute('required', 'required');
+        if (stateSelect.value) {
+            loadLgas(stateSelect.value, currentLgaId);
+        }
+    } else if (level === 'pu_agent') {
+        jurisdictionSection.classList.add('active');
+        jurisdictionLabel.textContent = 'Select State, LGA, Ward, and Polling Unit for PU Agent';
+        stateGroup.style.display = 'block';
+        lgaGroup.style.display = 'block';
+        wardGroup.style.display = 'block';
+        puGroup.style.display = 'block';
+        stateSelect.setAttribute('required', 'required');
+        lgaSelect.setAttribute('required', 'required');
+        wardSelect.setAttribute('required', 'required');
+        puSelect.setAttribute('required', 'required');
+        if (stateSelect.value) {
+            loadLgas(stateSelect.value, currentLgaId);
+        }
+    } else {
+        // For other roles (super_admin, client_admin, etc.)
+        jurisdictionSection.classList.remove('active');
+        stateSelect.removeAttribute('required');
+        lgaSelect.removeAttribute('required');
+        wardSelect.removeAttribute('required');
+        puSelect.removeAttribute('required');
+    }
+}
+
+function loadLgas(stateId, selectedLgaId) {
+    lgaSelect.innerHTML = '<option value="">Loading...</option>';
+    wardSelect.innerHTML = '<option value="">Select Ward</option>';
+    puSelect.innerHTML = '<option value="">Select Polling Unit</option>';
+    
+    if (stateId) {
+        fetch('ajax/get-lgas.php?state_id=' + stateId)
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                lgaSelect.innerHTML = '<option value="">Select LGA</option>';
+                data.forEach(function(lga) {
+                    var option = document.createElement('option');
+                    option.value = lga.id;
+                    option.textContent = lga.name;
+                    if (selectedLgaId && lga.id == selectedLgaId) {
+                        option.selected = true;
+                    }
+                    lgaSelect.appendChild(option);
+                });
+                // If we have a selected LGA, load wards
+                if (selectedLgaId) {
+                    loadWards(selectedLgaId, currentWardId);
+                }
+            })
+            .catch(function() {
+                lgaSelect.innerHTML = '<option value="">Error loading LGAs</option>';
+            });
+    } else {
+        lgaSelect.innerHTML = '<option value="">Select LGA</option>';
+    }
+}
+
+function loadWards(lgaId, selectedWardId) {
+    wardSelect.innerHTML = '<option value="">Loading...</option>';
+    puSelect.innerHTML = '<option value="">Select Polling Unit</option>';
+    
+    if (lgaId) {
+        fetch('ajax/get-wards.php?lga_id=' + lgaId)
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                wardSelect.innerHTML = '<option value="">Select Ward</option>';
+                data.forEach(function(ward) {
+                    var option = document.createElement('option');
+                    option.value = ward.id;
+                    option.textContent = ward.name;
+                    if (selectedWardId && ward.id == selectedWardId) {
+                        option.selected = true;
+                    }
+                    wardSelect.appendChild(option);
+                });
+                // If we have a selected Ward, load polling units
+                if (selectedWardId) {
+                    loadPollingUnits(selectedWardId, currentPuId);
+                }
+            })
+            .catch(function() {
+                wardSelect.innerHTML = '<option value="">Error loading Wards</option>';
+            });
+    } else {
+        wardSelect.innerHTML = '<option value="">Select Ward</option>';
+    }
+}
+
+function loadPollingUnits(wardId, selectedPuId) {
+    puSelect.innerHTML = '<option value="">Loading...</option>';
+    
+    if (wardId) {
+        fetch('ajax/get-polling-units.php?ward_id=' + wardId)
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                puSelect.innerHTML = '<option value="">Select Polling Unit</option>';
+                data.forEach(function(pu) {
+                    var option = document.createElement('option');
+                    option.value = pu.id;
+                    option.textContent = pu.name + ' (' + pu.code + ')';
+                    if (selectedPuId && pu.id == selectedPuId) {
+                        option.selected = true;
+                    }
+                    puSelect.appendChild(option);
+                });
+            })
+            .catch(function() {
+                puSelect.innerHTML = '<option value="">Error loading Polling Units</option>';
+            });
+    } else {
+        puSelect.innerHTML = '<option value="">Select Polling Unit</option>';
+    }
+}
+
+// Role change event
+roleSelect.addEventListener('change', updateJurisdiction);
+
+// State change -> Load LGAs
+stateSelect.addEventListener('change', function() {
+    var stateId = this.value;
+    lgaSelect.innerHTML = '<option value="">Loading...</option>';
+    wardSelect.innerHTML = '<option value="">Select Ward</option>';
+    puSelect.innerHTML = '<option value="">Select Polling Unit</option>';
+    currentLgaId = '';
+    currentWardId = '';
+    currentPuId = '';
+    
+    if (stateId) {
+        loadLgas(stateId, null);
+    } else {
+        lgaSelect.innerHTML = '<option value="">Select LGA</option>';
+    }
+});
+
+// LGA change -> Load Wards
+lgaSelect.addEventListener('change', function() {
+    var lgaId = this.value;
+    wardSelect.innerHTML = '<option value="">Loading...</option>';
+    puSelect.innerHTML = '<option value="">Select Polling Unit</option>';
+    currentWardId = '';
+    currentPuId = '';
+    
+    if (lgaId) {
+        loadWards(lgaId, null);
+    } else {
+        wardSelect.innerHTML = '<option value="">Select Ward</option>';
+    }
+});
+
+// Ward change -> Load Polling Units
+wardSelect.addEventListener('change', function() {
+    var wardId = this.value;
+    puSelect.innerHTML = '<option value="">Loading...</option>';
+    currentPuId = '';
+    
+    if (wardId) {
+        loadPollingUnits(wardId, null);
+    } else {
+        puSelect.innerHTML = '<option value="">Select Polling Unit</option>';
+    }
+});
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Set initial jurisdiction based on user's role
+    var initialRoleId = <?php echo $user['role_id']; ?>;
+    if (initialRoleId) {
+        roleSelect.value = initialRoleId;
+        updateJurisdiction();
+    }
+});
+
+// ============================================================
 // CONFIRMATION MODAL
 // ============================================================
 function confirmAction(action) {
@@ -972,6 +1472,69 @@ function confirmAction(action) {
 function closeModal() {
     document.getElementById('confirmModal').classList.remove('active');
 }
+
+// ============================================================
+// FORM VALIDATION
+// ============================================================
+document.getElementById('userForm').addEventListener('submit', function(e) {
+    var email = document.getElementById('email');
+    var firstName = document.querySelector('input[name="first_name"]');
+    var lastName = document.querySelector('input[name="last_name"]');
+    var tenant = document.querySelector('select[name="tenant_id"]');
+    var role = document.querySelector('select[name="role_id"]');
+    var password = document.querySelector('input[name="password"]');
+    var isValid = true;
+    
+    // Remove previous error states
+    document.querySelectorAll('.error').forEach(function(el) {
+        el.classList.remove('error');
+    });
+    
+    // Validate tenant
+    if (!tenant.value) {
+        tenant.classList.add('error');
+        isValid = false;
+    }
+    
+    // Validate first name
+    if (!firstName.value.trim()) {
+        firstName.classList.add('error');
+        isValid = false;
+    }
+    
+    // Validate last name
+    if (!lastName.value.trim()) {
+        lastName.classList.add('error');
+        isValid = false;
+    }
+    
+    // Validate email
+    if (!email.value.trim() || !email.value.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+        email.classList.add('error');
+        isValid = false;
+    }
+    
+    // Validate role
+    if (!role.value) {
+        role.classList.add('error');
+        isValid = false;
+    }
+    
+    // Validate password if provided
+    if (password.value && password.value.length < 8) {
+        password.classList.add('error');
+        isValid = false;
+    }
+    
+    if (!isValid) {
+        e.preventDefault();
+        var firstError = document.querySelector('.error');
+        if (firstError) {
+            firstError.focus();
+            firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }
+});
 
 // ============================================================
 // SEARCH

@@ -1645,3 +1645,6 @@ Stack trace:
 [09-Jul-2026 23:47:24 Africa/Lagos] Monitor LGAs Error: SQLSTATE[HY093]: Invalid parameter number
 [09-Jul-2026 23:47:51 Africa/Lagos] Monitor LGAs Error: SQLSTATE[HY093]: Invalid parameter number
 [09-Jul-2026 23:47:56 Africa/Lagos] Monitor LGAs Error: SQLSTATE[HY093]: Invalid parameter number
+[09-Jul-2026 23:53:53 Africa/Lagos] Monitor LGAs Error: SQLSTATE[HY093]: Invalid parameter number
+[09-Jul-2026 23:55:20 Africa/Lagos] Redirecting to: ../dashboard/client-admin/ for role: client_admin
+[09-Jul-2026 23:55:41 Africa/Lagos] Redirecting to: ../dashboard/super-admin/ for role: super_admin

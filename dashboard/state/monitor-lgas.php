@@ -125,9 +125,9 @@ try {
             l.gps_lng,
             (SELECT COUNT(*) FROM wards WHERE lga_id = l.id AND is_active = 1) as ward_count,
             (SELECT COUNT(*) FROM polling_units pu WHERE pu.ward_id IN (SELECT id FROM wards WHERE lga_id = l.id) AND pu.is_active = 1) as pu_count,
-            (SELECT COUNT(*) FROM users u JOIN roles r ON u.role_id = r.id WHERE u.tenant_id = ? AND r.level = 'lga' AND u.jurisdiction_id = l.id AND u.status = 'active' AND (u.deleted_at IS NULL OR u.deleted_at = '0000-00-00 00:00:00')) as coordinators,
-            (SELECT COUNT(*) FROM users u JOIN roles r ON u.role_id = r.id WHERE u.tenant_id = ? AND r.level = 'ward' AND u.jurisdiction_id IN (SELECT id FROM wards WHERE lga_id = l.id) AND u.status = 'active' AND (u.deleted_at IS NULL OR u.deleted_at = '0000-00-00 00:00:00')) as ward_coordinators,
-            (SELECT COUNT(*) FROM users u JOIN roles r ON u.role_id = r.id WHERE u.tenant_id = ? AND r.level = 'pu_agent' AND u.jurisdiction_id IN (SELECT id FROM polling_units WHERE ward_id IN (SELECT id FROM wards WHERE lga_id = l.id)) AND u.status = 'active' AND (u.deleted_at IS NULL OR u.deleted_at = '0000-00-00 00:00:00')) as agents,
+            (SELECT COUNT(*) FROM users u JOIN roles r ON u.role_id = r.id WHERE u.tenant_id = ? AND r.level = 'lga' AND u.jurisdiction_id = l.id AND u.status = 'active' AND u.deleted_at IS NULL) as coordinators,
+            (SELECT COUNT(*) FROM users u JOIN roles r ON u.role_id = r.id WHERE u.tenant_id = ? AND r.level = 'ward' AND u.jurisdiction_id IN (SELECT id FROM wards WHERE lga_id = l.id) AND u.status = 'active' AND u.deleted_at IS NULL) as ward_coordinators,
+            (SELECT COUNT(*) FROM users u JOIN roles r ON u.role_id = r.id WHERE u.tenant_id = ? AND r.level = 'pu_agent' AND u.jurisdiction_id IN (SELECT id FROM polling_units WHERE ward_id IN (SELECT id FROM wards WHERE lga_id = l.id)) AND u.status = 'active' AND u.deleted_at IS NULL) as agents,
             (SELECT COUNT(*) FROM results_ec8a r WHERE r.tenant_id = ? AND r.lga_id = l.id) as total_results,
             (SELECT COUNT(*) FROM results_ec8a r WHERE r.tenant_id = ? AND r.lga_id = l.id AND r.status = 'verified') as verified_results,
             (SELECT COUNT(*) FROM results_ec8a r WHERE r.tenant_id = ? AND r.lga_id = l.id AND r.status = 'pending') as pending_results,
@@ -157,6 +157,10 @@ try {
     $stmt->execute($query_params);
     $lgas = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+} catch (PDOException $e) {
+    error_log("Monitor LGAs PDO Error: " . $e->getMessage());
+    $lgas = [];
+    $total_lgas = 0;
 } catch (Exception $e) {
     error_log("Monitor LGAs Error: " . $e->getMessage());
     $lgas = [];
@@ -199,19 +203,201 @@ $page_title = 'Monitor LGAs';
 $page_subtitle = $state_name;
 ?>
 
+<style>
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 14px;
+    margin-bottom: 20px;
+}
+
+.stat-card {
+    background: white;
+    border-radius: 12px;
+    padding: 16px 20px;
+    border: 1px solid var(--gray-200);
+    box-shadow: var(--shadow);
+    transition: var(--transition);
+    position: relative;
+    overflow: hidden;
+}
+.stat-card:hover {
+    box-shadow: var(--shadow-hover);
+    transform: translateY(-2px);
+}
+.stat-card .stat-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    color: white;
+    margin-bottom: 8px;
+}
+.stat-card .stat-icon.blue { background: #3B82F6; }
+.stat-card .stat-icon.green { background: #10B981; }
+.stat-card .stat-icon.purple { background: #8B5CF6; }
+.stat-card .stat-icon.yellow { background: #F59E0B; }
+.stat-card .stat-icon.red { background: #EF4444; }
+.stat-card .stat-icon.orange { background: #F97316; }
+.stat-card .stat-number {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--gray-800);
+    line-height: 1.2;
+}
+.stat-card .stat-label {
+    font-size: 0.75rem;
+    color: var(--gray-500);
+    margin-top: 2px;
+    font-weight: 500;
+}
+.stat-card .stat-change {
+    font-size: 0.65rem;
+    color: var(--gray-400);
+    margin-top: 4px;
+}
+.stat-card .stat-change.up { color: var(--secondary); }
+.stat-card .stat-change.down { color: var(--danger); }
+
+.btn-sm {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    border: none;
+    cursor: pointer;
+    transition: var(--transition);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-family: 'Inter', sans-serif;
+}
+.btn-sm:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+.btn-sm.btn-info { background: #3B82F6; color: white; }
+.btn-sm.btn-info:hover { background: #2563EB; }
+.btn-sm.btn-success { background: #10B981; color: white; }
+.btn-sm.btn-success:hover { background: #059669; }
+.btn-sm.btn-warning { background: #F59E0B; color: white; }
+.btn-sm.btn-warning:hover { background: #D97706; }
+.btn-sm.btn-purple { background: #8B5CF6; color: white; }
+.btn-sm.btn-purple:hover { background: #7C3AED; }
+.btn-sm.btn-danger { background: #EF4444; color: white; }
+.btn-sm.btn-danger:hover { background: #DC2626; }
+
+.btn-page:hover {
+    background: var(--gray-50);
+    border-color: var(--gray-300);
+}
+.btn-page.active {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+.btn-page.active:hover {
+    background: var(--primary-dark);
+}
+
+.search-box {
+    display: flex;
+    align-items: center;
+    background: var(--gray-50);
+    border: 1px solid var(--gray-200);
+    border-radius: 10px;
+    padding: 4px 12px;
+    transition: var(--transition);
+}
+.search-box:focus-within {
+    border-color: var(--primary);
+    background: white;
+    box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.08);
+}
+.search-box i {
+    color: var(--gray-400);
+    font-size: 0.85rem;
+}
+.search-box input {
+    border: none;
+    outline: none;
+    background: transparent;
+    padding: 8px 10px;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.85rem;
+    width: 100%;
+    color: var(--gray-700);
+}
+
+.form-select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.1);
+}
+
+.lgas-table tbody tr:hover {
+    background: var(--gray-50);
+}
+
+.quick-action-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-hover);
+    border-color: var(--primary);
+}
+
+@media (max-width: 768px) {
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .filter-form {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .filter-form > div {
+        min-width: 100% !important;
+    }
+    .lgas-table {
+        font-size: 0.7rem;
+    }
+    .lgas-table th,
+    .lgas-table td {
+        padding: 6px 8px;
+    }
+    .btn-sm {
+        padding: 2px 6px;
+        font-size: 0.6rem;
+    }
+}
+</style>
+
 <main class="main-content">
     <?php include '../includes/header.php'; ?>
     
     <div class="main-content-inner">
         <!-- Welcome Section -->
         <div class="welcome-section">
-            <h2>Monitor LGAs</h2>
-            <p>Local Government Areas in <?php echo htmlspecialchars($state_name); ?></p>
-            <div class="breadcrumb">
-                <i class="fas fa-home"></i>
-                <span>Dashboard</span>
-                <i class="fas fa-chevron-right" style="font-size:0.6rem;color:var(--gray-400);"></i>
-                <span>Monitor LGAs</span>
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+                <div>
+                    <h1 style="font-size:1.5rem;font-weight:700;margin:0;">
+                        <i class="fas fa-map-marker-alt" style="color:var(--primary);"></i>
+                        Monitor LGAs
+                    </h1>
+                    <p style="color:var(--gray-500);margin:2px 0 0;">
+                        <i class="fas fa-flag"></i> 
+                        <?php echo htmlspecialchars($state_name); ?> - Local Government Areas
+                    </p>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                    <a href="reports-state.php" class="btn-secondary" style="padding:8px 20px;background:var(--gray-100);color:var(--gray-700);border:1px solid var(--gray-200);border-radius:10px;text-decoration:none;font-weight:500;font-size:0.8rem;display:inline-flex;align-items:center;gap:6px;">
+                        <i class="fas fa-file-alt"></i> Generate Report
+                    </a>
+                    <a href="broadcasts-create.php?target=lgas" class="btn-primary" style="padding:8px 20px;background:var(--primary);color:white;border:none;border-radius:10px;text-decoration:none;font-weight:600;font-size:0.8rem;display:inline-flex;align-items:center;gap:6px;">
+                        <i class="fas fa-bullhorn"></i> Broadcast
+                    </a>
+                </div>
             </div>
         </div>
 
@@ -333,7 +519,7 @@ $page_subtitle = $state_name;
                                 $progress = $lga['progress_percent'] ?? 0;
                                 $progress_color = $progress >= 80 ? '#10B981' : ($progress >= 50 ? '#F59E0B' : '#EF4444');
                             ?>
-                                <tr style="border-bottom:1px solid var(--gray-100);transition:var(--transition);hover:background:var(--gray-50);">
+                                <tr style="border-bottom:1px solid var(--gray-100);transition:var(--transition);">
                                     <td style="padding:10px 14px;">
                                         <div style="display:flex;align-items:center;gap:10px;">
                                             <div style="width:32px;height:32px;border-radius:50%;background:var(--primary-light);display:flex;align-items:center;justify-content:center;color:var(--primary);font-weight:700;font-size:0.7rem;">
@@ -390,17 +576,20 @@ $page_subtitle = $state_name;
                                     </td>
                                     <td style="padding:10px 14px;text-align:center;">
                                         <div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;">
-                                            <a href="lga-dashboard.php?id=<?php echo $lga['id']; ?>" class="btn-sm btn-info" title="LGA Dashboard" style="padding:4px 10px;border-radius:6px;background:#3B82F6;color:white;text-decoration:none;font-size:0.7rem;transition:var(--transition);">
+                                            <a href="lga-dashboard.php?id=<?php echo $lga['id']; ?>" class="btn-sm btn-info" title="LGA Dashboard">
                                                 <i class="fas fa-tachometer-alt"></i>
                                             </a>
-                                            <a href="lga-coordinators.php?id=<?php echo $lga['id']; ?>" class="btn-sm btn-success" title="View Coordinators" style="padding:4px 10px;border-radius:6px;background:#10B981;color:white;text-decoration:none;font-size:0.7rem;transition:var(--transition);">
+                                            <a href="lga-coordinators.php?id=<?php echo $lga['id']; ?>" class="btn-sm btn-success" title="View Coordinators">
                                                 <i class="fas fa-user-tie"></i>
                                             </a>
-                                            <a href="lga-results.php?id=<?php echo $lga['id']; ?>" class="btn-sm btn-warning" title="View Results" style="padding:4px 10px;border-radius:6px;background:#F59E0B;color:white;text-decoration:none;font-size:0.7rem;transition:var(--transition);">
+                                            <a href="lga-results.php?id=<?php echo $lga['id']; ?>" class="btn-sm btn-warning" title="View Results">
                                                 <i class="fas fa-file-alt"></i>
                                             </a>
-                                            <a href="broadcasts-create.php?lga=<?php echo $lga['id']; ?>" class="btn-sm btn-purple" title="Broadcast" style="padding:4px 10px;border-radius:6px;background:#8B5CF6;color:white;text-decoration:none;font-size:0.7rem;transition:var(--transition);">
+                                            <a href="broadcasts-create.php?lga=<?php echo $lga['id']; ?>" class="btn-sm btn-purple" title="Broadcast">
                                                 <i class="fas fa-bullhorn"></i>
+                                            </a>
+                                            <a href="lga-incidents.php?id=<?php echo $lga['id']; ?>" class="btn-sm btn-danger" title="Incidents">
+                                                <i class="fas fa-exclamation-triangle"></i>
                                             </a>
                                         </div>
                                     </td>
@@ -474,7 +663,7 @@ $page_subtitle = $state_name;
                 <i class="fas fa-bullhorn" style="color:var(--warning);"></i>
                 <span>Broadcast to All LGAs</span>
             </a>
-            <a href="reports.php?type=state&id=<?php echo $state_id; ?>" class="quick-action-btn" style="display:flex;align-items:center;gap:10px;padding:12px 16px;background:white;border-radius:var(--radius);border:1px solid var(--gray-200);text-decoration:none;color:var(--gray-700);font-weight:500;transition:var(--transition);">
+            <a href="reports-state.php" class="quick-action-btn" style="display:flex;align-items:center;gap:10px;padding:12px 16px;background:white;border-radius:var(--radius);border:1px solid var(--gray-200);text-decoration:none;color:var(--gray-700);font-weight:500;transition:var(--transition);">
                 <i class="fas fa-file-alt" style="color:var(--danger);"></i>
                 <span>Generate State Report</span>
             </a>
@@ -485,74 +674,6 @@ $page_subtitle = $state_name;
         </div>
     </div>
 </main>
-
-<style>
-.btn-sm:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-}
-.btn-sm.btn-info:hover { background: #2563EB; }
-.btn-sm.btn-success:hover { background: #059669; }
-.btn-sm.btn-warning:hover { background: #D97706; }
-.btn-sm.btn-purple:hover { background: #7C3AED; }
-.quick-action-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-hover);
-    border-color: var(--primary);
-}
-.btn-page:hover {
-    background: var(--gray-50);
-    border-color: var(--gray-300);
-}
-.btn-page.active {
-    background: var(--primary);
-    color: white;
-    border-color: var(--primary);
-}
-.btn-page.active:hover {
-    background: var(--primary-dark);
-}
-.form-select:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.1);
-}
-
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-    gap: 14px;
-    margin-bottom: 20px;
-}
-
-.lgas-table tbody tr:hover {
-    background: var(--gray-50);
-}
-
-@media (max-width: 768px) {
-    .stats-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
-    .filter-form {
-        flex-direction: column;
-        align-items: stretch;
-    }
-    .filter-form > div {
-        min-width: 100% !important;
-    }
-    .lgas-table {
-        font-size: 0.7rem;
-    }
-    .lgas-table th,
-    .lgas-table td {
-        padding: 6px 8px;
-    }
-    .btn-sm {
-        padding: 2px 6px;
-        font-size: 0.6rem;
-    }
-}
-</style>
 
 <script>
 // ============================================================
@@ -637,54 +758,6 @@ if (profileBtn && profileMenu) {
     document.addEventListener('click', function(e) {
         if (!profileBtn.contains(e.target) && !profileMenu.contains(e.target)) {
             profileMenu.classList.remove('active');
-        }
-    });
-}
-
-// ============================================================
-// SEARCH
-// ============================================================
-var searchInput = document.getElementById('searchInput');
-var searchResults = document.getElementById('searchResults');
-var searchTimeout;
-
-if (searchInput) {
-    searchInput.addEventListener('input', function() {
-        var query = this.value.trim();
-        clearTimeout(searchTimeout);
-        if (query.length < 2) {
-            if (searchResults) searchResults.classList.remove('active');
-            return;
-        }
-        searchTimeout = setTimeout(function() {
-            fetch('search.php?q=' + encodeURIComponent(query))
-                .then(function(response) { return response.json(); })
-                .then(function(data) {
-                    if (searchResults) {
-                        searchResults.innerHTML = '';
-                        if (data && data.length > 0) {
-                            data.forEach(function(item) {
-                                var div = document.createElement('a');
-                                div.className = 'result-item';
-                                div.href = item.url || '#';
-                                div.innerHTML = '<i class="fas ' + (item.icon || 'fa-file') + '"></i><span class="text-truncate">' + (item.label || item.name || '') + '</span><span class="result-type">' + ((item.type || '').charAt(0).toUpperCase() + (item.type || '').slice(1)) + '</span>';
-                                searchResults.appendChild(div);
-                            });
-                            searchResults.classList.add('active');
-                        } else {
-                            searchResults.innerHTML = '<div style="padding:12px;text-align:center;color:var(--gray-500);font-size:0.8rem;"><i class="fas fa-search" style="display:block;font-size:1.2rem;margin-bottom:4px;"></i>No results found</div>';
-                            searchResults.classList.add('active');
-                        }
-                    }
-                })
-                .catch(function() {});
-        }, 300);
-    });
-
-    document.addEventListener('click', function(e) {
-        var wrapper = document.querySelector('.search-wrapper');
-        if (wrapper && !wrapper.contains(e.target) && searchResults) {
-            searchResults.classList.remove('active');
         }
     });
 }
