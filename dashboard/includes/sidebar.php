@@ -126,9 +126,7 @@ $role_menus['national'] = [
         ['label' => 'Elections', 'icon' => 'fa-vote-yea', 'dropdown' => true, 'id' => 'elections-dropdown',
             'items' => [
                 ['label' => 'All Elections', 'icon' => 'fa-list', 'url' => 'elections.php'],
-                ['label' => 'Create Election', 'icon' => 'fa-plus', 'url' => 'elections-create.php'],
-                ['label' => 'Election Progress', 'icon' => 'fa-chart-line', 'url' => 'election-progress.php'],
-                ['label' => 'Live Results', 'icon' => 'fa-chart-line', 'url' => 'live-results.php', 'badge' => 'Live']
+                
             ]
         ]
     ],

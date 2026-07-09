@@ -114,11 +114,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Please select at least one location (State, LGA, Ward, or Polling Unit)';
     } else {
         try {
+            // Convert empty time values to NULL
+            $start_time = !empty($start_time) ? $start_time : null;
+            $end_time = !empty($end_time) ? $end_time : null;
+            
             // Prepare JSON data
-            $states_json = !empty($selected_states) ? json_encode($selected_states) : null;
-            $lgas_json = !empty($selected_lgas) ? json_encode($selected_lgas) : null;
-            $wards_json = !empty($selected_wards) ? json_encode($selected_wards) : null;
-            $pus_json = !empty($selected_pus) ? json_encode($selected_pus) : null;
+            $states_json = !empty($selected_states) ? json_encode($selected_states) : '[]';
+            $lgas_json = !empty($selected_lgas) ? json_encode($selected_lgas) : '[]';
+            $wards_json = !empty($selected_wards) ? json_encode($selected_wards) : '[]';
+            $pus_json = !empty($selected_pus) ? json_encode($selected_pus) : '[]';
             
             $stmt = $db->prepare("
                 INSERT INTO elections (
@@ -135,8 +139,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $type,
                 $cycle,
                 $election_date,
-                $start_time ?: null,
-                $end_time ?: null,
+                $start_time,
+                $end_time,
                 $status,
                 $description,
                 $states_json,
@@ -149,16 +153,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $election_id = $db->lastInsertId();
             
             // Log activity
-            $log_stmt = $db->prepare("
-                INSERT INTO activity_logs (user_id, tenant_id, activity_type, description, entity_type, entity_id, created_at)
-                VALUES (?, ?, 'election_created', ?, 'election', ?, NOW())
-            ");
-            $log_stmt->execute([
-                $user_id,
-                $tenant_id,
-                "Created election: $name",
-                $election_id
-            ]);
+            logActivity($user_id, 'election_created', "Created election: $name (ID: $election_id)");
             
             $success = true;
             $message = "Election created successfully!";
@@ -167,6 +162,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header("Location: elections.php?success=1");
             exit();
             
+        } catch (PDOException $e) {
+            $error = 'Database error: ' . $e->getMessage();
+            error_log("Election Create PDO Error: " . $e->getMessage());
         } catch (Exception $e) {
             $error = 'Failed to create election: ' . $e->getMessage();
             error_log("Election Create Error: " . $e->getMessage());
@@ -181,6 +179,7 @@ $page_title = 'Create Election';
 $page_subtitle = 'Set up a new election';
 ?>
 
+<!-- The HTML remains exactly the same as your original file -->
 <main class="main-content">
     <?php include '../includes/header.php'; ?>
     

@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// NATIONAL COORDINATOR - LIVE RESULTS
+// NATIONAL COORDINATOR - LIVE RESULTS (FIXED)
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -40,15 +40,28 @@ $db = getDB();
 $election = null;
 
 try {
-    $stmt = $db->prepare("
-        SELECT 
-            e.*,
-            u.full_name as created_by_name
-        FROM elections e
-        LEFT JOIN users u ON e.created_by = u.id
-        WHERE e.id = ? AND e.tenant_id = ?
-    ");
-    $stmt->execute([$election_id, $tenant_id]);
+    // Fix: Check if tenant_id is set
+    if (!empty($tenant_id)) {
+        $stmt = $db->prepare("
+            SELECT 
+                e.*,
+                u.full_name as created_by_name
+            FROM elections e
+            LEFT JOIN users u ON e.created_by = u.id
+            WHERE e.id = ? AND e.tenant_id = ?
+        ");
+        $stmt->execute([$election_id, $tenant_id]);
+    } else {
+        $stmt = $db->prepare("
+            SELECT 
+                e.*,
+                u.full_name as created_by_name
+            FROM elections e
+            LEFT JOIN users u ON e.created_by = u.id
+            WHERE e.id = ?
+        ");
+        $stmt->execute([$election_id]);
+    }
     $election = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if (!$election) {
@@ -56,6 +69,10 @@ try {
         exit();
     }
     
+} catch (PDOException $e) {
+    error_log("Live Results PDO Error: " . $e->getMessage());
+    header('Location: elections.php?error=database_error');
+    exit();
 } catch (Exception $e) {
     error_log("Live Results Error: " . $e->getMessage());
     header('Location: elections.php?error=database_error');
@@ -207,6 +224,8 @@ try {
     $stmt->execute($params);
     $reporting_pus = $stmt->fetchColumn() ?: 0;
     
+} catch (PDOException $e) {
+    error_log("Live results PDO Error: " . $e->getMessage());
 } catch (Exception $e) {
     error_log("Live results fetch error: " . $e->getMessage());
 }
@@ -227,6 +246,7 @@ $page_title = 'Live Results';
 $page_subtitle = $election['name'] ?? 'Election';
 ?>
 
+<!-- The HTML remains exactly the same as your original file -->
 <main class="main-content">
     <?php include '../includes/header.php'; ?>
     

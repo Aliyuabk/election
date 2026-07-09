@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// NATIONAL COORDINATOR - VIEW ELECTION DETAILS
+// NATIONAL COORDINATOR - VIEW ELECTION DETAILS (FIXED)
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -49,17 +49,33 @@ $stats = [
 ];
 
 try {
-    $stmt = $db->prepare("
-        SELECT 
-            e.*,
-            u.full_name as created_by_name,
-            u2.full_name as updated_by_name
-        FROM elections e
-        LEFT JOIN users u ON e.created_by = u.id
-        LEFT JOIN users u2 ON e.updated_by = u2.id
-        WHERE e.id = ? AND e.tenant_id = ?
-    ");
-    $stmt->execute([$election_id, $tenant_id]);
+    // Fix: Check if tenant_id is set, if not, show all elections for national
+    if (!empty($tenant_id)) {
+        $stmt = $db->prepare("
+            SELECT 
+                e.*,
+                u.full_name as created_by_name,
+                u2.full_name as updated_by_name
+            FROM elections e
+            LEFT JOIN users u ON e.created_by = u.id
+            LEFT JOIN users u2 ON e.updated_by = u2.id
+            WHERE e.id = ? AND e.tenant_id = ?
+        ");
+        $stmt->execute([$election_id, $tenant_id]);
+    } else {
+        // National coordinator with no tenant - show all elections
+        $stmt = $db->prepare("
+            SELECT 
+                e.*,
+                u.full_name as created_by_name,
+                u2.full_name as updated_by_name
+            FROM elections e
+            LEFT JOIN users u ON e.created_by = u.id
+            LEFT JOIN users u2 ON e.updated_by = u2.id
+            WHERE e.id = ?
+        ");
+        $stmt->execute([$election_id]);
+    }
     $election = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if (!$election) {
@@ -99,36 +115,61 @@ try {
     $stmt->execute($params);
     $stats['total_pus'] = $stmt->fetchColumn() ?: 0;
     
-    // Get results stats
-    $query = "SELECT COUNT(*) as total, SUM(CASE WHEN status = 'verified' THEN 1 ELSE 0 END) as verified, SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending, SUM(CASE WHEN status = 'flagged' THEN 1 ELSE 0 END) as flagged FROM results_ec8a WHERE tenant_id = ? AND election_id = ?";
-    $params = [$tenant_id, $election_id];
-    
-    $stmt = $db->prepare($query);
-    $stmt->execute($params);
-    $result = $stmt->fetch(PDO::FETCH_ASSOC);
-    
-    $stats['total_results'] = $result['total'] ?? 0;
-    $stats['verified_results'] = $result['verified'] ?? 0;
-    $stats['pending_results'] = $result['pending'] ?? 0;
-    $stats['flagged_results'] = $result['flagged'] ?? 0;
-    
-    // Get incidents
-    $query = "SELECT COUNT(*) as count FROM incidents WHERE tenant_id = ?";
-    $params = [$tenant_id];
-    
-    if (!empty($state_ids)) {
-        $placeholders = implode(',', array_fill(0, count($state_ids), '?'));
-        $query .= " AND state_id IN ($placeholders)";
-        $params = array_merge($params, $state_ids);
+    // Get results stats - Check if table exists first
+    try {
+        $table_check = $db->query("SHOW TABLES LIKE 'results_ec8a'");
+        if ($table_check->rowCount() > 0) {
+            $query = "SELECT COUNT(*) as total, 
+                             SUM(CASE WHEN status = 'verified' THEN 1 ELSE 0 END) as verified, 
+                             SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending, 
+                             SUM(CASE WHEN status = 'flagged' THEN 1 ELSE 0 END) as flagged 
+                      FROM results_ec8a 
+                      WHERE tenant_id = ? AND election_id = ?";
+            $params = [$tenant_id, $election_id];
+            
+            $stmt = $db->prepare($query);
+            $stmt->execute($params);
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            $stats['total_results'] = $result['total'] ?? 0;
+            $stats['verified_results'] = $result['verified'] ?? 0;
+            $stats['pending_results'] = $result['pending'] ?? 0;
+            $stats['flagged_results'] = $result['flagged'] ?? 0;
+        }
+    } catch (Exception $e) {
+        // Table doesn't exist or error - continue with default values
+        error_log("Results table error: " . $e->getMessage());
     }
     
-    $stmt = $db->prepare($query);
-    $stmt->execute($params);
-    $stats['total_incidents'] = $stmt->fetchColumn() ?: 0;
+    // Get incidents - Check if table exists first
+    try {
+        $table_check = $db->query("SHOW TABLES LIKE 'incidents'");
+        if ($table_check->rowCount() > 0) {
+            $query = "SELECT COUNT(*) as count FROM incidents WHERE tenant_id = ?";
+            $params = [$tenant_id];
+            
+            if (!empty($state_ids)) {
+                $placeholders = implode(',', array_fill(0, count($state_ids), '?'));
+                $query .= " AND state_id IN ($placeholders)";
+                $params = array_merge($params, $state_ids);
+            }
+            
+            $stmt = $db->prepare($query);
+            $stmt->execute($params);
+            $stats['total_incidents'] = $stmt->fetchColumn() ?: 0;
+        }
+    } catch (Exception $e) {
+        // Table doesn't exist or error - continue with default values
+        error_log("Incidents table error: " . $e->getMessage());
+    }
     
     // Calculate reporting percentage
     $stats['reporting_percent'] = $stats['total_pus'] > 0 ? round(($stats['total_results'] / $stats['total_pus']) * 100) : 0;
     
+} catch (PDOException $e) {
+    error_log("Election View PDO Error: " . $e->getMessage());
+    header('Location: elections.php?error=database_error');
+    exit();
 } catch (Exception $e) {
     error_log("Election View Error: " . $e->getMessage());
     header('Location: elections.php?error=database_error');
@@ -166,6 +207,7 @@ $page_title = 'Election Details';
 $page_subtitle = $election['name'] ?? 'Election';
 ?>
 
+<!-- HTML remains the same as your original file -->
 <main class="main-content">
     <?php include '../includes/header.php'; ?>
     

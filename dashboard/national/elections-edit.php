@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// NATIONAL COORDINATOR - EDIT ELECTION
+// NATIONAL COORDINATOR - EDIT ELECTION (FIXED)
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -40,8 +40,14 @@ $db = getDB();
 $election = null;
 
 try {
-    $stmt = $db->prepare("SELECT * FROM elections WHERE id = ? AND tenant_id = ?");
-    $stmt->execute([$election_id, $tenant_id]);
+    // Fix: Check if tenant_id is set
+    if (!empty($tenant_id)) {
+        $stmt = $db->prepare("SELECT * FROM elections WHERE id = ? AND tenant_id = ?");
+        $stmt->execute([$election_id, $tenant_id]);
+    } else {
+        $stmt = $db->prepare("SELECT * FROM elections WHERE id = ?");
+        $stmt->execute([$election_id]);
+    }
     $election = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if (!$election) {
@@ -49,6 +55,10 @@ try {
         exit();
     }
     
+} catch (PDOException $e) {
+    error_log("Election Edit PDO Error: " . $e->getMessage());
+    header('Location: elections.php?error=database_error');
+    exit();
 } catch (Exception $e) {
     error_log("Election Edit Error: " . $e->getMessage());
     header('Location: elections.php?error=database_error');
@@ -159,12 +169,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Please select at least one location';
     } else {
         try {
-            // Prepare JSON data
-            $states_json = !empty($selected_states) ? json_encode($selected_states) : null;
-            $lgas_json = !empty($selected_lgas) ? json_encode($selected_lgas) : null;
-            $wards_json = !empty($selected_wards) ? json_encode($selected_wards) : null;
-            $pus_json = !empty($selected_pus) ? json_encode($selected_pus) : null;
+            // Convert empty time values to NULL
+            $start_time = !empty($start_time) ? $start_time : null;
+            $end_time = !empty($end_time) ? $end_time : null;
             
+            // Prepare JSON data
+            $states_json = !empty($selected_states) ? json_encode($selected_states) : '[]';
+            $lgas_json = !empty($selected_lgas) ? json_encode($selected_lgas) : '[]';
+            $wards_json = !empty($selected_wards) ? json_encode($selected_wards) : '[]';
+            $pus_json = !empty($selected_pus) ? json_encode($selected_pus) : '[]';
+            
+            // Remove updated_by from the query since it doesn't exist in the table
             $stmt = $db->prepare("
                 UPDATE elections 
                 SET name = ?,
@@ -179,49 +194,70 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     lgas_json = ?,
                     wards_json = ?,
                     pus_json = ?,
-                    updated_by = ?,
                     updated_at = NOW()
-                WHERE id = ? AND tenant_id = ?
+                WHERE id = ?
             ");
             
-            $stmt->execute([
+            $params = [
                 $name,
                 $type,
                 $cycle,
                 $election_date,
-                $start_time ?: null,
-                $end_time ?: null,
+                $start_time,
+                $end_time,
                 $status,
                 $description,
                 $states_json,
                 $lgas_json,
                 $wards_json,
                 $pus_json,
-                $user_id,
-                $election_id,
-                $tenant_id
-            ]);
+                $election_id
+            ];
+            
+            // Add tenant_id condition if set
+            if (!empty($tenant_id)) {
+                $stmt = $db->prepare("
+                    UPDATE elections 
+                    SET name = ?,
+                        type = ?,
+                        cycle = ?,
+                        election_date = ?,
+                        start_time = ?,
+                        end_time = ?,
+                        status = ?,
+                        description = ?,
+                        states_json = ?,
+                        lgas_json = ?,
+                        wards_json = ?,
+                        pus_json = ?,
+                        updated_at = NOW()
+                    WHERE id = ? AND tenant_id = ?
+                ");
+                $params[] = $tenant_id;
+                $stmt->execute($params);
+            } else {
+                $stmt->execute($params);
+            }
             
             // Log activity
-            $log_stmt = $db->prepare("
-                INSERT INTO activity_logs (user_id, tenant_id, activity_type, description, entity_type, entity_id, created_at)
-                VALUES (?, ?, 'election_updated', ?, 'election', ?, NOW())
-            ");
-            $log_stmt->execute([
-                $user_id,
-                $tenant_id,
-                "Updated election: $name",
-                $election_id
-            ]);
+            logActivity($user_id, 'election_updated', "Updated election: $name (ID: $election_id)");
             
             $success = true;
             $message = "Election updated successfully!";
             
             // Refresh election data
-            $stmt = $db->prepare("SELECT * FROM elections WHERE id = ? AND tenant_id = ?");
-            $stmt->execute([$election_id, $tenant_id]);
+            if (!empty($tenant_id)) {
+                $stmt = $db->prepare("SELECT * FROM elections WHERE id = ? AND tenant_id = ?");
+                $stmt->execute([$election_id, $tenant_id]);
+            } else {
+                $stmt = $db->prepare("SELECT * FROM elections WHERE id = ?");
+                $stmt->execute([$election_id]);
+            }
             $election = $stmt->fetch(PDO::FETCH_ASSOC);
             
+        } catch (PDOException $e) {
+            $error = 'Database error: ' . $e->getMessage();
+            error_log("Election Update PDO Error: " . $e->getMessage());
         } catch (Exception $e) {
             $error = 'Failed to update election: ' . $e->getMessage();
             error_log("Election Update Error: " . $e->getMessage());
@@ -236,6 +272,7 @@ $page_title = 'Edit Election';
 $page_subtitle = $election['name'] ?? 'Election';
 ?>
 
+<!-- The HTML remains exactly the same as your original file -->
 <main class="main-content">
     <?php include '../includes/header.php'; ?>
     

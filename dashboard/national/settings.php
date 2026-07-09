@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// NATIONAL COORDINATOR - SYSTEM SETTINGS
+// NATIONAL COORDINATOR - SYSTEM SETTINGS (FIXED)
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -31,7 +31,8 @@ $db = getDB();
 // ============================================================
 $settings = [];
 try {
-    $stmt = $db->prepare("SELECT * FROM system_settings ORDER BY key ASC");
+    // KEY is a reserved word, use backticks
+    $stmt = $db->prepare("SELECT * FROM system_settings ORDER BY `key` ASC");
     $stmt->execute();
     $settings = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
@@ -42,6 +43,8 @@ try {
     }
     $settings = $settings_map;
     
+} catch (PDOException $e) {
+    error_log("Settings PDO Error: " . $e->getMessage());
 } catch (Exception $e) {
     error_log("Settings Error: " . $e->getMessage());
 }
@@ -73,27 +76,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $value = intval($value);
                 }
                 
+                // KEY is a reserved word, use backticks
                 $stmt = $db->prepare("
                     UPDATE system_settings 
                     SET value = ?, updated_at = NOW() 
-                    WHERE key = ?
+                    WHERE `key` = ?
                 ");
                 $stmt->execute([$value, $key]);
             }
         }
         
         // Log activity
-        $log_stmt = $db->prepare("
-            INSERT INTO activity_logs (user_id, tenant_id, activity_type, description, created_at)
-            VALUES (?, ?, 'settings_changed', 'Updated system settings', NOW())
-        ");
-        $log_stmt->execute([$user_id, $tenant_id]);
+        logActivity($user_id, 'settings_changed', 'Updated system settings');
         
         $success = true;
         $message = 'Settings updated successfully!';
         
         // Refresh settings
-        $stmt = $db->prepare("SELECT * FROM system_settings ORDER BY key ASC");
+        $stmt = $db->prepare("SELECT * FROM system_settings ORDER BY `key` ASC");
         $stmt->execute();
         $settings = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
@@ -103,6 +103,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $settings = $settings_map;
         
+    } catch (PDOException $e) {
+        $error = 'Database error: ' . $e->getMessage();
+        error_log("Settings Update PDO Error: " . $e->getMessage());
     } catch (Exception $e) {
         $error = 'Failed to update settings: ' . $e->getMessage();
         error_log("Settings Update Error: " . $e->getMessage());
