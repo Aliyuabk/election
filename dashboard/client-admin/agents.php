@@ -31,11 +31,73 @@ $user_email = SessionManager::get('user_email', 'admin@example.com');
 $tenant_id = SessionManager::get('tenant_id');
 
 // ============================================================
+// HANDLE AJAX REQUESTS
+// ============================================================
+if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest') {
+    header('Content-Type: application/json');
+    
+    $action = $_GET['action'] ?? '';
+    $response = ['success' => false, 'message' => ''];
+    
+    try {
+        switch ($action) {
+            case 'get_agent':
+                $id = (int)($_GET['id'] ?? 0);
+                if ($id <= 0) throw new Exception('Invalid agent ID.');
+                
+                $stmt = $db->prepare("
+                    SELECT u.*, r.name as role_name, r.slug as role_slug
+                    FROM users u
+                    LEFT JOIN roles r ON u.role_id = r.id
+                    WHERE u.id = ? AND u.tenant_id = ? AND u.deleted_at IS NULL
+                ");
+                $stmt->execute([$id, $tenant_id]);
+                $agent = $stmt->fetch();
+                
+                if ($agent) {
+                    $response = ['success' => true, 'data' => $agent];
+                } else {
+                    throw new Exception('Agent not found.');
+                }
+                break;
+                
+            case 'toggle_agent_status':
+                $id = (int)($_POST['id'] ?? 0);
+                $status = $_POST['status'] ?? 'active';
+                
+                if ($id <= 0) throw new Exception('Invalid agent ID.');
+                if (!in_array($status, ['active', 'inactive', 'pending', 'suspended'])) {
+                    throw new Exception('Invalid status value.');
+                }
+                
+                $stmt = $db->prepare("UPDATE users SET status = ?, updated_at = NOW() WHERE id = ? AND tenant_id = ?");
+                $stmt->execute([$status, $id, $tenant_id]);
+                
+                logActivity($user_id, 'agent_status_toggled', "Toggled agent ID: $id to $status");
+                $response = ['success' => true, 'message' => 'Agent status updated successfully.'];
+                break;
+                
+            default:
+                throw new Exception('Invalid action.');
+        }
+    } catch (PDOException $e) {
+        $response = ['success' => false, 'message' => 'Database error: ' . $e->getMessage()];
+        error_log("Agent AJAX PDO Error: " . $e->getMessage());
+    } catch (Exception $e) {
+        $response = ['success' => false, 'message' => $e->getMessage()];
+        error_log("Agent AJAX Error: " . $e->getMessage());
+    }
+    
+    echo json_encode($response);
+    exit();
+}
+
+// ============================================================
 // HANDLE ACTIONS
 // ============================================================
 $action_result = ['success' => false, 'message' => ''];
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
     $action = $_POST['action'] ?? '';
     
     try {
@@ -59,8 +121,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 
                 // Check if email exists
-                $stmt = $db->prepare("SELECT COUNT(*) as count FROM users WHERE email = ?");
-                $stmt->execute([$email]);
+                $stmt = $db->prepare("SELECT COUNT(*) as count FROM users WHERE email = ? AND tenant_id = ?");
+                $stmt->execute([$email, $tenant_id]);
                 if ($stmt->fetch()['count'] > 0) {
                     throw new Exception('Email already exists.');
                 }
@@ -71,7 +133,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Get role ID
                 $stmt = $db->prepare("SELECT id FROM roles WHERE slug = ? AND (tenant_id = ? OR tenant_id IS NULL)");
                 $stmt->execute([$role, $tenant_id]);
-                $role_id = $stmt->fetch()['id'] ?? 7; // Default to pu_agent
+                $role_id = $stmt->fetch()['id'] ?? 7;
                 
                 // Create user
                 $password_hash = password_hash('password123', PASSWORD_DEFAULT);
@@ -80,8 +142,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         tenant_id, user_code, role_id, first_name, last_name,
                         email, phone, password_hash, gender, date_of_birth,
                         residential_address, nin, bank_name, account_number, account_name,
-                        status, created_by
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?)
+                        status, created_by, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, NOW())
                 ");
                 $stmt->execute([
                     $tenant_id, $user_code, $role_id, $first_name, $last_name,
@@ -114,6 +176,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     throw new Exception('Invalid data provided.');
                 }
                 
+                // Check if email exists for other users
+                $stmt = $db->prepare("SELECT COUNT(*) as count FROM users WHERE email = ? AND id != ? AND tenant_id = ?");
+                $stmt->execute([$email, $id, $tenant_id]);
+                if ($stmt->fetch()['count'] > 0) {
+                    throw new Exception('Email already exists for another user.');
+                }
+                
                 // Get role ID
                 $stmt = $db->prepare("SELECT id FROM roles WHERE slug = ? AND (tenant_id = ? OR tenant_id IS NULL)");
                 $stmt->execute([$role, $tenant_id]);
@@ -124,7 +193,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         first_name = ?, last_name = ?, email = ?, phone = ?,
                         role_id = ?, gender = ?, date_of_birth = ?,
                         residential_address = ?, nin = ?, bank_name = ?,
-                        account_number = ?, account_name = ?, status = ?
+                        account_number = ?, account_name = ?, status = ?,
+                        updated_at = NOW()
                     WHERE id = ? AND tenant_id = ?
                 ");
                 $stmt->execute([
@@ -143,15 +213,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $id = (int)($_POST['id'] ?? 0);
                 if ($id <= 0) throw new Exception('Invalid agent ID.');
                 
-                $stmt = $db->prepare("DELETE FROM users WHERE id = ? AND tenant_id = ?");
+                $stmt = $db->prepare("UPDATE users SET deleted_at = NOW() WHERE id = ? AND tenant_id = ?");
                 $stmt->execute([$id, $tenant_id]);
                 
                 logActivity($user_id, 'agent_deleted', "Deleted agent ID: $id");
                 $action_result = ['success' => true, 'message' => 'Agent deleted successfully.'];
                 break;
         }
+    } catch (PDOException $e) {
+        $action_result = ['success' => false, 'message' => 'Database error: ' . $e->getMessage()];
+        error_log("Agent action PDO Error: " . $e->getMessage());
     } catch (Exception $e) {
         $action_result = ['success' => false, 'message' => 'Error: ' . $e->getMessage()];
+        error_log("Agent action Error: " . $e->getMessage());
     }
 }
 
@@ -165,7 +239,7 @@ $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 $role_filter = isset($_GET['role']) ? trim($_GET['role']) : '';
 $status_filter = isset($_GET['status']) ? trim($_GET['status']) : '';
 
-$where_conditions = ["u.tenant_id = ?"];
+$where_conditions = ["u.tenant_id = ?", "u.deleted_at IS NULL"];
 $params = [$tenant_id];
 
 if (!empty($search)) {
@@ -229,6 +303,7 @@ try {
 include 'includes/base.php';
 include 'includes/sidebar.php';
 ?>
+<!-- ALL CSS REMAINS THE SAME AS YOUR ORIGINAL FILE -->
 <style>
     /* ============================================================
        AGENTS MANAGEMENT - PROFESSIONAL UI STYLES
@@ -1090,23 +1165,23 @@ include 'includes/sidebar.php';
         // Get stats
         $stats = ['total' => 0, 'active' => 0, 'inactive' => 0, 'pending' => 0, 'suspended' => 0];
         try {
-            $stmt = $db->prepare("SELECT COUNT(*) as total FROM users WHERE tenant_id = ? AND role_id IN (SELECT id FROM roles WHERE level IN ('pu_agent', 'party_agent', 'volunteer', 'observer'))");
+            $stmt = $db->prepare("SELECT COUNT(*) as total FROM users WHERE tenant_id = ? AND role_id IN (SELECT id FROM roles WHERE level IN ('pu_agent', 'party_agent', 'volunteer', 'observer')) AND deleted_at IS NULL");
             $stmt->execute([$tenant_id]);
             $stats['total'] = $stmt->fetch()['total'] ?? 0;
             
-            $stmt = $db->prepare("SELECT COUNT(*) as total FROM users WHERE tenant_id = ? AND status = 'active' AND role_id IN (SELECT id FROM roles WHERE level IN ('pu_agent', 'party_agent', 'volunteer', 'observer'))");
+            $stmt = $db->prepare("SELECT COUNT(*) as total FROM users WHERE tenant_id = ? AND status = 'active' AND role_id IN (SELECT id FROM roles WHERE level IN ('pu_agent', 'party_agent', 'volunteer', 'observer')) AND deleted_at IS NULL");
             $stmt->execute([$tenant_id]);
             $stats['active'] = $stmt->fetch()['total'] ?? 0;
             
-            $stmt = $db->prepare("SELECT COUNT(*) as total FROM users WHERE tenant_id = ? AND status = 'inactive' AND role_id IN (SELECT id FROM roles WHERE level IN ('pu_agent', 'party_agent', 'volunteer', 'observer'))");
+            $stmt = $db->prepare("SELECT COUNT(*) as total FROM users WHERE tenant_id = ? AND status = 'inactive' AND role_id IN (SELECT id FROM roles WHERE level IN ('pu_agent', 'party_agent', 'volunteer', 'observer')) AND deleted_at IS NULL");
             $stmt->execute([$tenant_id]);
             $stats['inactive'] = $stmt->fetch()['total'] ?? 0;
             
-            $stmt = $db->prepare("SELECT COUNT(*) as total FROM users WHERE tenant_id = ? AND status = 'pending' AND role_id IN (SELECT id FROM roles WHERE level IN ('pu_agent', 'party_agent', 'volunteer', 'observer'))");
+            $stmt = $db->prepare("SELECT COUNT(*) as total FROM users WHERE tenant_id = ? AND status = 'pending' AND role_id IN (SELECT id FROM roles WHERE level IN ('pu_agent', 'party_agent', 'volunteer', 'observer')) AND deleted_at IS NULL");
             $stmt->execute([$tenant_id]);
             $stats['pending'] = $stmt->fetch()['total'] ?? 0;
             
-            $stmt = $db->prepare("SELECT COUNT(*) as total FROM users WHERE tenant_id = ? AND status = 'suspended' AND role_id IN (SELECT id FROM roles WHERE level IN ('pu_agent', 'party_agent', 'volunteer', 'observer'))");
+            $stmt = $db->prepare("SELECT COUNT(*) as total FROM users WHERE tenant_id = ? AND status = 'suspended' AND role_id IN (SELECT id FROM roles WHERE level IN ('pu_agent', 'party_agent', 'volunteer', 'observer')) AND deleted_at IS NULL");
             $stmt->execute([$tenant_id]);
             $stats['suspended'] = $stmt->fetch()['total'] ?? 0;
         } catch (Exception $e) {}
@@ -1628,63 +1703,111 @@ document.addEventListener('click', function(e) {
 // AGENT FUNCTIONS
 // ============================================================
 function editAgent(id) {
-    fetch('api/get_agent.php?id=' + id)
-        .then(function(response) { return response.json(); })
-        .then(function(data) {
-            if (data && data.success) {
-                var agent = data.data;
-                document.getElementById('editAgentId').value = agent.id;
-                document.getElementById('editFirstName').value = agent.first_name || '';
-                document.getElementById('editLastName').value = agent.last_name || '';
-                document.getElementById('editEmail').value = agent.email || '';
-                document.getElementById('editPhone').value = agent.phone || '';
-                document.getElementById('editRole').value = agent.role_slug || '';
-                document.getElementById('editDob').value = agent.date_of_birth || '';
-                document.getElementById('editAddress').value = agent.residential_address || '';
-                document.getElementById('editNin').value = agent.nin || '';
-                document.getElementById('editBankName').value = agent.bank_name || '';
-                document.getElementById('editAccountNumber').value = agent.account_number || '';
-                document.getElementById('editAccountName').value = agent.account_name || '';
-                document.getElementById('editStatus').value = agent.status || 'active';
-                
-                // Gender
-                if (agent.gender === 'male') document.getElementById('editGenderMale').checked = true;
-                else if (agent.gender === 'female') document.getElementById('editGenderFemale').checked = true;
-                else if (agent.gender === 'other') document.getElementById('editGenderOther').checked = true;
-                
-                openModal('editAgentModal');
-            } else {
-                alert('Failed to load agent data.');
-            }
-        })
-        .catch(function() {
-            alert('Edit Agent ID: ' + id + '\nPlease implement API endpoint.');
-        });
+    // Show loading state
+    var modal = document.getElementById('editAgentModal');
+    var submitBtn = modal.querySelector('button[type="submit"]');
+    var originalText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+    submitBtn.disabled = true;
+    
+    // Fetch agent data via AJAX
+    fetch('agents.php?action=get_agent&id=' + id, {
+        method: 'GET',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(function(response) {
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        return response.json();
+    })
+    .then(function(data) {
+        if (data && data.success) {
+            var agent = data.data;
+            document.getElementById('editAgentId').value = agent.id;
+            document.getElementById('editFirstName').value = agent.first_name || '';
+            document.getElementById('editLastName').value = agent.last_name || '';
+            document.getElementById('editEmail').value = agent.email || '';
+            document.getElementById('editPhone').value = agent.phone || '';
+            document.getElementById('editRole').value = agent.role_slug || '';
+            document.getElementById('editDob').value = agent.date_of_birth || '';
+            document.getElementById('editAddress').value = agent.residential_address || '';
+            document.getElementById('editNin').value = agent.nin || '';
+            document.getElementById('editBankName').value = agent.bank_name || '';
+            document.getElementById('editAccountNumber').value = agent.account_number || '';
+            document.getElementById('editAccountName').value = agent.account_name || '';
+            document.getElementById('editStatus').value = agent.status || 'active';
+            
+            // Gender
+            document.getElementById('editGenderMale').checked = (agent.gender === 'male');
+            document.getElementById('editGenderFemale').checked = (agent.gender === 'female');
+            document.getElementById('editGenderOther').checked = (agent.gender === 'other');
+            
+            openModal('editAgentModal');
+        } else {
+            alert(data.message || 'Failed to load agent data.');
+        }
+    })
+    .catch(function(error) {
+        console.error('Error:', error);
+        alert('Error loading agent data. Please try again.');
+    })
+    .finally(function() {
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+    });
 }
 
 function viewAgentDetails(id) {
-    alert('View details for Agent ID: ' + id);
+    alert('View details for Agent ID: ' + id + '\nThis feature will be implemented soon.');
 }
 
 function toggleAgentStatus(id, status) {
     var action = status === 'active' ? 'activate' : 'deactivate';
-    if (confirm('Are you sure you want to ' + action + ' this agent?')) {
-        var form = document.createElement('form');
-        form.method = 'POST';
-        form.innerHTML = '<input type="hidden" name="action" value="toggle_agent_status"><input type="hidden" name="id" value="' + id + '"><input type="hidden" name="status" value="' + status + '">';
-        document.body.appendChild(form);
-        form.submit();
+    if (!confirm('Are you sure you want to ' + action + ' this agent?')) {
+        return;
     }
+    
+    var formData = new FormData();
+    formData.append('action', 'toggle_agent_status');
+    formData.append('id', id);
+    formData.append('status', status);
+    
+    fetch('agents.php', {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: formData
+    })
+    .then(function(response) {
+        return response.json();
+    })
+    .then(function(data) {
+        if (data && data.success) {
+            location.reload();
+        } else {
+            alert(data.message || 'Failed to update agent status.');
+        }
+    })
+    .catch(function(error) {
+        console.error('Error:', error);
+        alert('Error updating agent status. Please try again.');
+    });
 }
 
 function deleteAgent(id) {
-    if (confirm('Delete this agent? This action cannot be undone.')) {
-        var form = document.createElement('form');
-        form.method = 'POST';
-        form.innerHTML = '<input type="hidden" name="action" value="delete_agent"><input type="hidden" name="id" value="' + id + '">';
-        document.body.appendChild(form);
-        form.submit();
+    if (!confirm('Delete this agent? This action cannot be undone.')) {
+        return;
     }
+    
+    var form = document.createElement('form');
+    form.method = 'POST';
+    form.innerHTML = '<input type="hidden" name="action" value="delete_agent"><input type="hidden" name="id" value="' + id + '">';
+    document.body.appendChild(form);
+    form.submit();
 }
 
 // ============================================================
@@ -1698,6 +1821,18 @@ if (searchInput) {
         }
     });
 }
+
+// ============================================================
+// CLOSE MODAL ON ESCAPE KEY
+// ============================================================
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        document.querySelectorAll('.modal-overlay.active').forEach(function(modal) {
+            modal.classList.remove('active');
+            document.body.style.overflow = '';
+        });
+    }
+});
 </script>
 </body>
 </html>

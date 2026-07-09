@@ -1595,3 +1595,7 @@ Stack trace:
 [09-Jul-2026 16:34:10 Africa/Lagos] Redirecting to: ../dashboard/client-admin/ for role: client_admin
 [09-Jul-2026 16:42:38 Africa/Lagos] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\election\dashboard\client-admin\candidates-edit.php on line 720
 [09-Jul-2026 22:35:08 Africa/Lagos] Redirecting to: ../dashboard/client-admin/ for role: client_admin
+[09-Jul-2026 23:14:24 Africa/Lagos] Redirecting to: ../dashboard/client-admin/ for role: client_admin
+[09-Jul-2026 23:15:20 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: national
+[09-Jul-2026 23:15:38 Africa/Lagos] View State - Total voters error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'registered_voters' in field list is ambiguous
+[09-Jul-2026 23:16:57 Africa/Lagos] Elections Error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'tenant_id' in where clause is ambiguous
