@@ -170,25 +170,6 @@ include 'includes/sidebar.php';
         background: var(--gray-50);
         border-color: var(--gray-300);
     }
-    .btn-sm {
-        padding: 4px 10px;
-        font-size: 0.7rem;
-        border-radius: 6px;
-        border: none;
-        cursor: pointer;
-        transition: var(--transition);
-        font-family: 'Inter', sans-serif;
-        font-weight: 500;
-        display: inline-flex;
-        align-items: center;
-        gap: 4px;
-    }
-    .btn-sm.danger { background: #FEF2F2; color: #991B1B; }
-    .btn-sm.danger:hover { background: #FEE2E2; }
-    .btn-sm.success { background: #ECFDF5; color: #065F46; }
-    .btn-sm.success:hover { background: #D1FAE5; }
-    .btn-sm.warning { background: #FFFBEB; color: #92400E; }
-    .btn-sm.warning:hover { background: #FEF3C7; }
     
     .profile-header {
         background: white;
@@ -386,36 +367,6 @@ include 'includes/sidebar.php';
         display: block;
         margin-bottom: 6px;
         color: var(--gray-300);
-    }
-    
-    .toast-container {
-        position: fixed;
-        top: 80px;
-        right: 20px;
-        z-index: 999;
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-    }
-    .toast {
-        padding: 14px 20px;
-        border-radius: 10px;
-        color: white;
-        font-size: 0.85rem;
-        font-weight: 500;
-        box-shadow: var(--shadow-hover);
-        animation: slideIn 0.3s ease;
-        min-width: 280px;
-        max-width: 400px;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-    }
-    .toast.success { background: var(--secondary); }
-    .toast.error { background: var(--danger); }
-    @keyframes slideIn {
-        from { opacity: 0; transform: translateX(100px); }
-        to { opacity: 1; transform: translateX(0); }
     }
     
     @media (max-width: 992px) {

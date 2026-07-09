@@ -242,13 +242,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $filepath = $upload_dir . $filename;
                 
                 if (move_uploaded_file($file['tmp_name'], $filepath)) {
-                    $logo_url = '/uploads/tenants/' . $filename;
+                    $logo_url = '/election/uploads/tenants/' . $filename;
                     
                     // Delete old logo if exists
                     if (!empty($organization['logo_url'])) {
-                        $old_file = '../../' . $organization['logo_url'];
+                        $old_file = '../../' . str_replace('/election/', '', $organization['logo_url']);
                         if (file_exists($old_file)) {
-                            unlink($old_file);
+                            @unlink($old_file);
                         }
                     }
                     
@@ -266,6 +266,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $organization = $stmt->fetch();
                 } else {
                     throw new Exception('Failed to upload logo.');
+                }
+                break;
+                
+            case 'remove_logo':
+                if (!empty($organization['logo_url'])) {
+                    $old_file = '../../' . str_replace('/election/', '', $organization['logo_url']);
+                    if (file_exists($old_file)) {
+                        @unlink($old_file);
+                    }
+                    
+                    $stmt = $db->prepare("UPDATE tenants SET logo_url = NULL WHERE id = ?");
+                    $stmt->execute([$tenant_id]);
+                    
+                    logActivity($user_id, 'organization_logo_removed', "Removed organization logo");
+                    
+                    $success = "Logo removed successfully!";
+                    $message_type = 'success';
+                    
+                    // Refresh organization data
+                    $stmt = $db->prepare("SELECT * FROM tenants WHERE id = ?");
+                    $stmt->execute([$tenant_id]);
+                    $organization = $stmt->fetch();
                 }
                 break;
         }
@@ -297,6 +319,7 @@ if ($organization && $organization['state_id']) {
 include 'includes/base.php';
 include 'includes/sidebar.php';
 ?>
+<!-- All CSS styles remain the same as before -->
 <style>
     /* ============================================================
        PROFILE - CLIENT ADMIN STYLES
@@ -719,7 +742,6 @@ include 'includes/sidebar.php';
         }
     }
 </style>
-
 <main class="main-content">
     <?php include 'includes/header.php'; ?>
     
@@ -925,9 +947,9 @@ include 'includes/sidebar.php';
                     <div class="logo-section">
                         <div class="logo-preview">
                             <?php if (!empty($organization['logo_url'])): ?>
-                                <img src="<?php echo htmlspecialchars($organization['logo_url']); ?>" alt="<?php echo htmlspecialchars($organization['name'] ?? 'Logo'); ?>">
+                                <img src="<?php echo htmlspecialchars($organization['logo_url']); ?>" alt="<?php echo htmlspecialchars($organization['name'] ?? 'Logo'); ?>" id="logoPreview">
                             <?php else: ?>
-                                <?php echo strtoupper(substr($organization['name'] ?? 'O', 0, 2)); ?>
+                                <span id="logoPlaceholder"><?php echo strtoupper(substr($organization['name'] ?? 'O', 0, 2)); ?></span>
                             <?php endif; ?>
                         </div>
                         <div class="logo-actions">
@@ -1023,6 +1045,7 @@ include 'includes/sidebar.php';
     </div>
 </main>
 
+<!-- All the JavaScript remains the same -->
 <script>
 // ============================================================
 // PRELOADER
@@ -1208,7 +1231,6 @@ if (searchInput) {
         }
     });
 }
-
 </script>
 </body>
 </html>

@@ -1572,3 +1572,26 @@ Stack trace:
 [09-Jul-2026 16:02:08 Africa/Lagos] Subscription error: Tenant and plan name are required.
 [09-Jul-2026 16:02:23 Africa/Lagos] Subscription error: Tenant and plan name are required.
 [09-Jul-2026 16:14:32 Africa/Lagos] Redirecting to: ../dashboard/client-admin/ for role: client_admin
+[09-Jul-2026 16:27:21 Africa/Lagos] PHP Fatal error:  Uncaught Error: Call to undefined function generateRandomPassword() in C:\xampp\htdocs\election\dashboard\client-admin\users.php:74
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\client-admin\users.php on line 74
+[09-Jul-2026 16:27:28 Africa/Lagos] PHP Fatal error:  Uncaught Error: Call to undefined function generateRandomPassword() in C:\xampp\htdocs\election\dashboard\client-admin\users.php:74
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\client-admin\users.php on line 74
+[09-Jul-2026 16:28:22 Africa/Lagos] PHP Fatal error:  Uncaught Error: Call to undefined function generateRandomPassword() in C:\xampp\htdocs\election\dashboard\client-admin\users.php:74
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\client-admin\users.php on line 74
+[09-Jul-2026 16:29:14 Africa/Lagos] PHP Fatal error:  Uncaught Error: Call to undefined function generateRandomPassword() in C:\xampp\htdocs\election\dashboard\client-admin\users.php:74
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\client-admin\users.php on line 74
+[09-Jul-2026 16:29:18 Africa/Lagos] PHP Fatal error:  Uncaught Error: Call to undefined function generateRandomPassword() in C:\xampp\htdocs\election\dashboard\client-admin\users.php:74
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\client-admin\users.php on line 74
+[09-Jul-2026 16:34:10 Africa/Lagos] Redirecting to: ../dashboard/client-admin/ for role: client_admin
+[09-Jul-2026 16:42:38 Africa/Lagos] PHP Deprecated:  htmlspecialchars(): Passing null to parameter #1 ($string) of type string is deprecated in C:\xampp\htdocs\election\dashboard\client-admin\candidates-edit.php on line 720
+[09-Jul-2026 22:35:08 Africa/Lagos] Redirecting to: ../dashboard/client-admin/ for role: client_admin

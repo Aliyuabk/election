@@ -90,17 +90,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $end_time = trim($_POST['end_time'] ?? '');
                 $status = trim($_POST['status'] ?? '');
                 $description = trim($_POST['description'] ?? '');
-                $states_json = json_encode($_POST['states'] ?? []);
+                $states_json = isset($_POST['states']) ? json_encode($_POST['states']) : '[]';
                 
                 if (empty($name) || empty($type) || empty($election_date) || empty($status)) {
                     throw new Exception('Name, type, date, and status are required.');
                 }
                 
+                // Convert empty time values to NULL
+                $start_time = !empty($start_time) ? $start_time : null;
+                $end_time = !empty($end_time) ? $end_time : null;
+                
                 $stmt = $db->prepare("
                     UPDATE elections SET 
-                        name = ?, type = ?, cycle = ?,
-                        election_date = ?, start_time = ?, end_time = ?,
-                        status = ?, description = ?, states_json = ?
+                        name = ?, 
+                        type = ?, 
+                        cycle = ?,
+                        election_date = ?, 
+                        start_time = ?, 
+                        end_time = ?,
+                        status = ?, 
+                        description = ?, 
+                        states_json = ?,
+                        updated_at = NOW()
                     WHERE id = ? AND tenant_id = ?
                 ");
                 $stmt->execute([
@@ -112,10 +123,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 logActivity($user_id, 'election_updated', "Updated election ID: $election_id");
                 $action_result = ['success' => true, 'message' => 'Election updated successfully.'];
+                
+                // Refresh election data
+                $stmt = $db->prepare("
+                    SELECT e.*, u.full_name as created_by_name
+                    FROM elections e
+                    LEFT JOIN users u ON e.created_by = u.id
+                    WHERE e.id = ? AND e.tenant_id = ? AND e.deleted_at IS NULL
+                ");
+                $stmt->execute([$election_id, $tenant_id]);
+                $election = $stmt->fetch();
                 break;
         }
+    } catch (PDOException $e) {
+        $action_result = ['success' => false, 'message' => 'Database error: ' . $e->getMessage()];
+        error_log("Election update PDO Error: " . $e->getMessage());
     } catch (Exception $e) {
         $action_result = ['success' => false, 'message' => 'Error: ' . $e->getMessage()];
+        error_log("Election update Error: " . $e->getMessage());
     }
 }
 
@@ -188,27 +213,6 @@ include 'includes/sidebar.php';
         background: var(--gray-50);
         border-color: var(--primary);
         color: var(--primary);
-    }
-    .btn-success {
-        padding: 10px 20px;
-        background: var(--secondary);
-        color: white;
-        border: none;
-        border-radius: 10px;
-        font-weight: 600;
-        font-size: 0.85rem;
-        cursor: pointer;
-        text-decoration: none;
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        transition: var(--transition);
-        font-family: 'Inter', sans-serif;
-    }
-    .btn-success:hover {
-        background: #059669;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
     }
     
     .edit-form-container {
@@ -402,10 +406,12 @@ include 'includes/sidebar.php';
     .badge-status.upcoming .dot { background: #F59E0B; }
     .badge-status.active { background: rgba(16, 185, 129, 0.2); color: #065F46; }
     .badge-status.active .dot { background: #10B981; }
-    .badge-status.completed { background: rgba(59, 130, 246, 0.2); color: #1E40AF; }
-    .badge-status.completed .dot { background: #3B82F6; }
+    .badge-status.closed { background: rgba(59, 130, 246, 0.2); color: #1E40AF; }
+    .badge-status.closed .dot { background: #3B82F6; }
     .badge-status.cancelled { background: rgba(239, 68, 68, 0.2); color: #991B1B; }
     .badge-status.cancelled .dot { background: #EF4444; }
+    .badge-status.archived { background: rgba(148, 163, 184, 0.2); color: var(--gray-500); }
+    .badge-status.archived .dot { background: var(--gray-400); }
     
     .toast {
         padding: 14px 20px;
@@ -560,7 +566,7 @@ include 'includes/sidebar.php';
                             <option value="draft" <?php echo $election['status'] == 'draft' ? 'selected' : ''; ?>>Draft</option>
                             <option value="upcoming" <?php echo $election['status'] == 'upcoming' ? 'selected' : ''; ?>>Upcoming</option>
                             <option value="active" <?php echo $election['status'] == 'active' ? 'selected' : ''; ?>>Active</option>
-                            <option value="completed" <?php echo $election['status'] == 'completed' ? 'selected' : ''; ?>>Completed</option>
+                            <option value="closed" <?php echo $election['status'] == 'closed' ? 'selected' : ''; ?>>Closed</option>
                             <option value="cancelled" <?php echo $election['status'] == 'cancelled' ? 'selected' : ''; ?>>Cancelled</option>
                             <option value="archived" <?php echo $election['status'] == 'archived' ? 'selected' : ''; ?>>Archived</option>
                         </select>

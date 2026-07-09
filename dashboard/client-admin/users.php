@@ -6,6 +6,19 @@ require_once '../../config/config.php';
 require_once '../../includes/session.php';
 require_once '../../includes/functions.php';
 
+// ============================================================
+// HELPER FUNCTION - Generate Random Password
+// ============================================================
+function generateRandomPassword($length = 12) {
+    $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()';
+    $password = '';
+    $max = strlen($chars) - 1;
+    for ($i = 0; $i < $length; $i++) {
+        $password .= $chars[random_int(0, $max)];
+    }
+    return $password;
+}
+
 // Start session and check login
 SessionManager::start();
 
@@ -83,16 +96,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $user = $stmt->fetch();
                     
                     if ($user && !empty($user['email'])) {
-                        $subject = "Password Reset - " . APP_NAME;
-                        $message = "Dear {$user['first_name']},\n\n";
-                        $message .= "Your password has been reset.\n\n";
-                        $message .= "New Password: $new_password\n\n";
-                        $message .= "Please change your password after logging in.\n\n";
-                        $message .= "Best regards,\n" . APP_NAME . " Team";
-                        sendEmail($user['email'], $subject, $message);
+                        try {
+                            $subject = "Password Reset - " . APP_NAME;
+                            $message = "Dear {$user['first_name']},\n\n";
+                            $message .= "Your password has been reset.\n\n";
+                            $message .= "New Password: $new_password\n\n";
+                            $message .= "Please change your password after logging in.\n\n";
+                            $message .= "Best regards,\n" . APP_NAME . " Team";
+                            sendEmail($user['email'], $subject, $message);
+                            $action_result = ['success' => true, 'message' => 'Password reset successfully. New password sent via email.'];
+                        } catch (Exception $e) {
+                            $action_result = ['success' => true, 'message' => 'Password reset successfully but email could not be sent.'];
+                            error_log("Password reset email failed: " . $e->getMessage());
+                        }
+                    } else {
+                        $action_result = ['success' => true, 'message' => 'Password reset successfully.'];
                     }
                     
-                    $action_result = ['success' => true, 'message' => 'Password reset successfully. New password sent via email.'];
                     logActivity($user_id, 'user_password_reset', "Reset password for user ID: $id");
                 }
                 break;
@@ -115,19 +135,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 if ($ext === 'csv') {
                     $handle = fopen($file['tmp_name'], 'r');
-                    $headers = fgetcsv($handle);
-                    
-                    while (($row = fgetcsv($handle)) !== false) {
-                        try {
-                            $data = array_combine($headers, $row);
-                            // Validate and insert user
-                            // ... import logic
-                            $imported++;
-                        } catch (Exception $e) {
-                            $errors[] = $e->getMessage();
+                    if ($handle) {
+                        $headers = fgetcsv($handle);
+                        while (($row = fgetcsv($handle)) !== false) {
+                            try {
+                                $data = array_combine($headers, $row);
+                                // Validate and insert user
+                                if (!empty($data['email']) && !empty($data['first_name']) && !empty($data['last_name'])) {
+                                    // Check if email exists
+                                    $check = $db->prepare("SELECT id FROM users WHERE email = ? AND tenant_id = ? AND deleted_at IS NULL");
+                                    $check->execute([$data['email'], $tenant_id]);
+                                    if (!$check->fetch()) {
+                                        // Get role id
+                                        $role_id = 2; // default
+                                        if (!empty($data['role_name'])) {
+                                            $role_stmt = $db->prepare("SELECT id FROM roles WHERE name = ? LIMIT 1");
+                                            $role_stmt->execute([$data['role_name']]);
+                                            $role = $role_stmt->fetch();
+                                            if ($role) $role_id = $role['id'];
+                                        }
+                                        
+                                        $user_code = 'USR' . str_pad(rand(1, 999999), 6, '0', STR_PAD_LEFT);
+                                        $password_hash = password_hash('password123', PASSWORD_DEFAULT);
+                                        
+                                        $insert = $db->prepare("
+                                            INSERT INTO users (tenant_id, user_code, role_id, first_name, last_name, email, phone, password_hash, status, created_by, created_at)
+                                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, NOW())
+                                        ");
+                                        $insert->execute([
+                                            $tenant_id, $user_code, $role_id, 
+                                            $data['first_name'], $data['last_name'], 
+                                            $data['email'], $data['phone'] ?? '', 
+                                            $password_hash, $user_id
+                                        ]);
+                                        $imported++;
+                                    }
+                                }
+                            } catch (Exception $e) {
+                                $errors[] = $e->getMessage();
+                            }
                         }
+                        fclose($handle);
                     }
-                    fclose($handle);
                 }
                 
                 $action_result = [
@@ -141,12 +190,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // Handle export
                 $format = $_POST['export_format'] ?? 'csv';
                 header('Content-Type: text/csv; charset=utf-8');
-                header('Content-Disposition: attachment; filename="users_export_' . date('Y-m-d') . '.' . $format);
+                header('Content-Disposition: attachment; filename="users_export_' . date('Y-m-d') . '.csv"');
                 // ... export logic
                 break;
         }
+    } catch (PDOException $e) {
+        $action_result = ['success' => false, 'message' => 'Database error: ' . $e->getMessage()];
+        error_log("User action PDO Error: " . $e->getMessage());
     } catch (Exception $e) {
         $action_result = ['success' => false, 'message' => 'Error: ' . $e->getMessage()];
+        error_log("User action Error: " . $e->getMessage());
     }
 }
 
@@ -287,6 +340,7 @@ try {
 include 'includes/base.php';
 include 'includes/sidebar.php';
 ?>
+<!-- The rest of the HTML, CSS, and JavaScript remains exactly the same as your original file -->
 <style>
     /* ============================================================
        USERS - CLIENT ADMIN PROFESSIONAL STYLES

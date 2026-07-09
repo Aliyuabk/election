@@ -109,8 +109,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (empty($errors)) {
         try {
-            $db->beginTransaction();
-            
             // Generate user code
             $stmt = $db->prepare("SELECT COUNT(*) as count FROM users WHERE tenant_id = ?");
             $stmt->execute([$tenant_id]);
@@ -152,27 +150,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             logActivity($user_id, 'user_created', "Created user: {$form_data['first_name']} {$form_data['last_name']}");
             
-            $db->commit();
-            
             // Send welcome email
-            $subject = "Welcome to " . APP_NAME;
-            $message = "Dear {$form_data['first_name']},\n\n";
-            $message .= "You have been added as a user to your organization on " . APP_NAME . ".\n\n";
-            $message .= "Login Credentials:\n";
-            $message .= "Email: {$form_data['email']}\n";
-            $message .= "Password: {$form_data['password']}\n\n";
-            $message .= "Please login at: " . APP_URL . "/auth/login.php\n\n";
-            $message .= "Best regards,\n" . APP_NAME . " Team";
-            sendEmail($form_data['email'], $subject, $message);
+            try {
+                $subject = "Welcome to " . APP_NAME;
+                $message = "Dear {$form_data['first_name']},\n\n";
+                $message .= "You have been added as a user to your organization on " . APP_NAME . ".\n\n";
+                $message .= "Login Credentials:\n";
+                $message .= "Email: {$form_data['email']}\n";
+                $message .= "Password: {$form_data['password']}\n\n";
+                $message .= "Please login at: " . APP_URL . "/auth/login.php\n\n";
+                $message .= "Best regards,\n" . APP_NAME . " Team";
+                sendEmail($form_data['email'], $subject, $message);
+                $success = "User created successfully! Welcome email sent.";
+            } catch (Exception $e) {
+                $success = "User created successfully! (Welcome email could not be sent)";
+                error_log("Welcome email failed: " . $e->getMessage());
+            }
             
-            $success = "User created successfully! Welcome email sent.";
             $form_data = [];
             
+        } catch (PDOException $e) {
+            $error = 'Database error creating user: ' . $e->getMessage();
+            error_log("User creation PDO Error: " . $e->getMessage());
         } catch (Exception $e) {
-            if ($db->inTransaction()) {
-                $db->rollBack();
-            }
             $error = 'Error creating user: ' . $e->getMessage();
+            error_log("User creation Error: " . $e->getMessage());
         }
     } else {
         $error = implode('<br>', $errors);

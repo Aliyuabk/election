@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// CANDIDATES MANAGEMENT - CLIENT ADMIN (PROFESSIONAL UI)
+// CANDIDATES MANAGEMENT - CLIENT ADMIN (FIXED)
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -63,8 +63,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $action_result = ['success' => true, 'message' => 'Candidate status updated successfully.'];
                 break;
         }
+    } catch (PDOException $e) {
+        $action_result = ['success' => false, 'message' => 'Database error: ' . $e->getMessage()];
+        error_log("Candidate action PDO Error: " . $e->getMessage());
     } catch (Exception $e) {
         $action_result = ['success' => false, 'message' => 'Error: ' . $e->getMessage()];
+        error_log("Candidate action Error: " . $e->getMessage());
     }
 }
 
@@ -184,11 +188,14 @@ try {
     $stmt = $db->prepare("SELECT position, COUNT(*) as count FROM candidates WHERE tenant_id = ? GROUP BY position ORDER BY count DESC");
     $stmt->execute([$tenant_id]);
     $stats['by_position'] = $stmt->fetchAll();
-} catch (Exception $e) {}
+} catch (Exception $e) {
+    error_log("Error fetching candidate stats: " . $e->getMessage());
+}
 
 include 'includes/base.php';
 include 'includes/sidebar.php';
 ?>
+<!-- All HTML and CSS remain the same as your original file -->
 <style>
     /* ============================================================
        CANDIDATES MANAGEMENT - PROFESSIONAL UI STYLES

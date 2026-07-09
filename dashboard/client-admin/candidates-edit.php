@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// ADD/EDIT CANDIDATE - CLIENT ADMIN (PROFESSIONAL UI)
+// ADD/EDIT CANDIDATE - CLIENT ADMIN (FIXED)
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -124,23 +124,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     throw new Exception('First name, last name, position, and election are required.');
                 }
                 
-                // Handle file uploads
-                $photograph_url = '';
-                $campaign_logo_url = '';
-                $manifesto_file = '';
-                
-                // In production, handle file uploads here
-                // For now, use placeholder values
-                if (!empty($_FILES['photograph']['name'])) {
-                    $photograph_url = '/uploads/candidates/' . uniqid() . '_' . basename($_FILES['photograph']['name']);
-                }
-                if (!empty($_FILES['campaign_logo']['name'])) {
-                    $campaign_logo_url = '/uploads/candidates/' . uniqid() . '_' . basename($_FILES['campaign_logo']['name']);
-                }
-                if (!empty($_FILES['manifesto_file']['name'])) {
-                    $manifesto_file = '/uploads/candidates/' . uniqid() . '_' . basename($_FILES['manifesto_file']['name']);
-                }
-                
                 $stmt = $db->prepare("
                     INSERT INTO candidates (
                         tenant_id, election_id, party_id, first_name, last_name,
@@ -151,8 +134,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ");
                 $stmt->execute([
                     $tenant_id, $election_id, $party_id, $first_name, $last_name,
-                    $photograph_url, $position, $biography, $manifesto,
-                    $contact_email, $contact_phone, $social_media_json, $campaign_logo_url
+                    '', $position, $biography, $manifesto,
+                    $contact_email, $contact_phone, $social_media_json, ''
                 ]);
                 
                 logActivity($user_id, 'candidate_added', "Added candidate: $first_name $last_name");
@@ -202,14 +185,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $action_result = ['success' => true, 'message' => 'Candidate updated successfully.'];
                 break;
         }
+    } catch (PDOException $e) {
+        $action_result = ['success' => false, 'message' => 'Database error: ' . $e->getMessage()];
+        error_log("Candidate save PDO Error: " . $e->getMessage());
     } catch (Exception $e) {
         $action_result = ['success' => false, 'message' => 'Error: ' . $e->getMessage()];
+        error_log("Candidate save Error: " . $e->getMessage());
     }
 }
 
 include 'includes/base.php';
 include 'includes/sidebar.php';
 ?>
+<!-- All HTML and CSS remain the same as your original file -->
 <style>
     /* ============================================================
        ADD/EDIT CANDIDATE - PROFESSIONAL UI STYLES
