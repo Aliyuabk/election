@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// BILLING & INVOICES - SUPER ADMINISTRATOR (WITH AJAX)
+// BILLING & INVOICES - SUPER ADMINISTRATOR (FIXED)
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -72,6 +72,32 @@ if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQU
                 }
                 break;
                 
+            case 'get_stats':
+                $stmt = $db->query("SELECT COUNT(*) as total FROM invoices");
+                $total = $stmt->fetch()['total'] ?? 0;
+                
+                $stmt = $db->query("SELECT COUNT(*) as total FROM invoices WHERE status = 'paid'");
+                $paid = $stmt->fetch()['total'] ?? 0;
+                
+                $stmt = $db->query("SELECT COUNT(*) as total FROM invoices WHERE status = 'draft'");
+                $draft = $stmt->fetch()['total'] ?? 0;
+                
+                $stmt = $db->query("SELECT COUNT(*) as total FROM invoices WHERE status = 'overdue'");
+                $overdue = $stmt->fetch()['total'] ?? 0;
+                
+                $stmt = $db->query("SELECT SUM(total_amount) as total FROM invoices WHERE status = 'paid'");
+                $revenue = $stmt->fetch()['total'] ?? 0;
+                
+                $response = [
+                    'success' => true,
+                    'total_invoices' => $total,
+                    'paid' => $paid,
+                    'draft' => $draft,
+                    'overdue' => $overdue,
+                    'total_revenue' => $revenue
+                ];
+                break;
+                
             case 'generate_invoice':
                 $tenant_id = (int)($_POST['tenant_id'] ?? 0);
                 $amount = (float)($_POST['amount'] ?? 0);
@@ -118,7 +144,7 @@ if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQU
                 $id = (int)($_POST['id'] ?? 0);
                 if ($id <= 0) throw new Exception('Invalid invoice ID.');
                 
-                $stmt = $db->prepare("UPDATE invoices SET status = 'paid', paid_at = NOW() WHERE id = ?");
+                $stmt = $db->prepare("UPDATE invoices SET status = 'paid', paid_at = NOW() WHERE id = ? AND status != 'paid'");
                 $stmt->execute([$id]);
                 
                 if ($stmt->rowCount() > 0) {
@@ -183,6 +209,45 @@ if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQU
 }
 
 // ============================================================
+// HANDLE REGULAR FORM SUBMISSION (non-AJAX fallback)
+// ============================================================
+$action_result = ['success' => false, 'message' => ''];
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_SERVER['HTTP_X_REQUESTED_WITH'])) {
+    $action = $_POST['action'] ?? '';
+    
+    try {
+        switch ($action) {
+            case 'generate_invoice':
+                $tenant_id = (int)($_POST['tenant_id'] ?? 0);
+                $amount = (float)($_POST['amount'] ?? 0);
+                $tax = (float)($_POST['tax'] ?? 0);
+                $due_date = $_POST['due_date'] ?? date('Y-m-d', strtotime('+30 days'));
+                $notes = trim($_POST['notes'] ?? '');
+                
+                if ($tenant_id <= 0 || $amount <= 0) {
+                    throw new Exception('Tenant and amount are required.');
+                }
+                
+                $invoice_number = 'INV-' . date('Y') . '-' . str_pad(rand(1, 99999), 5, '0', STR_PAD_LEFT);
+                $total = $amount + $tax;
+                
+                $stmt = $db->prepare("
+                    INSERT INTO invoices (tenant_id, invoice_number, amount, tax_amount, total_amount, due_date, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ");
+                $stmt->execute([$tenant_id, $invoice_number, $amount, $tax, $total, $due_date, $notes]);
+                
+                logActivity(SessionManager::get('user_id'), 'invoice_generated', "Generated invoice: $invoice_number");
+                $action_result = ['success' => true, 'message' => 'Invoice generated successfully: ' . $invoice_number];
+                break;
+        }
+    } catch (Exception $e) {
+        $action_result = ['success' => false, 'message' => $e->getMessage()];
+    }
+}
+
+// ============================================================
 // FETCH INVOICES
 // ============================================================
 $invoices = [];
@@ -210,7 +275,7 @@ $user_email = SessionManager::get('user_email', 'admin@example.com');
 
 include 'includes/base.php';
 include 'includes/sidebar.php';
-?> 
+?>
 <style>
     /* ============================================================
        BILLING - PRO STYLES
@@ -389,11 +454,11 @@ include 'includes/sidebar.php';
             }
             ?>
             <div class="stats-grid">
-                <div class="stat-item"><div class="number"><?php echo $total_invoices; ?></div><div class="label">Total Invoices</div></div>
-                <div class="stat-item"><div class="number green"><?php echo $paid; ?></div><div class="label">Paid</div></div>
-                <div class="stat-item"><div class="number yellow"><?php echo $draft; ?></div><div class="label">Draft</div></div>
-                <div class="stat-item"><div class="number red"><?php echo $overdue; ?></div><div class="label">Overdue</div></div>
-                <div class="stat-item"><div class="number">₦<?php echo number_format($total_revenue, 2); ?></div><div class="label">Total Revenue</div></div>
+                <div class="stat-item"><div class="number" id="statTotal"><?php echo $total_invoices; ?></div><div class="label">Total Invoices</div></div>
+                <div class="stat-item"><div class="number green" id="statPaid"><?php echo $paid; ?></div><div class="label">Paid</div></div>
+                <div class="stat-item"><div class="number yellow" id="statDraft"><?php echo $draft; ?></div><div class="label">Draft</div></div>
+                <div class="stat-item"><div class="number red" id="statOverdue"><?php echo $overdue; ?></div><div class="label">Overdue</div></div>
+                <div class="stat-item"><div class="number" id="statRevenue">₦<?php echo number_format($total_revenue, 2); ?></div><div class="label">Total Revenue</div></div>
             </div>
 
             <!-- Invoices Table -->
@@ -420,14 +485,14 @@ include 'includes/sidebar.php';
                     <tbody>
                         <?php if (count($invoices) > 0): ?>
                             <?php foreach ($invoices as $inv): ?>
-                                <tr>
+                                <tr data-invoice-id="<?php echo $inv['id']; ?>">
                                     <td><strong><?php echo htmlspecialchars($inv['invoice_number']); ?></strong></td>
                                     <td><?php echo htmlspecialchars($inv['tenant_name'] ?? 'N/A'); ?></td>
                                     <td>₦<?php echo number_format($inv['amount'], 2); ?></td>
                                     <td>₦<?php echo number_format($inv['tax_amount'], 2); ?></td>
                                     <td><strong>₦<?php echo number_format($inv['total_amount'], 2); ?></strong></td>
                                     <td><?php echo date('M j, Y', strtotime($inv['due_date'])); ?></td>
-                                    <td>
+                                    <td class="status-cell">
                                         <span class="badge-status <?php echo $inv['status']; ?>">
                                             <span class="dot"></span>
                                             <?php echo ucfirst($inv['status']); ?>
@@ -437,7 +502,7 @@ include 'includes/sidebar.php';
                                         <div class="action-dropdown">
                                             <button class="dropdown-btn" onclick="toggleDropdown(this)"><i class="fas fa-ellipsis-v"></i></button>
                                             <div class="dropdown-menu">
-                                                <a href="#" onclick="alert('View invoice: <?php echo $inv['invoice_number']; ?>')"><i class="fas fa-eye"></i> View</a>
+                                                <a href="#" onclick="viewInvoice(<?php echo $inv['id']; ?>)"><i class="fas fa-eye"></i> View</a>
                                                 <?php if ($inv['status'] === 'draft' || $inv['status'] === 'sent'): ?>
                                                     <button onclick="markPaid(<?php echo $inv['id']; ?>)"><i class="fas fa-check"></i> Mark Paid</button>
                                                     <button onclick="sendInvoice(<?php echo $inv['id']; ?>)"><i class="fas fa-envelope"></i> Send</button>
@@ -467,7 +532,7 @@ include 'includes/sidebar.php';
             <h3><i class="fas fa-plus-circle" style="color:var(--primary);"></i> Generate Invoice</h3>
             <button class="close-btn" onclick="closeModal('generateInvoiceModal')">&times;</button>
         </div>
-        <form method="POST" action="">
+        <form method="POST" action="" id="generateInvoiceForm">
             <input type="hidden" name="action" value="generate_invoice">
             <div class="form-group">
                 <label>Tenant <span class="required">*</span></label>
@@ -611,7 +676,7 @@ document.querySelectorAll('.modal-overlay').forEach(function(overlay) {
 });
 
 // ============================================================
-// ACTION FUNCTIONS
+// DROPDOWN FUNCTIONS
 // ============================================================
 function toggleDropdown(btn) {
     var menu = btn.nextElementSibling;
@@ -632,34 +697,280 @@ document.addEventListener('click', function(e) {
     }
 });
 
+// ============================================================
+// AJAX FUNCTIONS
+// ============================================================
+
+// Generate Invoice via AJAX
+document.getElementById('generateInvoiceForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    var formData = new FormData(this);
+    formData.append('action', 'generate_invoice');
+    
+    var submitBtn = this.querySelector('button[type="submit"]');
+    var originalText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+    submitBtn.disabled = true;
+    
+    fetch('billing.php', {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: formData
+    })
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+        if (data.success) {
+            showToast('success', data.message);
+            
+            // Add new row to table
+            var tbody = document.querySelector('.data-table tbody');
+            var newRow = document.createElement('tr');
+            newRow.setAttribute('data-invoice-id', data.invoice_id);
+            var statusBadge = 'draft';
+            newRow.innerHTML = `
+                <td><strong>${data.invoice_number}</strong></td>
+                <td>${data.tenant_name}</td>
+                <td>₦${parseFloat(data.amount).toFixed(2)}</td>
+                <td>₦${parseFloat(data.tax).toFixed(2)}</td>
+                <td><strong>₦${parseFloat(data.total).toFixed(2)}</strong></td>
+                <td>${new Date(data.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
+                <td class="status-cell"><span class="badge-status draft"><span class="dot"></span>Draft</span></td>
+                <td>
+                    <div class="action-dropdown">
+                        <button class="dropdown-btn" onclick="toggleDropdown(this)"><i class="fas fa-ellipsis-v"></i></button>
+                        <div class="dropdown-menu">
+                            <a href="#" onclick="viewInvoice(${data.invoice_id})"><i class="fas fa-eye"></i> View</a>
+                            <button onclick="markPaid(${data.invoice_id})"><i class="fas fa-check"></i> Mark Paid</button>
+                            <button onclick="sendInvoice(${data.invoice_id})"><i class="fas fa-envelope"></i> Send</button>
+                            <button class="danger" onclick="cancelInvoice(${data.invoice_id})"><i class="fas fa-times"></i> Cancel</button>
+                        </div>
+                    </div>
+                </td>
+            `;
+            tbody.insertBefore(newRow, tbody.firstChild);
+            
+            // Update stats
+            updateStats();
+            
+            // Close modal and reset form
+            closeModal('generateInvoiceModal');
+            this.reset();
+        } else {
+            showToast('error', data.message);
+        }
+    })
+    .catch(function(error) {
+        console.error('Error:', error);
+        showToast('error', 'An error occurred. Please try again.');
+    })
+    .finally(function() {
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+    });
+});
+
+// Mark Invoice as Paid via AJAX
 function markPaid(id) {
-    if (confirm('Mark this invoice as paid?')) {
-        var form = document.createElement('form');
-        form.method = 'POST';
-        form.innerHTML = '<input type="hidden" name="action" value="mark_paid"><input type="hidden" name="id" value="' + id + '">';
-        document.body.appendChild(form);
-        form.submit();
-    }
+    if (!confirm('Mark this invoice as paid?')) return;
+    
+    var formData = new FormData();
+    formData.append('action', 'mark_paid');
+    formData.append('id', id);
+    
+    fetch('billing.php', {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: formData
+    })
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+        if (data.success) {
+            showToast('success', data.message);
+            // Update row status
+            var row = document.querySelector('tr[data-invoice-id="' + id + '"]');
+            if (row) {
+                var statusCell = row.querySelector('.status-cell');
+                statusCell.innerHTML = '<span class="badge-status paid"><span class="dot"></span>Paid</span>';
+                // Update actions
+                var menu = row.querySelector('.dropdown-menu');
+                if (menu) {
+                    menu.innerHTML = `
+                        <a href="#" onclick="viewInvoice(${id})"><i class="fas fa-eye"></i> View</a>
+                        <button class="danger" onclick="cancelInvoice(${id})"><i class="fas fa-times"></i> Cancel</button>
+                    `;
+                }
+            }
+            updateStats();
+        } else {
+            showToast('error', data.message);
+        }
+    })
+    .catch(function(error) {
+        console.error('Error:', error);
+        showToast('error', 'An error occurred. Please try again.');
+    });
 }
 
+// Send Invoice via AJAX
 function sendInvoice(id) {
-    if (confirm('Send this invoice to the tenant?')) {
-        var form = document.createElement('form');
-        form.method = 'POST';
-        form.innerHTML = '<input type="hidden" name="action" value="send_invoice"><input type="hidden" name="id" value="' + id + '">';
-        document.body.appendChild(form);
-        form.submit();
-    }
+    if (!confirm('Send this invoice to the tenant?')) return;
+    
+    var formData = new FormData();
+    formData.append('action', 'send_invoice');
+    formData.append('id', id);
+    
+    fetch('billing.php', {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: formData
+    })
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+        if (data.success) {
+            showToast('success', data.message);
+            // Update status
+            var row = document.querySelector('tr[data-invoice-id="' + id + '"]');
+            if (row) {
+                var statusCell = row.querySelector('.status-cell');
+                statusCell.innerHTML = '<span class="badge-status sent"><span class="dot"></span>Sent</span>';
+            }
+        } else {
+            showToast('error', data.message);
+        }
+    })
+    .catch(function(error) {
+        console.error('Error:', error);
+        showToast('error', 'An error occurred. Please try again.');
+    });
 }
 
+// Cancel Invoice via AJAX
 function cancelInvoice(id) {
-    if (confirm('Cancel this invoice?')) {
-        var form = document.createElement('form');
-        form.method = 'POST';
-        form.innerHTML = '<input type="hidden" name="action" value="cancel_invoice"><input type="hidden" name="id" value="' + id + '">';
-        document.body.appendChild(form);
-        form.submit();
+    if (!confirm('Cancel this invoice?')) return;
+    
+    var formData = new FormData();
+    formData.append('action', 'cancel_invoice');
+    formData.append('id', id);
+    
+    fetch('billing.php', {
+        method: 'POST',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: formData
+    })
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+        if (data.success) {
+            showToast('success', data.message);
+            var row = document.querySelector('tr[data-invoice-id="' + id + '"]');
+            if (row) {
+                var statusCell = row.querySelector('.status-cell');
+                statusCell.innerHTML = '<span class="badge-status cancelled"><span class="dot"></span>Cancelled</span>';
+                // Update actions
+                var menu = row.querySelector('.dropdown-menu');
+                if (menu) {
+                    menu.innerHTML = `
+                        <a href="#" onclick="viewInvoice(${id})"><i class="fas fa-eye"></i> View</a>
+                    `;
+                }
+            }
+            updateStats();
+        } else {
+            showToast('error', data.message);
+        }
+    })
+    .catch(function(error) {
+        console.error('Error:', error);
+        showToast('error', 'An error occurred. Please try again.');
+    });
+}
+
+// View Invoice
+function viewInvoice(id) {
+    fetch('billing.php?action=get_invoice&id=' + id, {
+        method: 'GET',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+        if (data.success) {
+            var inv = data.data;
+            alert('Invoice #' + inv.invoice_number + '\n' +
+                  'Amount: ₦' + parseFloat(inv.total_amount).toFixed(2) + '\n' +
+                  'Status: ' + inv.status.toUpperCase() + '\n' +
+                  'Due Date: ' + new Date(inv.due_date).toLocaleDateString());
+        } else {
+            showToast('error', data.message);
+        }
+    })
+    .catch(function(error) {
+        console.error('Error:', error);
+        showToast('error', 'An error occurred.');
+    });
+}
+
+// Update Stats
+function updateStats() {
+    fetch('billing.php?action=get_stats', {
+        method: 'GET',
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(function(response) { return response.json(); })
+    .then(function(data) {
+        if (data.success) {
+            document.getElementById('statTotal').textContent = data.total_invoices;
+            document.getElementById('statPaid').textContent = data.paid;
+            document.getElementById('statDraft').textContent = data.draft;
+            document.getElementById('statOverdue').textContent = data.overdue;
+            document.getElementById('statRevenue').textContent = '₦' + parseFloat(data.total_revenue).toFixed(2);
+        }
+    })
+    .catch(function(error) {
+        console.error('Error updating stats:', error);
+    });
+}
+
+// Toast Notifications
+function showToast(type, message) {
+    var container = document.querySelector('.toast-container');
+    if (!container || container.style.position === 'static') {
+        container = document.createElement('div');
+        container.className = 'toast-container';
+        container.style.position = 'fixed';
+        container.style.top = '80px';
+        container.style.right = '20px';
+        container.style.zIndex = '999';
+        container.style.display = 'flex';
+        container.style.flexDirection = 'column';
+        container.style.gap = '8px';
+        document.body.appendChild(container);
     }
+    
+    var toast = document.createElement('div');
+    toast.className = 'toast ' + type;
+    toast.innerHTML = '<i class="fas ' + (type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle') + '"></i> ' + message;
+    container.appendChild(toast);
+    
+    setTimeout(function() {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(100px)';
+        toast.style.transition = 'all 0.3s ease';
+        setTimeout(function() {
+            toast.remove();
+        }, 300);
+    }, 4000);
 }
 
 // ============================================================
@@ -709,327 +1020,6 @@ if (searchInput) {
         }
     });
 }
-// ============================================================
-// BILLING - AJAX FUNCTIONS
-// ============================================================
-
-// Generate Invoice via AJAX
-document.getElementById('generateInvoiceForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    
-    var formData = new FormData(this);
-    formData.append('action', 'generate_invoice');
-    
-    var submitBtn = this.querySelector('button[type="submit"]');
-    var originalText = submitBtn.innerHTML;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
-    submitBtn.disabled = true;
-    
-    fetch('billing.php', {
-        method: 'POST',
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest'
-        },
-        body: formData
-    })
-    .then(function(response) { return response.json(); })
-    .then(function(data) {
-        if (data.success) {
-            showToast('success', data.message);
-            
-            // Add new row to table
-            var tbody = document.querySelector('.data-table tbody');
-            var newRow = document.createElement('tr');
-            newRow.innerHTML = `
-                <td><strong>${data.invoice_number}</strong></td>
-                <td>${data.tenant_name}</td>
-                <td>₦${parseFloat(data.amount).toFixed(2)}</td>
-                <td>₦${parseFloat(data.tax).toFixed(2)}</td>
-                <td><strong>₦${parseFloat(data.total).toFixed(2)}</strong></td>
-                <td>${new Date(data.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
-                <td><span class="badge-status draft"><span class="dot"></span>Draft</span></td>
-                <td>
-                    <div class="action-dropdown">
-                        <button class="dropdown-btn" onclick="toggleDropdown(this)"><i class="fas fa-ellipsis-v"></i></button>
-                        <div class="dropdown-menu">
-                            <a href="#" onclick="viewInvoice(${data.invoice_id})"><i class="fas fa-eye"></i> View</a>
-                            <button onclick="markPaid(${data.invoice_id})"><i class="fas fa-check"></i> Mark Paid</button>
-                            <button onclick="sendInvoice(${data.invoice_id})"><i class="fas fa-envelope"></i> Send</button>
-                            <button class="danger" onclick="cancelInvoice(${data.invoice_id})"><i class="fas fa-times"></i> Cancel</button>
-                        </div>
-                    </div>
-                </td>
-            `;
-            tbody.insertBefore(newRow, tbody.firstChild);
-            
-            // Update stats
-            updateStats();
-            
-            // Close modal
-            closeModal('generateInvoiceModal');
-            this.reset();
-        } else {
-            showToast('error', data.message);
-        }
-    })
-    .catch(function() {
-        showToast('error', 'An error occurred. Please try again.');
-    })
-    .finally(function() {
-        submitBtn.innerHTML = originalText;
-        submitBtn.disabled = false;
-    });
-});
-
-// Mark Invoice as Paid via AJAX
-function markPaid(id) {
-    if (!confirm('Mark this invoice as paid?')) return;
-    
-    var formData = new FormData();
-    formData.append('action', 'mark_paid');
-    formData.append('id', id);
-    
-    fetch('billing.php', {
-        method: 'POST',
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest'
-        },
-        body: formData
-    })
-    .then(function(response) { return response.json(); })
-    .then(function(data) {
-        if (data.success) {
-            showToast('success', data.message);
-            // Update row status
-            var row = findRowByInvoiceId(id);
-            if (row) {
-                var statusCell = row.querySelector('td:nth-child(7)');
-                statusCell.innerHTML = '<span class="badge-status paid"><span class="dot"></span>Paid</span>';
-                // Update actions
-                var actionsCell = row.querySelector('td:last-child');
-                var menu = actionsCell.querySelector('.dropdown-menu');
-                if (menu) {
-                    menu.innerHTML = `
-                        <a href="#" onclick="viewInvoice(${id})"><i class="fas fa-eye"></i> View</a>
-                        <button class="danger" onclick="cancelInvoice(${id})"><i class="fas fa-times"></i> Cancel</button>
-                    `;
-                }
-            }
-            updateStats();
-        } else {
-            showToast('error', data.message);
-        }
-    })
-    .catch(function() {
-        showToast('error', 'An error occurred. Please try again.');
-    });
-}
-
-// Send Invoice via AJAX
-function sendInvoice(id) {
-    if (!confirm('Send this invoice to the tenant?')) return;
-    
-    var formData = new FormData();
-    formData.append('action', 'send_invoice');
-    formData.append('id', id);
-    
-    fetch('billing.php', {
-        method: 'POST',
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest'
-        },
-        body: formData
-    })
-    .then(function(response) { return response.json(); })
-    .then(function(data) {
-        if (data.success) {
-            showToast('success', data.message);
-            // Update status
-            var row = findRowByInvoiceId(id);
-            if (row) {
-                var statusCell = row.querySelector('td:nth-child(7)');
-                statusCell.innerHTML = '<span class="badge-status sent"><span class="dot"></span>Sent</span>';
-            }
-        } else {
-            showToast('error', data.message);
-        }
-    })
-    .catch(function() {
-        showToast('error', 'An error occurred. Please try again.');
-    });
-}
-
-// Cancel Invoice via AJAX
-function cancelInvoice(id) {
-    if (!confirm('Cancel this invoice?')) return;
-    
-    var formData = new FormData();
-    formData.append('action', 'cancel_invoice');
-    formData.append('id', id);
-    
-    fetch('billing.php', {
-        method: 'POST',
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest'
-        },
-        body: formData
-    })
-    .then(function(response) { return response.json(); })
-    .then(function(data) {
-        if (data.success) {
-            showToast('success', data.message);
-            var row = findRowByInvoiceId(id);
-            if (row) {
-                var statusCell = row.querySelector('td:nth-child(7)');
-                statusCell.innerHTML = '<span class="badge-status cancelled"><span class="dot"></span>Cancelled</span>';
-                // Update actions
-                var actionsCell = row.querySelector('td:last-child');
-                var menu = actionsCell.querySelector('.dropdown-menu');
-                if (menu) {
-                    menu.innerHTML = `
-                        <a href="#" onclick="viewInvoice(${id})"><i class="fas fa-eye"></i> View</a>
-                    `;
-                }
-            }
-            updateStats();
-        } else {
-            showToast('error', data.message);
-        }
-    })
-    .catch(function() {
-        showToast('error', 'An error occurred. Please try again.');
-    });
-}
-
-// View Invoice (modal or download)
-function viewInvoice(id) {
-    fetch('billing.php?action=get_invoice&id=' + id, {
-        method: 'GET',
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest'
-        }
-    })
-    .then(function(response) { return response.json(); })
-    .then(function(data) {
-        if (data.success) {
-            var inv = data.data;
-            alert('Invoice #' + inv.invoice_number + '\n' +
-                  'Amount: ₦' + parseFloat(inv.total_amount).toFixed(2) + '\n' +
-                  'Status: ' + inv.status.toUpperCase() + '\n' +
-                  'Due Date: ' + new Date(inv.due_date).toLocaleDateString());
-        } else {
-            showToast('error', data.message);
-        }
-    })
-    .catch(function() {
-        showToast('error', 'An error occurred.');
-    });
-}
-
-// Update Stats
-function updateStats() {
-    fetch('billing.php?action=get_stats', {
-        method: 'GET',
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest'
-        }
-    })
-    .then(function(response) { return response.json(); })
-    .then(function(data) {
-        if (data.success) {
-            // Update stats numbers
-            document.querySelectorAll('.stat-item .number').forEach(function(el, index) {
-                if (index === 0) el.textContent = data.total_invoices;
-                else if (index === 1) el.textContent = data.paid;
-                else if (index === 2) el.textContent = data.draft;
-                else if (index === 3) el.textContent = data.overdue;
-                else if (index === 4) el.textContent = '₦' + parseFloat(data.total_revenue).toFixed(2);
-            });
-        }
-    })
-    .catch(function() {});
-}
-
-// Helper: Find row by invoice ID
-function findRowByInvoiceId(id) {
-    var rows = document.querySelectorAll('.data-table tbody tr');
-    for (var i = 0; i < rows.length; i++) {
-        var btn = rows[i].querySelector('button[onclick*="markPaid(' + id + ')"]');
-        if (btn) return rows[i];
-    }
-    return null;
-}
-
-// Toast Notifications
-function showToast(type, message) {
-    var container = document.querySelector('.toast-container');
-    if (!container) {
-        container = document.createElement('div');
-        container.className = 'toast-container';
-        container.style.position = 'fixed';
-        container.style.top = '80px';
-        container.style.right = '20px';
-        container.style.zIndex = '999';
-        container.style.display = 'flex';
-        container.style.flexDirection = 'column';
-        container.style.gap = '8px';
-        document.body.appendChild(container);
-    }
-    
-    var toast = document.createElement('div');
-    toast.className = 'toast ' + type;
-    toast.innerHTML = '<i class="fas ' + (type === 'success' ? 'fa-check-circle' : 'fa-exclamation-circle') + '"></i> ' + message;
-    container.appendChild(toast);
-    
-    setTimeout(function() {
-        toast.style.opacity = '0';
-        toast.style.transform = 'translateX(100px)';
-        setTimeout(function() {
-            toast.remove();
-        }, 300);
-    }, 4000);
-}
-
-// ============================================================
-// MODAL FUNCTIONS (same as before)
-// ============================================================
-function openModal(id) {
-    document.getElementById(id).classList.add('active');
-}
-
-function closeModal(id) {
-    document.getElementById(id).classList.remove('active');
-}
-
-document.querySelectorAll('.modal-overlay').forEach(function(overlay) {
-    overlay.addEventListener('click', function(e) {
-        if (e.target === this) {
-            this.classList.remove('active');
-        }
-    });
-});
-
-// ============================================================
-// DROPDOWN FUNCTIONS (same as before)
-// ============================================================
-function toggleDropdown(btn) {
-    var menu = btn.nextElementSibling;
-    var isOpen = menu.classList.contains('open');
-    document.querySelectorAll('.action-dropdown .dropdown-menu').forEach(function(m) {
-        m.classList.remove('open');
-    });
-    if (!isOpen) {
-        menu.classList.toggle('open');
-    }
-}
-
-document.addEventListener('click', function(e) {
-    if (!e.target.closest('.action-dropdown')) {
-        document.querySelectorAll('.action-dropdown .dropdown-menu').forEach(function(m) {
-            m.classList.remove('open');
-        });
-    }
-});
 </script>
 </body>
 </html>

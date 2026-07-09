@@ -115,11 +115,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // If no errors, create election
     if (empty($errors)) {
         try {
-            // Begin transaction
-            $db->beginTransaction();
-            
             // Prepare JSON data for states
             $states_json = !empty($form_data['states']) ? json_encode($form_data['states']) : null;
+            
+            // Handle time fields - convert empty strings to NULL
+            $start_time = !empty($form_data['start_time']) ? $form_data['start_time'] : null;
+            $end_time = !empty($form_data['end_time']) ? $form_data['end_time'] : null;
             
             // Insert election
             $stmt = $db->prepare("
@@ -140,8 +141,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $form_data['type'],
                 $form_data['cycle'],
                 $form_data['election_date'],
-                $form_data['start_time'],
-                $form_data['end_time'],
+                $start_time,
+                $end_time,
                 $form_data['description'],
                 $form_data['status'],
                 $states_json,
@@ -157,18 +158,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 "Created election: {$form_data['name']} (ID: $election_id) for tenant ID: {$form_data['tenant_id']}"
             );
             
-            // Commit transaction
-            $db->commit();
-            
             $success = "Election created successfully!";
             $form_data = []; // Clear form
             
+        } catch (PDOException $e) {
+            $error = 'Database error creating election: ' . $e->getMessage();
+            error_log("Election creation PDO Error: " . $e->getMessage());
         } catch (Exception $e) {
-            // Rollback only if transaction is active
-            if ($db->inTransaction()) {
-                $db->rollBack();
-            }
             $error = 'Error creating election: ' . $e->getMessage();
+            error_log("Election creation Error: " . $e->getMessage() . " in " . $e->getFile() . " line " . $e->getLine());
         }
     } else {
         $error = implode('<br>', $errors);

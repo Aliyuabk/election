@@ -182,9 +182,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (empty($errors)) {
             try {
-                // Begin transaction
-                $db->beginTransaction();
-                
                 // Generate slug
                 $slug = strtolower(preg_replace('/[^a-zA-Z0-9-]/', '-', $form_data['name']));
                 $slug = preg_replace('/-+/', '-', $slug);
@@ -273,13 +270,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         
                         // If password was changed, send email
                         if (!empty($form_data['admin_password']) && strlen($form_data['admin_password']) >= 8) {
-                            $subject = "Admin Password Updated - " . APP_NAME;
-                            $message = "Your admin password for {$form_data['name']} has been updated.\n\n";
-                            $message .= "New Password: {$form_data['admin_password']}\n\n";
-                            $message .= "Please change your password after logging in.\n\n";
-                            $message .= "Login: " . APP_URL . "/auth/login.php\n\n";
-                            $message .= "Best regards,\n" . APP_NAME . " Team";
-                            sendEmail($form_data['admin_email'], $subject, $message);
+                            try {
+                                $subject = "Admin Password Updated - " . APP_NAME;
+                                $message = "Your admin password for {$form_data['name']} has been updated.\n\n";
+                                $message .= "New Password: {$form_data['admin_password']}\n\n";
+                                $message .= "Please change your password after logging in.\n\n";
+                                $message .= "Login: " . APP_URL . "/auth/login.php\n\n";
+                                $message .= "Best regards,\n" . APP_NAME . " Team";
+                                sendEmail($form_data['admin_email'], $subject, $message);
+                            } catch (Exception $e) {
+                                // Email failed but update was successful
+                                error_log("Password update email failed: " . $e->getMessage());
+                            }
                         }
                     }
                 }
@@ -290,8 +292,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     "Updated tenant: {$form_data['name']} (ID: $tenant_id)"
                 );
                 
-                // Commit transaction
-                $db->commit();
                 $success = "Tenant updated successfully!";
                 
                 // Refresh tenant data
@@ -299,12 +299,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([$tenant_id]);
                 $tenant = $stmt->fetch();
                 
+            } catch (PDOException $e) {
+                $error = 'Database error updating tenant: ' . $e->getMessage();
+                error_log("Tenant update PDO Error: " . $e->getMessage());
             } catch (Exception $e) {
-                // Rollback only if transaction is active
-                if ($db->inTransaction()) {
-                    $db->rollBack();
-                }
                 $error = 'Error updating tenant: ' . $e->getMessage();
+                error_log("Tenant update Error: " . $e->getMessage() . " in " . $e->getFile() . " line " . $e->getLine());
             }
         } else {
             $error = implode('<br>', $errors);
@@ -1206,7 +1206,7 @@ document.addEventListener('DOMContentLoaded', function() {
             lgaSelect.innerHTML = '<option value="">Loading...</option>';
             
             if (stateId) {
-                fetch('../ajax/get-lgas.php?state_id=' + stateId)
+                fetch(`ajax/get-lgas.php?state_id=${stateId}`)
                     .then(function(response) { return response.json(); })
                     .then(function(data) {
                         lgaSelect.innerHTML = '<option value="">Select LGA</option>';

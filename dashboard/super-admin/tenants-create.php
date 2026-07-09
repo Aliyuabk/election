@@ -112,8 +112,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // If no errors, create tenant
     if (empty($errors)) {
         try {
-            $db->beginTransaction();
-            
             // Generate slug
             $slug = strtolower(preg_replace('/[^a-zA-Z0-9-]/', '-', $form_data['name']));
             $slug = preg_replace('/-+/', '-', $slug);
@@ -164,7 +162,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = $db->prepare("SELECT id FROM roles WHERE level = 'client_admin' LIMIT 1");
             $stmt->execute();
             $role = $stmt->fetch();
-            $role_id = $role['id'] ?? 2; // Default to client_admin
+            $role_id = $role['id'] ?? 2;
             
             // Generate user code
             $user_code = 'USR' . str_pad($tenant_id, 6, '0', STR_PAD_LEFT);
@@ -206,27 +204,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 "Created new tenant: {$form_data['name']} with admin: {$form_data['admin_email']}"
             );
             
-            $db->commit();
+            // Send welcome email to admin (optional - wrap in try catch so it doesn't break the process)
+            try {
+                $subject = "Welcome to " . APP_NAME . " - Your Tenant Account";
+                $message = "Dear {$form_data['admin_first_name']},\n\n";
+                $message .= "Your organization '{$form_data['name']}' has been successfully registered on " . APP_NAME . ".\n\n";
+                $message .= "Login Credentials:\n";
+                $message .= "Email: {$form_data['admin_email']}\n";
+                $message .= "Password: {$form_data['admin_password']}\n\n";
+                $message .= "Please login at: " . APP_URL . "/auth/login.php\n\n";
+                $message .= "We recommend changing your password after first login.\n\n";
+                $message .= "Best regards,\n" . APP_NAME . " Team";
+                
+                sendEmail($form_data['admin_email'], $subject, $message);
+            } catch (Exception $e) {
+                // Email failed but tenant was created successfully
+                error_log("Welcome email failed: " . $e->getMessage());
+            }
             
-            // Send welcome email to admin
-            $subject = "Welcome to " . APP_NAME . " - Your Tenant Account";
-            $message = "Dear {$form_data['admin_first_name']},\n\n";
-            $message .= "Your organization '{$form_data['name']}' has been successfully registered on " . APP_NAME . ".\n\n";
-            $message .= "Login Credentials:\n";
-            $message .= "Email: {$form_data['admin_email']}\n";
-            $message .= "Password: {$form_data['admin_password']}\n\n";
-            $message .= "Please login at: " . APP_URL . "/auth/login.php\n\n";
-            $message .= "We recommend changing your password after first login.\n\n";
-            $message .= "Best regards,\n" . APP_NAME . " Team";
-            
-            sendEmail($form_data['admin_email'], $subject, $message);
-            
-            $success = "Tenant created successfully! Welcome email sent to admin.";
+            $success = "Tenant created successfully!" . (isset($e) ? " (Welcome email could not be sent)" : " Welcome email sent to admin.");
             $form_data = []; // Clear form
             
+        } catch (PDOException $e) {
+            $error = 'Database error creating tenant: ' . $e->getMessage();
+            error_log("Tenant creation PDO Error: " . $e->getMessage());
         } catch (Exception $e) {
-            $db->rollBack();
             $error = 'Error creating tenant: ' . $e->getMessage();
+            error_log("Tenant creation Error: " . $e->getMessage() . " in " . $e->getFile() . " line " . $e->getLine());
         }
     } else {
         $error = implode('<br>', $errors);
@@ -577,7 +581,7 @@ document.addEventListener('DOMContentLoaded', function() {
             lgaSelect.innerHTML = '<option value="">Loading...</option>';
             
             if (stateId) {
-                fetch(`../ajax/get-lgas.php?state_id=${stateId}`)
+                fetch(`ajax/get-lgas.php?state_id=${stateId}`)
                     .then(response => response.json())
                     .then(data => {
                         lgaSelect.innerHTML = '<option value="">Select LGA</option>';

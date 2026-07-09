@@ -169,9 +169,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (empty($errors)) {
             try {
-                // Begin transaction
-                $db->beginTransaction();
-                
                 // Build update query
                 $update_fields = [];
                 $params = [];
@@ -221,13 +218,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 // If password was changed, send email
                 if (!empty($form_data['password']) && strlen($form_data['password']) >= 8) {
-                    $subject = "Password Updated - " . APP_NAME;
-                    $message = "Your password has been updated.\n\n";
-                    $message .= "New Password: {$form_data['password']}\n\n";
-                    $message .= "Please change your password after logging in.\n\n";
-                    $message .= "Login: " . APP_URL . "/auth/login.php\n\n";
-                    $message .= "Best regards,\n" . APP_NAME . " Team";
-                    sendEmail($form_data['email'], $subject, $message);
+                    try {
+                        $subject = "Password Updated - " . APP_NAME;
+                        $message = "Your password has been updated.\n\n";
+                        $message .= "New Password: {$form_data['password']}\n\n";
+                        $message .= "Please change your password after logging in.\n\n";
+                        $message .= "Login: " . APP_URL . "/auth/login.php\n\n";
+                        $message .= "Best regards,\n" . APP_NAME . " Team";
+                        sendEmail($form_data['email'], $subject, $message);
+                    } catch (Exception $e) {
+                        error_log("Password update email failed: " . $e->getMessage());
+                    }
                 }
                 
                 logActivity(
@@ -236,8 +237,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     "Updated user: {$form_data['first_name']} {$form_data['last_name']} (ID: $user_id)"
                 );
                 
-                // Commit transaction
-                $db->commit();
                 $success = "User updated successfully!";
                 
                 // Refresh user data
@@ -256,12 +255,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([$user_id]);
                 $user = $stmt->fetch();
                 
+            } catch (PDOException $e) {
+                $error = 'Database error updating user: ' . $e->getMessage();
+                error_log("User update PDO Error: " . $e->getMessage());
             } catch (Exception $e) {
-                // Rollback only if transaction is active
-                if ($db->inTransaction()) {
-                    $db->rollBack();
-                }
                 $error = 'Error updating user: ' . $e->getMessage();
+                error_log("User update Error: " . $e->getMessage() . " in " . $e->getFile() . " line " . $e->getLine());
             }
         } else {
             $error = implode('<br>', $errors);
@@ -276,6 +275,7 @@ $user_email = SessionManager::get('user_email', 'admin@example.com');
 include 'includes/base.php';
 include 'includes/sidebar.php';
 ?>
+<!-- Rest of HTML remains the same -->
 <!-- Rest of the HTML remains the same -->
 <style>
     /* ============================================================

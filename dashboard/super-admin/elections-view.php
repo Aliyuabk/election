@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// ELECTION VIEW - SUPER ADMINISTRATOR
+// ELECTION VIEW - SUPER ADMINISTRATOR (FIXED)
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -58,6 +58,17 @@ if (!$election) {
 }
 
 // ============================================================
+// FETCH STATES FOR JURISDICTION DISPLAY
+// ============================================================
+$states = [];
+try {
+    $stmt = $db->query("SELECT id, name FROM states WHERE is_active = 1 ORDER BY name");
+    $states = $stmt->fetchAll();
+} catch (Exception $e) {
+    // Continue
+}
+
+// ============================================================
 // FETCH ELECTION STATISTICS
 // ============================================================
 $stats = [
@@ -84,7 +95,58 @@ try {
     $stmt = $db->prepare("SELECT COUNT(*) as total FROM results_ec8a WHERE election_id = ? AND status = 'pending'");
     $stmt->execute([$election_id]);
     $stats['pending_results'] = $stmt->fetch()['total'] ?? 0;
-} catch (Exception $e) {}
+} catch (Exception $e) {
+    error_log("Error fetching election stats: " . $e->getMessage());
+}
+
+// ============================================================
+// HANDLE STATUS CHANGE
+// ============================================================
+$error = '';
+$success = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $action = $_POST['action'] ?? '';
+    
+    if ($action === 'change_status') {
+        try {
+            $new_status = $_POST['status'] ?? '';
+            if (empty($new_status)) {
+                throw new Exception('Status is required.');
+            }
+            
+            // Validate that the status is allowed in the database
+            $allowed_statuses = ['draft', 'upcoming', 'active', 'closed', 'cancelled', 'archived'];
+            if (!in_array($new_status, $allowed_statuses)) {
+                throw new Exception('Invalid status value. Allowed values: ' . implode(', ', $allowed_statuses));
+            }
+            
+            $stmt = $db->prepare("UPDATE elections SET status = ?, updated_at = NOW() WHERE id = ?");
+            $stmt->execute([$new_status, $election_id]);
+            
+            if ($stmt->rowCount() > 0) {
+                logActivity(
+                    SessionManager::get('user_id'),
+                    'election_status_changed',
+                    "Changed election ID: $election_id status to $new_status"
+                );
+                
+                $success = "Election status updated to " . ucfirst($new_status);
+                
+                // Refresh election data
+                $stmt = $db->prepare("SELECT * FROM elections WHERE id = ?");
+                $stmt->execute([$election_id]);
+                $election = $stmt->fetch();
+            }
+        } catch (PDOException $e) {
+            $error = 'Database error: ' . $e->getMessage();
+            error_log("Status change PDO Error: " . $e->getMessage());
+        } catch (Exception $e) {
+            $error = $e->getMessage();
+            error_log("Status change Error: " . $e->getMessage());
+        }
+    }
+}
 
 // Get user info
 $user_name = SessionManager::get('user_name', 'Administrator');
@@ -242,10 +304,12 @@ include 'includes/sidebar.php';
     .badge-status.upcoming .dot { background: #F59E0B; }
     .badge-status.active { background: #ECFDF5; color: #065F46; }
     .badge-status.active .dot { background: #10B981; }
-    .badge-status.completed { background: #EFF6FF; color: #1E40AF; }
-    .badge-status.completed .dot { background: #3B82F6; }
+    .badge-status.closed { background: #EFF6FF; color: #1E40AF; }
+    .badge-status.closed .dot { background: #3B82F6; }
     .badge-status.cancelled { background: #FEF2F2; color: #991B1B; }
     .badge-status.cancelled .dot { background: #EF4444; }
+    .badge-status.archived { background: var(--gray-100); color: var(--gray-500); }
+    .badge-status.archived .dot { background: var(--gray-400); }
     
     .stats-grid {
         display: grid;
@@ -357,6 +421,39 @@ include 'includes/sidebar.php';
         color: var(--gray-300);
     }
     
+    .error-message {
+        background: #FEF2F2;
+        color: #DC2626;
+        padding: 14px 18px;
+        border-radius: 10px;
+        font-size: 0.85rem;
+        margin-bottom: 16px;
+        border: 1px solid #FECACA;
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+    }
+    .error-message i {
+        margin-top: 2px;
+        font-size: 1.1rem;
+    }
+    .success-message {
+        background: #ECFDF5;
+        color: #065F46;
+        padding: 14px 18px;
+        border-radius: 10px;
+        font-size: 0.85rem;
+        margin-bottom: 16px;
+        border: 1px solid #A7F3D0;
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+    }
+    .success-message i {
+        margin-top: 2px;
+        font-size: 1.1rem;
+    }
+    
     @media (max-width: 992px) {
         .detail-grid {
             grid-template-columns: 1fr;
@@ -445,6 +542,21 @@ include 'includes/sidebar.php';
             </div>
         </div>
 
+        <!-- Error/Success Messages -->
+        <?php if (!empty($error)): ?>
+            <div class="error-message">
+                <i class="fas fa-exclamation-circle"></i>
+                <div><?php echo $error; ?></div>
+            </div>
+        <?php endif; ?>
+        
+        <?php if (!empty($success)): ?>
+            <div class="success-message">
+                <i class="fas fa-check-circle"></i>
+                <div><?php echo $success; ?></div>
+            </div>
+        <?php endif; ?>
+
         <!-- Election Hero -->
         <div class="election-hero">
             <div class="hero-content">
@@ -467,13 +579,13 @@ include 'includes/sidebar.php';
                     </div>
                 </div>
                 <div class="hero-actions">
-                    <?php if ($election['status'] !== 'cancelled' && $election['status'] !== 'completed'): ?>
-                        <form method="POST" action="elections-edit.php?id=<?php echo $election_id; ?>" style="display:inline;">
+                    <?php if ($election['status'] !== 'cancelled' && $election['status'] !== 'closed' && $election['status'] !== 'archived'): ?>
+                        <form method="POST" action="" style="display:inline;">
                             <input type="hidden" name="action" value="change_status">
-                            <input type="hidden" name="status" value="<?php echo $election['status'] === 'active' ? 'completed' : 'active'; ?>">
+                            <input type="hidden" name="status" value="<?php echo $election['status'] === 'active' ? 'closed' : 'active'; ?>">
                             <button type="submit" class="btn-outline" style="padding:8px 16px;font-size:0.8rem;">
                                 <i class="fas fa-<?php echo $election['status'] === 'active' ? 'check-circle' : 'play'; ?>"></i>
-                                <?php echo $election['status'] === 'active' ? 'Mark Completed' : 'Activate'; ?>
+                                <?php echo $election['status'] === 'active' ? 'Close Election' : 'Activate'; ?>
                             </button>
                         </form>
                     <?php endif; ?>
@@ -589,7 +701,7 @@ include 'includes/sidebar.php';
                     </div>
                     <?php
                     $states_list = json_decode($election['states_json'] ?? '[]', true);
-                    if (!empty($states_list)):
+                    if (!empty($states_list) && !empty($states)):
                         $state_names = [];
                         foreach ($states_list as $state_id) {
                             foreach ($states as $s) {
@@ -603,15 +715,18 @@ include 'includes/sidebar.php';
                         <div style="font-size:0.85rem;color:var(--gray-600);">
                             <?php echo implode(', ', $state_names); ?>
                         </div>
+                        <div style="margin-top:8px;font-size:0.75rem;color:var(--gray-400);">
+                            <i class="fas fa-info-circle"></i> 
+                            <?php echo count($states_list) . ' states selected'; ?>
+                        </div>
                     <?php else: ?>
                         <div style="font-size:0.85rem;color:var(--gray-400);">
                             <i class="fas fa-globe-africa"></i> All States
                         </div>
+                        <div style="margin-top:8px;font-size:0.75rem;color:var(--gray-400);">
+                            <i class="fas fa-info-circle"></i> All states included
+                        </div>
                     <?php endif; ?>
-                    <div style="margin-top:8px;font-size:0.75rem;color:var(--gray-400);">
-                        <i class="fas fa-info-circle"></i> 
-                        <?php echo !empty($states_list) ? count($states_list) . ' states selected' : 'All states included'; ?>
-                    </div>
                 </div>
             </div>
         </div>

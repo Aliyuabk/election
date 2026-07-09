@@ -1535,3 +1535,40 @@ Stack trace:
 [07-Jul-2026 22:08:30 Africa/Lagos] Monitor LGAs Error: SQLSTATE[HY093]: Invalid parameter number
 [07-Jul-2026 22:10:27 Africa/Lagos] Monitor LGAs Error: SQLSTATE[HY093]: Invalid parameter number
 [07-Jul-2026 22:24:32 Africa/Lagos] Monitor LGAs Error: SQLSTATE[HY093]: Invalid parameter number
+[09-Jul-2026 13:59:04 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: state
+[09-Jul-2026 13:59:10 Africa/Lagos] Monitor LGAs Error: SQLSTATE[HY093]: Invalid parameter number
+[09-Jul-2026 14:39:41 Africa/Lagos] Monitor LGAs Error: SQLSTATE[HY093]: Invalid parameter number
+[09-Jul-2026 14:39:56 Africa/Lagos] Redirecting to: ../dashboard/client-admin/ for role: client_admin
+[09-Jul-2026 14:41:02 Africa/Lagos] Redirecting to: ../dashboard/super-admin/ for role: super_admin
+[09-Jul-2026 14:48:14 Africa/Lagos] PHP Fatal error:  Uncaught PDOException: There is no active transaction in C:\xampp\htdocs\election\dashboard\super-admin\tenants-create.php:228
+Stack trace:
+#0 C:\xampp\htdocs\election\dashboard\super-admin\tenants-create.php(228): PDO->rollBack()
+#1 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\super-admin\tenants-create.php on line 228
+[09-Jul-2026 14:54:42 Africa/Lagos] Tenant creation PDO Error: There is no active transaction
+[09-Jul-2026 14:55:51 Africa/Lagos] Redirecting to: ../dashboard/client-admin/ for role: client_admin
+[09-Jul-2026 14:57:36 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: national
+[09-Jul-2026 14:57:47 Africa/Lagos] View State - Total voters error: SQLSTATE[23000]: Integrity constraint violation: 1052 Column 'registered_voters' in field list is ambiguous
+[09-Jul-2026 14:58:39 Africa/Lagos] Redirecting to: ../dashboard/super-admin/ for role: super_admin
+[09-Jul-2026 15:07:48 Africa/Lagos] Redirecting to: ../dashboard/super-admin/ for role: super_admin
+[09-Jul-2026 15:18:42 Africa/Lagos] PHP Warning:  Undefined array key "created_by_name" in C:\xampp\htdocs\election\dashboard\super-admin\tenants-edit.php on line 857
+[09-Jul-2026 15:19:22 Africa/Lagos] Redirecting to: ../dashboard/client-admin/ for role: client_admin
+[09-Jul-2026 15:19:33 Africa/Lagos] Redirecting to: ../dashboard/super-admin/ for role: super_admin
+[09-Jul-2026 15:23:28 Africa/Lagos] PHP Fatal error:  Uncaught Error: Call to undefined function generateRandomPassword() in C:\xampp\htdocs\election\dashboard\super-admin\users-view.php:135
+Stack trace:
+#0 {main}
+  thrown in C:\xampp\htdocs\election\dashboard\super-admin\users-view.php on line 135
+[09-Jul-2026 15:28:16 Africa/Lagos] Redirecting to: ../dashboard/super-admin/ for role: super_admin
+[09-Jul-2026 15:33:42 Africa/Lagos] PHP Warning:  Undefined variable $states in C:\xampp\htdocs\election\dashboard\super-admin\elections-view.php on line 595
+[09-Jul-2026 15:33:42 Africa/Lagos] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\election\dashboard\super-admin\elections-view.php on line 595
+[09-Jul-2026 15:45:41 Africa/Lagos] PHP Warning:  Undefined array key "created_by_name" in C:\xampp\htdocs\election\dashboard\super-admin\elections-edit.php on line 658
+[09-Jul-2026 15:46:14 Africa/Lagos] PHP Warning:  Undefined variable $states in C:\xampp\htdocs\election\dashboard\super-admin\elections-view.php on line 641
+[09-Jul-2026 15:46:14 Africa/Lagos] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\election\dashboard\super-admin\elections-view.php on line 641
+[09-Jul-2026 15:48:33 Africa/Lagos] Status change PDO Error: SQLSTATE[01000]: Warning: 1265 Data truncated for column 'status' at row 1
+[09-Jul-2026 15:48:36 Africa/Lagos] Status change PDO Error: SQLSTATE[01000]: Warning: 1265 Data truncated for column 'status' at row 1
+[09-Jul-2026 15:50:42 Africa/Lagos] PHP Warning:  Undefined array key "created_by_name" in C:\xampp\htdocs\election\dashboard\super-admin\elections-edit.php on line 658
+[09-Jul-2026 15:58:58 Africa/Lagos] Subscription error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'status' in 'where clause'
+[09-Jul-2026 15:59:31 Africa/Lagos] Subscription error: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'status' in 'where clause'
+[09-Jul-2026 16:02:08 Africa/Lagos] Subscription error: Tenant and plan name are required.
+[09-Jul-2026 16:02:23 Africa/Lagos] Subscription error: Tenant and plan name are required.
+[09-Jul-2026 16:14:32 Africa/Lagos] Redirecting to: ../dashboard/client-admin/ for role: client_admin

@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// SUBSCRIPTION MANAGEMENT - SUPER ADMINISTRATOR
+// SUBSCRIPTION MANAGEMENT - SUPER ADMINISTRATOR (FIXED)
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -32,7 +32,7 @@ try {
         CREATE TABLE IF NOT EXISTS subscription_plans (
             id INT PRIMARY KEY AUTO_INCREMENT,
             name VARCHAR(100) NOT NULL,
-            price DECIMAL(10,2) NOT NULL DEFAULT 0,
+            price DECIMAL(10,2) NOT NULL DEFAULT 0.00,
             duration_days INT NOT NULL DEFAULT 30,
             user_limit INT NOT NULL DEFAULT 100,
             storage_limit_mb INT NOT NULL DEFAULT 10240,
@@ -50,7 +50,6 @@ try {
 // HANDLE ACTIONS
 // ============================================================
 $action_result = ['success' => false, 'message' => ''];
-$show_modal = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
@@ -67,6 +66,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $features = trim($_POST['features'] ?? '');
                 
                 if (empty($name)) throw new Exception('Plan name is required.');
+                if ($price < 0) throw new Exception('Price cannot be negative.');
+                if ($duration <= 0) throw new Exception('Duration must be greater than 0.');
                 
                 $stmt = $db->prepare("
                     INSERT INTO subscription_plans (name, price, duration_days, user_limit, storage_limit_mb, features)
@@ -86,6 +87,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $is_active = isset($_POST['is_active']) ? 1 : 0;
                 
                 if (empty($name)) throw new Exception('Plan name is required.');
+                if ($price < 0) throw new Exception('Price cannot be negative.');
+                if ($duration <= 0) throw new Exception('Duration must be greater than 0.');
                 
                 $stmt = $db->prepare("
                     UPDATE subscription_plans 
@@ -105,27 +108,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             case 'assign_plan':
                 $tenant_id = (int)($_POST['tenant_id'] ?? 0);
                 $plan_id = (int)($_POST['plan_id'] ?? 0);
+                $billing_cycle = $_POST['billing_cycle'] ?? 'monthly';
                 $start_date = $_POST['start_date'] ?? date('Y-m-d');
-                $status = $_POST['status'] ?? 'active';
+                $payment_status = $_POST['payment_status'] ?? 'pending';
                 
-                if ($tenant_id <= 0 || $plan_id <= 0) {
-                    throw new Exception('Tenant and plan are required.');
+                if ($tenant_id <= 0) {
+                    throw new Exception('Please select a tenant.');
+                }
+                if ($plan_id <= 0) {
+                    throw new Exception('Please select a plan.');
                 }
                 
-                $stmt = $db->prepare("SELECT * FROM subscription_plans WHERE id = ?");
+                // Get plan details
+                $stmt = $db->prepare("SELECT * FROM subscription_plans WHERE id = ? AND is_active = 1");
                 $stmt->execute([$plan_id]);
                 $plan = $stmt->fetch();
                 
-                if (!$plan) throw new Exception('Plan not found.');
+                if (!$plan) {
+                    throw new Exception('Selected plan not found or inactive.');
+                }
                 
-                $end_date = date('Y-m-d', strtotime("+{$plan['duration_days']} days"));
+                // Calculate end date based on billing cycle
+                $days = ($billing_cycle === 'monthly') ? 30 : (($billing_cycle === 'quarterly') ? 90 : 365);
+                $end_date = date('Y-m-d', strtotime("+$days days", strtotime($start_date)));
                 
-                $stmt = $db->prepare("
-                    INSERT INTO subscriptions (tenant_id, plan_id, plan_name, price, start_date, end_date, status)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                ");
-                $stmt->execute([$tenant_id, $plan_id, $plan['name'], $plan['price'], $start_date, $end_date, $status]);
+                // Check if tenant already has a subscription
+                $stmt = $db->prepare("SELECT id FROM subscriptions WHERE tenant_id = ? AND payment_status IN ('paid', 'pending')");
+                $stmt->execute([$tenant_id]);
+                if ($stmt->fetch()) {
+                    // Update existing subscription
+                    $stmt = $db->prepare("
+                        UPDATE subscriptions SET 
+                            plan = ?,
+                            amount = ?,
+                            billing_cycle = ?,
+                            start_date = ?,
+                            end_date = ?,
+                            payment_status = ?,
+                            updated_at = NOW()
+                        WHERE tenant_id = ? AND payment_status IN ('paid', 'pending')
+                    ");
+                    $stmt->execute([$plan['name'], $plan['price'], $billing_cycle, $start_date, $end_date, $payment_status, $tenant_id]);
+                } else {
+                    // Insert new subscription
+                    $stmt = $db->prepare("
+                        INSERT INTO subscriptions (tenant_id, plan, amount, billing_cycle, start_date, end_date, payment_status, currency)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, 'NGN')
+                    ");
+                    $stmt->execute([$tenant_id, $plan['name'], $plan['price'], $billing_cycle, $start_date, $end_date, $payment_status]);
+                }
                 
+                // Update tenant with subscription info
+                $subscription_status = ($payment_status === 'paid') ? 'active' : 'trial';
                 $stmt = $db->prepare("
                     UPDATE tenants SET 
                         subscription_plan = ?, 
@@ -134,7 +168,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         subscription_end = ? 
                     WHERE id = ?
                 ");
-                $stmt->execute([$plan['name'], $status, $start_date, $end_date, $tenant_id]);
+                $stmt->execute([$plan['name'], $subscription_status, $start_date, $end_date, $tenant_id]);
                 
                 $action_result = ['success' => true, 'message' => 'Subscription assigned successfully.'];
                 break;
@@ -145,13 +179,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $sub = $stmt->fetch();
                 
                 if ($sub) {
-                    $stmt = $db->prepare("SELECT duration_days FROM subscription_plans WHERE id = ?");
-                    $stmt->execute([$sub['plan_id']]);
-                    $plan = $stmt->fetch();
-                    $days = $plan['duration_days'] ?? 30;
-                    
+                    $days = ($sub['billing_cycle'] === 'monthly') ? 30 : (($sub['billing_cycle'] === 'quarterly') ? 90 : 365);
                     $new_end = date('Y-m-d', strtotime($sub['end_date'] . " + $days days"));
-                    $stmt = $db->prepare("UPDATE subscriptions SET end_date = ?, status = 'active', renewed_at = NOW() WHERE id = ?");
+                    
+                    $stmt = $db->prepare("UPDATE subscriptions SET end_date = ?, payment_status = 'paid', updated_at = NOW() WHERE id = ?");
                     $stmt->execute([$new_end, $id]);
                     
                     $stmt = $db->prepare("UPDATE tenants SET subscription_end = ?, subscription_status = 'active' WHERE id = ?");
@@ -162,7 +193,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 break;
                 
             case 'suspend':
-                $stmt = $db->prepare("UPDATE subscriptions SET status = 'suspended' WHERE id = ?");
+                $stmt = $db->prepare("UPDATE subscriptions SET payment_status = 'overdue' WHERE id = ?");
                 $stmt->execute([$id]);
                 
                 $stmt = $db->prepare("SELECT tenant_id FROM subscriptions WHERE id = ?");
@@ -176,7 +207,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 break;
                 
             case 'activate':
-                $stmt = $db->prepare("UPDATE subscriptions SET status = 'active' WHERE id = ?");
+                $stmt = $db->prepare("UPDATE subscriptions SET payment_status = 'paid' WHERE id = ?");
                 $stmt->execute([$id]);
                 
                 $stmt = $db->prepare("SELECT tenant_id FROM subscriptions WHERE id = ?");
@@ -194,10 +225,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $new_plan_id = (int)($_POST['new_plan_id'] ?? 0);
                 if ($new_plan_id <= 0) throw new Exception('Please select a plan.');
                 
-                $stmt = $db->prepare("SELECT * FROM subscription_plans WHERE id = ?");
+                $stmt = $db->prepare("SELECT * FROM subscription_plans WHERE id = ? AND is_active = 1");
                 $stmt->execute([$new_plan_id]);
                 $new_plan = $stmt->fetch();
-                if (!$new_plan) throw new Exception('Plan not found.');
+                if (!$new_plan) throw new Exception('Plan not found or inactive.');
                 
                 $stmt = $db->prepare("SELECT tenant_id FROM subscriptions WHERE id = ?");
                 $stmt->execute([$id]);
@@ -206,13 +237,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($sub) {
                     $stmt = $db->prepare("
                         UPDATE subscriptions SET 
-                            plan_id = ?, 
-                            plan_name = ?, 
-                            price = ?,
+                            plan = ?, 
+                            amount = ?,
                             updated_at = NOW()
                         WHERE id = ?
                     ");
-                    $stmt->execute([$new_plan_id, $new_plan['name'], $new_plan['price'], $id]);
+                    $stmt->execute([$new_plan['name'], $new_plan['price'], $id]);
                     
                     $stmt = $db->prepare("UPDATE tenants SET subscription_plan = ? WHERE id = ?");
                     $stmt->execute([$new_plan['name'], $sub['tenant_id']]);
@@ -221,8 +251,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 break;
         }
+    } catch (PDOException $e) {
+        $action_result = ['success' => false, 'message' => 'Database error: ' . $e->getMessage()];
+        error_log("Subscription error: " . $e->getMessage());
     } catch (Exception $e) {
         $action_result = ['success' => false, 'message' => $e->getMessage()];
+        error_log("Subscription error: " . $e->getMessage());
     }
 }
 
@@ -238,10 +272,9 @@ try {
 $subscriptions = [];
 try {
     $stmt = $db->query("
-        SELECT s.*, t.name as tenant_name, p.name as plan_name
+        SELECT s.*, t.name as tenant_name
         FROM subscriptions s
         LEFT JOIN tenants t ON s.tenant_id = t.id
-        LEFT JOIN subscription_plans p ON s.plan_id = p.id
         WHERE t.deleted_at IS NULL OR t.deleted_at IS NULL
         ORDER BY s.created_at DESC
         LIMIT 50
@@ -262,6 +295,7 @@ $user_email = SessionManager::get('user_email', 'admin@example.com');
 include 'includes/base.php';
 include 'includes/sidebar.php';
 ?>
+
 <style>
     .subscription-container { max-width: 1400px; margin: 0 auto; }
     .page-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
@@ -450,9 +484,9 @@ include 'includes/sidebar.php';
             $suspended_subs = 0;
             $expired_subs = 0;
             foreach ($subscriptions as $s) {
-                if ($s['status'] === 'active') $active_subs++;
-                elseif ($s['status'] === 'suspended') $suspended_subs++;
-                elseif ($s['status'] === 'expired') $expired_subs++;
+                if ($s['payment_status'] === 'paid') $active_subs++;
+                elseif ($s['payment_status'] === 'overdue') $suspended_subs++;
+                elseif ($s['payment_status'] === 'cancelled' || $s['payment_status'] === 'refunded') $expired_subs++;
             }
             ?>
             <div class="stats-grid">
@@ -469,7 +503,7 @@ include 'includes/sidebar.php';
             <div class="plan-grid">
                 <?php if (count($plans) > 0): ?>
                     <?php foreach ($plans as $plan): ?>
-                        <div class="plan-card">
+                        <div class="plan-card" data-plan-id="<?php echo $plan['id']; ?>">
                             <div class="plan-name"><?php echo htmlspecialchars($plan['name']); ?></div>
                             <div class="plan-price">
                                 ₦<?php echo number_format($plan['price'], 2); ?>
@@ -525,7 +559,8 @@ include 'includes/sidebar.php';
                         <tr>
                             <th>Tenant</th>
                             <th>Plan</th>
-                            <th>Price</th>
+                            <th>Amount</th>
+                            <th>Cycle</th>
                             <th>Start Date</th>
                             <th>End Date</th>
                             <th>Status</th>
@@ -537,25 +572,26 @@ include 'includes/sidebar.php';
                             <?php foreach ($subscriptions as $sub): ?>
                                 <tr>
                                     <td><strong><?php echo htmlspecialchars($sub['tenant_name'] ?? 'N/A'); ?></strong></td>
-                                    <td><?php echo htmlspecialchars($sub['plan_name'] ?? 'N/A'); ?></td>
-                                    <td>₦<?php echo number_format($sub['price'] ?? 0, 2); ?></td>
+                                    <td><?php echo htmlspecialchars($sub['plan'] ?? 'N/A'); ?></td>
+                                    <td>₦<?php echo number_format($sub['amount'] ?? 0, 2); ?></td>
+                                    <td><?php echo ucfirst($sub['billing_cycle'] ?? 'monthly'); ?></td>
                                     <td><?php echo date('M j, Y', strtotime($sub['start_date'])); ?></td>
                                     <td><?php echo date('M j, Y', strtotime($sub['end_date'])); ?></td>
                                     <td>
-                                        <span class="badge-status <?php echo $sub['status']; ?>">
+                                        <span class="badge-status <?php echo $sub['payment_status']; ?>">
                                             <span class="dot"></span>
-                                            <?php echo ucfirst($sub['status']); ?>
+                                            <?php echo ucfirst($sub['payment_status']); ?>
                                         </span>
                                     </td>
                                     <td>
                                         <div class="action-dropdown">
                                             <button class="dropdown-btn" onclick="toggleDropdown(this)"><i class="fas fa-ellipsis-v"></i></button>
                                             <div class="dropdown-menu">
-                                                <?php if ($sub['status'] === 'active'): ?>
+                                                <?php if ($sub['payment_status'] === 'paid'): ?>
                                                     <button onclick="renewSubscription(<?php echo $sub['id']; ?>)"><i class="fas fa-sync"></i> Renew</button>
                                                     <button onclick="suspendSubscription(<?php echo $sub['id']; ?>)"><i class="fas fa-pause"></i> Suspend</button>
                                                     <button onclick="openUpgradeModal(<?php echo $sub['id']; ?>)"><i class="fas fa-arrow-up"></i> Upgrade</button>
-                                                <?php elseif ($sub['status'] === 'suspended'): ?>
+                                                <?php elseif ($sub['payment_status'] === 'overdue'): ?>
                                                     <button onclick="activateSubscription(<?php echo $sub['id']; ?>)"><i class="fas fa-play"></i> Activate</button>
                                                 <?php endif; ?>
                                                 <button class="danger" onclick="if(confirm('Delete this subscription?')){alert('Deleting...');}"><i class="fas fa-trash"></i> Delete</button>
@@ -565,7 +601,7 @@ include 'includes/sidebar.php';
                                 </tr>
                             <?php endforeach; ?>
                         <?php else: ?>
-                            <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--gray-500);">No active subscriptions found.</td></tr>
+                            <tr><td colspan="8" style="text-align:center;padding:40px;color:var(--gray-500);">No subscriptions found.</td></tr>
                         <?php endif; ?>
                     </tbody>
                 </table>
@@ -619,7 +655,55 @@ MODALS
     </div>
 </div>
 
-<!-- Assign Plan Modal -->
+<!-- Edit Plan Modal -->
+<div class="modal-overlay" id="editPlanModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3><i class="fas fa-edit" style="color:#8B5CF6;"></i> Edit Subscription Plan</h3>
+            <button class="close-btn" onclick="closeModal('editPlanModal')">&times;</button>
+        </div>
+        <form method="POST" action="" id="editPlanForm">
+            <input type="hidden" name="action" value="edit_plan">
+            <input type="hidden" name="id" id="editPlanId">
+            <div class="form-group">
+                <label>Plan Name <span class="required">*</span></label>
+                <input type="text" name="name" id="editPlanName" placeholder="e.g., Premium" required>
+            </div>
+            <div class="form-group">
+                <label>Price (₦) <span class="required">*</span></label>
+                <input type="number" name="price" id="editPlanPrice" step="0.01" placeholder="0.00" required>
+            </div>
+            <div class="form-group">
+                <label>Duration (days) <span class="required">*</span></label>
+                <input type="number" name="duration" id="editPlanDuration" required>
+            </div>
+            <div class="form-group">
+                <label>User Limit</label>
+                <input type="number" name="user_limit" id="editPlanUserLimit">
+            </div>
+            <div class="form-group">
+                <label>Storage Limit (MB)</label>
+                <input type="number" name="storage_limit" id="editPlanStorageLimit">
+            </div>
+            <div class="form-group">
+                <label>Features (one per line)</label>
+                <textarea name="features" id="editPlanFeatures" placeholder="Feature 1&#10;Feature 2&#10;Feature 3"></textarea>
+            </div>
+            <div class="form-group">
+                <div style="display:flex;align-items:center;gap:10px;">
+                    <input type="checkbox" name="is_active" id="editPlanActive" value="1">
+                    <label for="editPlanActive" style="font-weight:400;cursor:pointer;">Active</label>
+                </div>
+            </div>
+            <div class="form-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('editPlanModal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Update Plan</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Assign Plan Modal - FIXED -->
 <div class="modal-overlay" id="assignModal">
     <div class="modal">
         <div class="modal-header">
@@ -647,14 +731,22 @@ MODALS
                 </select>
             </div>
             <div class="form-group">
+                <label>Billing Cycle</label>
+                <select name="billing_cycle">
+                    <option value="monthly">Monthly</option>
+                    <option value="quarterly">Quarterly</option>
+                    <option value="yearly">Yearly</option>
+                </select>
+            </div>
+            <div class="form-group">
                 <label>Start Date</label>
                 <input type="date" name="start_date" value="<?php echo date('Y-m-d'); ?>">
             </div>
             <div class="form-group">
-                <label>Status</label>
-                <select name="status">
-                    <option value="active">Active</option>
-                    <option value="trial">Trial</option>
+                <label>Payment Status</label>
+                <select name="payment_status">
+                    <option value="paid">Paid</option>
+                    <option value="pending">Pending</option>
                 </select>
             </div>
             <div class="form-actions">
@@ -800,6 +892,60 @@ document.querySelectorAll('.modal-overlay').forEach(function(overlay) {
 });
 
 // ============================================================
+// EDIT PLAN FUNCTION
+// ============================================================
+function editPlan(id) {
+    // Fetch plan data via AJAX
+    fetch('subscription-ajax.php?action=get_plan&id=' + id)
+        .then(function(response) {
+            return response.json();
+        })
+        .then(function(data) {
+            if (data.success) {
+                document.getElementById('editPlanId').value = data.plan.id;
+                document.getElementById('editPlanName').value = data.plan.name;
+                document.getElementById('editPlanPrice').value = data.plan.price;
+                document.getElementById('editPlanDuration').value = data.plan.duration_days;
+                document.getElementById('editPlanUserLimit').value = data.plan.user_limit;
+                document.getElementById('editPlanStorageLimit').value = data.plan.storage_limit_mb;
+                document.getElementById('editPlanFeatures').value = data.plan.features || '';
+                document.getElementById('editPlanActive').checked = data.plan.is_active == 1;
+                openModal('editPlanModal');
+            } else {
+                alert('Error loading plan data: ' + data.message);
+            }
+        })
+        .catch(function(error) {
+            // Fallback: Use pre-populated data from the page
+            var card = document.querySelector('.plan-card[data-plan-id="' + id + '"]');
+            if (card) {
+                var name = card.querySelector('.plan-name').textContent;
+                var price = card.querySelector('.plan-price').textContent.replace(/[^0-9.]/g, '');
+                var details = card.querySelector('.plan-features');
+                var features = '';
+                if (details) {
+                    var items = details.querySelectorAll('li');
+                    items.forEach(function(item) {
+                        features += item.textContent.replace('✓', '').trim() + '\n';
+                    });
+                }
+                
+                document.getElementById('editPlanId').value = id;
+                document.getElementById('editPlanName').value = name;
+                document.getElementById('editPlanPrice').value = price;
+                document.getElementById('editPlanDuration').value = 30;
+                document.getElementById('editPlanUserLimit').value = 100;
+                document.getElementById('editPlanStorageLimit').value = 10240;
+                document.getElementById('editPlanFeatures').value = features;
+                document.getElementById('editPlanActive').checked = true;
+                openModal('editPlanModal');
+            } else {
+                alert('Plan data not found. Please refresh the page.');
+            }
+        });
+}
+
+// ============================================================
 // ACTION FUNCTIONS
 // ============================================================
 function toggleDropdown(btn) {
@@ -820,12 +966,6 @@ document.addEventListener('click', function(e) {
         });
     }
 });
-
-function editPlan(id) {
-    // Fetch plan data and populate edit modal
-    // For now, redirect to edit page or show alert
-    alert('Edit plan ID: ' + id + '\nImplement edit functionality with modal.');
-}
 
 function deletePlan(id) {
     if (confirm('Are you sure you want to delete this plan?')) {

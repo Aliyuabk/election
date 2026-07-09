@@ -137,8 +137,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // If no errors, create user
     if (empty($errors)) {
         try {
-            $db->beginTransaction();
-            
             // Generate user code
             $stmt = $db->prepare("SELECT COUNT(*) as count FROM users WHERE tenant_id = ?");
             $stmt->execute([$form_data['tenant_id']]);
@@ -186,8 +184,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 "Created user: {$form_data['first_name']} {$form_data['last_name']} (ID: $user_id) for tenant ID: {$form_data['tenant_id']}"
             );
             
-            $db->commit();
-            
             // Get tenant name for email
             $tenant_name = '';
             foreach ($tenants as $t) {
@@ -197,30 +193,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
             
-            // Send welcome email
-            $subject = "Welcome to " . APP_NAME;
-            $message = "Dear {$form_data['first_name']},\n\n";
-            $message .= "You have been added as a user to \"{$tenant_name}\" on " . APP_NAME . ".\n\n";
-            $message .= "Your account has been created with the following credentials:\n";
-            $message .= "----------------------------------------\n";
-            $message .= "Email: {$form_data['email']}\n";
-            $message .= "Password: {$form_data['password']}\n";
-            $message .= "----------------------------------------\n\n";
-            $message .= "Please login at: " . APP_URL . "/auth/login.php\n\n";
-            $message .= "For security reasons, we recommend changing your password after your first login.\n\n";
-            $message .= "If you have any questions, please contact support.\n\n";
-            $message .= "Best regards,\n" . APP_NAME . " Team";
+            // Send welcome email (wrap in try-catch so it doesn't break the process)
+            try {
+                $subject = "Welcome to " . APP_NAME;
+                $message = "Dear {$form_data['first_name']},\n\n";
+                $message .= "You have been added as a user to \"{$tenant_name}\" on " . APP_NAME . ".\n\n";
+                $message .= "Your account has been created with the following credentials:\n";
+                $message .= "----------------------------------------\n";
+                $message .= "Email: {$form_data['email']}\n";
+                $message .= "Password: {$form_data['password']}\n";
+                $message .= "----------------------------------------\n\n";
+                $message .= "Please login at: " . APP_URL . "/auth/login.php\n\n";
+                $message .= "For security reasons, we recommend changing your password after your first login.\n\n";
+                $message .= "If you have any questions, please contact support.\n\n";
+                $message .= "Best regards,\n" . APP_NAME . " Team";
+                
+                sendEmail($form_data['email'], $subject, $message);
+                $success = "User created successfully! A welcome email has been sent to the user.";
+            } catch (Exception $e) {
+                $success = "User created successfully! (Welcome email could not be sent)";
+                error_log("Welcome email failed: " . $e->getMessage());
+            }
             
-            sendEmail($form_data['email'], $subject, $message);
-            
-            $success = "User created successfully! A welcome email has been sent to the user.";
             $form_data = []; // Clear form
             
+        } catch (PDOException $e) {
+            $error = 'Database error creating user: ' . $e->getMessage();
+            error_log("User creation PDO Error: " . $e->getMessage());
         } catch (Exception $e) {
-            if ($db->inTransaction()) {
-                $db->rollBack();
-            }
             $error = 'Error creating user: ' . $e->getMessage();
+            error_log("User creation Error: " . $e->getMessage() . " in " . $e->getFile() . " line " . $e->getLine());
         }
     } else {
         $error = implode('<br>', $errors);
@@ -234,6 +236,7 @@ $user_email = SessionManager::get('user_email', 'admin@example.com');
 include 'includes/base.php';
 include 'includes/sidebar.php';
 ?>
+<!-- Rest of HTML remains the same -->
 <style>
     /* ============================================================
        USER CREATE - PRO STYLES

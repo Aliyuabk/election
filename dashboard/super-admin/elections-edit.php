@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// ELECTION EDIT - SUPER ADMINISTRATOR
+// ELECTION EDIT - SUPER ADMINISTRATOR (FIXED)
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -103,6 +103,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     throw new Exception('Name, type, cycle, and election date are required.');
                 }
                 
+                // Handle time fields - convert empty strings to NULL
+                $start_time = !empty($start_time) ? $start_time : null;
+                $end_time = !empty($end_time) ? $end_time : null;
+                
                 $stmt = $db->prepare("
                     UPDATE elections SET
                         name = ?,
@@ -181,8 +185,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $election = $stmt->fetch();
                 break;
         }
+    } catch (PDOException $e) {
+        $error = 'Database error: ' . $e->getMessage();
+        error_log("Election update PDO Error: " . $e->getMessage());
     } catch (Exception $e) {
         $error = $e->getMessage();
+        error_log("Election update Error: " . $e->getMessage());
     }
 }
 
@@ -193,6 +201,7 @@ $user_email = SessionManager::get('user_email', 'admin@example.com');
 include 'includes/base.php';
 include 'includes/sidebar.php';
 ?>
+<!-- Rest of HTML remains the same (all the styles and HTML content from your original file) -->
 <style>
     /* ============================================================
        ELECTION EDIT - PRO STYLES

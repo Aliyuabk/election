@@ -1,10 +1,23 @@
 <?php
 // ============================================================
-// USER VIEW - SUPER ADMINISTRATOR
+// USER VIEW - SUPER ADMINISTRATOR (FIXED)
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
 require_once '../../includes/functions.php';
+
+// ============================================================
+// HELPER FUNCTION - Generate Random Password
+// ============================================================
+function generateRandomPassword($length = 12) {
+    $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()';
+    $password = '';
+    $max = strlen($chars) - 1;
+    for ($i = 0; $i < $length; $i++) {
+        $password .= $chars[random_int(0, $max)];
+    }
+    return $password;
+}
 
 // Start session and check login
 SessionManager::start();
@@ -132,6 +145,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 break;
             case 'reset_password':
+                // Generate new password using the function defined above
                 $new_password = generateRandomPassword(12);
                 $password_hash = password_hash($new_password, PASSWORD_DEFAULT);
                 
@@ -140,21 +154,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 if ($stmt->rowCount() > 0) {
                     // Send email with new password
-                    $subject = "Password Reset - " . APP_NAME;
-                    $message = "Your password has been reset.\n\n";
-                    $message .= "New Password: $new_password\n\n";
-                    $message .= "Please change your password after logging in.\n\n";
-                    $message .= "Login: " . APP_URL . "/auth/login.php\n\n";
-                    $message .= "Best regards,\n" . APP_NAME . " Team";
-                    sendEmail($user['email'], $subject, $message);
+                    try {
+                        $subject = "Password Reset - " . APP_NAME;
+                        $message = "Your password has been reset.\n\n";
+                        $message .= "New Password: $new_password\n\n";
+                        $message .= "Please change your password after logging in.\n\n";
+                        $message .= "Login: " . APP_URL . "/auth/login.php\n\n";
+                        $message .= "Best regards,\n" . APP_NAME . " Team";
+                        sendEmail($user['email'], $subject, $message);
+                        $action_result = ['success' => true, 'message' => 'Password reset successfully. New password sent via email.'];
+                    } catch (Exception $e) {
+                        $action_result = ['success' => false, 'message' => 'Password reset but email could not be sent: ' . $e->getMessage()];
+                    }
                     
-                    $action_result = ['success' => true, 'message' => 'Password reset successfully. New password sent via email.'];
                     logActivity(SessionManager::get('user_id'), 'user_password_reset', "Reset password for user ID: $user_id");
                 }
                 break;
         }
+    } catch (PDOException $e) {
+        $action_result = ['success' => false, 'message' => 'Database error: ' . $e->getMessage()];
+        error_log("User action PDO Error: " . $e->getMessage());
     } catch (Exception $e) {
         $action_result = ['success' => false, 'message' => 'Error: ' . $e->getMessage()];
+        error_log("User action Error: " . $e->getMessage() . " in " . $e->getFile() . " line " . $e->getLine());
     }
 }
 
@@ -448,10 +470,10 @@ include 'includes/sidebar.php';
                 </div>
             </div>
             <div class="user-actions">
-                <a href="users-edit.php?id=<?php echo $user['id']; ?>" class="btn-primary" style="padding:8px 16px;font-size:0.8rem;">
+                <a href="users-edit.php?id=<?php echo $user['id']; ?>" class="btn-primary" style="padding:8px 16px;font-size:0.8rem;text-decoration:none;">
                     <i class="fas fa-edit"></i> Edit
                 </a>
-                <a href="tenants-users.php?id=<?php echo $user['tenant_id']; ?>" class="btn-outline" style="padding:8px 16px;font-size:0.8rem;">
+                <a href="tenants-users.php?id=<?php echo $user['tenant_id']; ?>" class="btn-outline" style="padding:8px 16px;font-size:0.8rem;text-decoration:none;">
                     <i class="fas fa-arrow-left"></i> Back
                 </a>
             </div>
@@ -541,21 +563,21 @@ include 'includes/sidebar.php';
                     <div style="display:flex;flex-wrap:wrap;gap:8px;">
                         <form method="POST" style="display:inline;">
                             <input type="hidden" name="action" value="reset_password">
-                            <button type="submit" class="btn-primary" style="padding:8px 16px;font-size:0.8rem;background:var(--warning);" onclick="return confirm('Reset password for this user?')">
+                            <button type="submit" class="btn-primary" style="padding:8px 16px;font-size:0.8rem;background:#F59E0B;border:none;border-radius:8px;cursor:pointer;font-weight:600;color:white;" onclick="return confirm('Reset password for this user? A new password will be sent via email.')">
                                 <i class="fas fa-key"></i> Reset Password
                             </button>
                         </form>
                         <?php if ($user['status'] === 'active'): ?>
                             <form method="POST" style="display:inline;">
                                 <input type="hidden" name="action" value="suspend">
-                                <button type="submit" class="btn-primary" style="padding:8px 16px;font-size:0.8rem;background:var(--danger);" onclick="return confirm('Suspend this user?')">
+                                <button type="submit" class="btn-primary" style="padding:8px 16px;font-size:0.8rem;background:#EF4444;border:none;border-radius:8px;cursor:pointer;font-weight:600;color:white;" onclick="return confirm('Suspend this user?')">
                                     <i class="fas fa-pause"></i> Suspend
                                 </button>
                             </form>
                         <?php else: ?>
                             <form method="POST" style="display:inline;">
                                 <input type="hidden" name="action" value="activate">
-                                <button type="submit" class="btn-primary" style="padding:8px 16px;font-size:0.8rem;background:var(--secondary);" onclick="return confirm('Activate this user?')">
+                                <button type="submit" class="btn-primary" style="padding:8px 16px;font-size:0.8rem;background:#10B981;border:none;border-radius:8px;cursor:pointer;font-weight:600;color:white;" onclick="return confirm('Activate this user?')">
                                     <i class="fas fa-play"></i> Activate
                                 </button>
                             </form>
