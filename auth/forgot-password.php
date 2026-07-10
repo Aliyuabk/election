@@ -18,6 +18,44 @@ $message = '';
 $error = '';
 $email = '';
 
+// ============================================================
+// DYNAMIC URL HELPER - Gets the current base URL
+// ============================================================
+function getCurrentBaseUrl() {
+    $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://';
+    $host = $_SERVER['HTTP_HOST'];
+    $script_dir = dirname($_SERVER['SCRIPT_NAME']);
+    
+    // Remove trailing slash if exists
+    $script_dir = rtrim($script_dir, '/');
+    
+    // If we're in a subdirectory, include it
+    $base_url = $protocol . $host . $script_dir;
+    
+    // Get the parent directory (up one level from 'auth' folder)
+    $base_url = dirname($base_url);
+    
+    // If we're at root, make sure it's properly formatted
+    if ($base_url === $protocol . $host) {
+        $base_url = $protocol . $host;
+    }
+    
+    return $base_url;
+}
+
+// ============================================================
+// GET CURRENT APP URL - Uses defined APP_URL or falls back to dynamic
+// ============================================================
+function getAppUrl() {
+    // First try to use the defined APP_URL
+    if (defined('APP_URL') && APP_URL !== 'http://localhost/election') {
+        return APP_URL;
+    }
+    
+    // Fallback to dynamic URL
+    return getCurrentBaseUrl();
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? '');
     
@@ -47,8 +85,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $db->prepare("INSERT INTO password_resets (user_id, token, expires_at) VALUES (?, ?, ?)");
                 $stmt->execute([$user['id'], $token, $expires]);
                 
-                // Generate reset link
-                $resetLink = APP_URL . '/auth/reset-password.php?token=' . $token;
+                // ============================================================
+                // GENERATE RESET LINK USING CURRENT URL
+                // ============================================================
+                $app_url = getAppUrl();
+                $resetLink = $app_url . '/auth/reset-password.php?token=' . $token;
+                
+                // Alternative: Use the full current URL without the query string
+                // $current_url = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https://" : "http://") . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
+                // $base_url = dirname($current_url);
+                // $resetLink = $base_url . '/reset-password.php?token=' . $token;
+                
+                // DEBUG: Log the reset link
+                error_log("Password reset link generated: " . $resetLink);
                 
                 // Send reset email
                 $result = sendPasswordResetEmail($user['email'], $resetLink, $user['first_name']);
@@ -71,6 +120,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $email = ''; // Clear email field
                 } else {
                     $error = 'Failed to send reset email. Please try again later.';
+                    // Debug: Log the error
+                    error_log("Password reset email failed: " . ($result['message'] ?? 'Unknown error'));
                 }
             } else {
                 // Don't reveal if user exists or not for security
@@ -96,6 +147,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz@14..32&family=Poppins:wght@600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+    <link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -124,6 +176,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .form-group input:focus { outline: none; border-color: #2563EB; background: white; box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.06); }
         .btn-login { width: 100%; padding: 16px; border: none; border-radius: 14px; background: #0F4C81; color: white; font-size: 1rem; font-weight: 600; font-family: 'Inter', sans-serif; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 10px; }
         .btn-login:hover { background: #1a3f6a; transform: translateY(-1px); box-shadow: 0 8px 24px rgba(15, 76, 129, 0.2); }
+        .btn-login:disabled { opacity: 0.7; cursor: not-allowed; }
         .error-message { background: #FEF2F2; color: #DC2626; padding: 12px 16px; border-radius: 12px; font-size: 0.9rem; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; border: 1px solid #FECACA; }
         .error-message i { font-size: 1.1rem; }
         .success-message { background: #ECFDF5; color: #065F46; padding: 12px 16px; border-radius: 12px; font-size: 0.9rem; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; border: 1px solid #A7F3D0; }
@@ -131,6 +184,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .back-link { text-align: center; margin-top: 20px; }
         .back-link a { color: #64748B; text-decoration: none; font-size: 0.9rem; transition: 0.15s; display: inline-flex; align-items: center; gap: 8px; }
         .back-link a:hover { color: #0F4C81; }
+        .info-text { color: #64748B; margin-bottom: 20px; font-size: 0.95rem; }
+        .info-text i { color: #2563EB; }
         @media (max-width: 480px) { .login-card { padding: 32px 24px; border-radius: 24px; } .login-logo a { font-size: 1.5rem; } }
     </style>
 </head>
@@ -159,8 +214,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
         <?php endif; ?>
         
-        <form method="POST" action="">
-            <p style="color: #64748B; margin-bottom: 20px;">
+        <form method="POST" action="" id="resetForm">
+            <p class="info-text">
+                <i class="fas fa-info-circle"></i>
                 Enter your email address and we'll send you a link to reset your password.
             </p>
             
@@ -168,11 +224,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <label for="email">Email Address</label>
                 <div class="input-wrapper">
                     <i class="fas fa-envelope"></i>
-                    <input type="email" id="email" name="email" placeholder="admin@organization.ng" value="<?php echo htmlspecialchars($email); ?>" required />
+                    <input type="email" id="email" name="email" placeholder="admin@organization.ng" value="<?php echo htmlspecialchars($email); ?>" required autofocus />
                 </div>
             </div>
             
-            <button type="submit" class="btn-login">
+            <button type="submit" class="btn-login" id="submitBtn">
                 <i class="fas fa-paper-plane"></i>
                 Send Reset Link
             </button>
@@ -185,5 +241,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('resetForm');
+    const submitBtn = document.getElementById('submitBtn');
+    const emailInput = document.getElementById('email');
+    
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            // Disable submit button to prevent multiple submissions
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+            
+            // Re-enable after 5 seconds if form doesn't submit (fallback)
+            setTimeout(function() {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send Reset Link';
+            }, 5000);
+        });
+    }
+    
+    // Email input validation feedback
+    if (emailInput) {
+        emailInput.addEventListener('input', function() {
+            const email = this.value.trim();
+            if (email.length > 0 && !email.includes('@')) {
+                this.style.borderColor = '#F59E0B';
+            } else if (email.length > 0 && email.includes('@') && email.includes('.')) {
+                this.style.borderColor = '#10B981';
+            } else {
+                this.style.borderColor = '#E2E8F0';
+            }
+        });
+    }
+});
+</script>
 </body>
 </html>

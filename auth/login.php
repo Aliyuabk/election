@@ -228,6 +228,7 @@ function loginUser($user, $remember, $db) {
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz@14..32&family=Poppins:wght@600;700&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+    <link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -413,21 +414,7 @@ function loginUser($user, $remember, $db) {
 
         <!-- Divider -->
         <div class="divider">or continue with</div>
-
-        <!-- Social Buttons -->
-        <div class="social-buttons">
-            <a href="google-login.php" class="social-btn google">
-                <i class="fab fa-google"></i> Google
-            </a>
-            <a href="#" class="social-btn microsoft">
-                <i class="fab fa-microsoft"></i> Microsoft
-            </a>
-        </div>
-
-        <!-- Register Link -->
-        <div class="register-link">
-            Don't have an account? <a href="register.php">Request Access</a>
-        </div>
+  
         <?php endif; ?>
 
         <!-- Back to Home -->
