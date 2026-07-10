@@ -32,12 +32,12 @@ $page_subtitle = isset($page_subtitle) ? $page_subtitle : '';
         </div>
 
         <!-- Notifications -->
-        <a href="notifications.php" class="notification-btn" aria-label="Notifications">
+        <!-- <a href="notifications.php" class="notification-btn" aria-label="Notifications">
             <i class="fas fa-bell"></i>
             <?php if ($notification_count > 0): ?>
             <span class="badge"><?php echo min($notification_count, 99); ?></span>
             <?php endif; ?>
-        </a>
+        </a> -->
 
         <!-- Profile Dropdown -->
         <div class="profile-dropdown">
