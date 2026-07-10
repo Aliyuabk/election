@@ -1649,3 +1649,27 @@ Stack trace:
 [09-Jul-2026 23:55:20 Africa/Lagos] Redirecting to: ../dashboard/client-admin/ for role: client_admin
 [09-Jul-2026 23:55:41 Africa/Lagos] Redirecting to: ../dashboard/super-admin/ for role: super_admin
 [10-Jul-2026 00:18:00 Africa/Lagos] Email send failed to ibrahim@gmail.com: SMTP Error: Could not connect to SMTP host. Failed to connect to server SMTP server error: Failed to connect to server SMTP code: 10060 Additional SMTP info: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond
+[10-Jul-2026 00:18:23 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: state
+[10-Jul-2026 00:18:49 Africa/Lagos] Monitor LGAs PDO Error: SQLSTATE[HY093]: Invalid parameter number
+[10-Jul-2026 00:24:04 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: national
+[10-Jul-2026 00:24:15 Africa/Lagos] Redirecting to: ../dashboard/super-admin/ for role: super_admin
+[10-Jul-2026 00:24:25 Africa/Lagos] Redirecting to: ../dashboard/client-admin/ for role: client_admin
+[10-Jul-2026 00:24:48 Africa/Lagos] Redirecting to: ../dashboard/super-admin/ for role: super_admin
+[10-Jul-2026 00:25:28 Africa/Lagos] Email send failed to agent@gmail.com: SMTP Error: Could not connect to SMTP host. Failed to connect to server SMTP server error: Failed to connect to server SMTP code: 10060 Additional SMTP info: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond
+[10-Jul-2026 00:25:34 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: state
+[10-Jul-2026 00:25:38 Africa/Lagos] Monitor LGAs PDO Error: SQLSTATE[HY093]: Invalid parameter number
+[10-Jul-2026 00:27:11 Africa/Lagos] Monitor LGAs PDO Error: SQLSTATE[HY093]: Invalid parameter number
+[10-Jul-2026 00:32:43 Africa/Lagos] Email send failed to aliyuabubakar1111@gmail.com: SMTP Error: Could not connect to SMTP host. Failed to connect to server SMTP server error: Failed to connect to server SMTP code: 10060 Additional SMTP info: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond
+[10-Jul-2026 00:41:19 Africa/Lagos] Error fetching results: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'r.deleted_at' in 'where clause'
+[10-Jul-2026 00:42:36 Africa/Lagos] Error fetching results: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'r.deleted_at' in 'where clause'
+[10-Jul-2026 00:42:42 Africa/Lagos] Error fetching results: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'r.deleted_at' in 'where clause'
+[10-Jul-2026 00:44:12 Africa/Lagos] Error fetching results: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'r.deleted_at' in 'where clause'
+[10-Jul-2026 00:44:30 Africa/Lagos] Error fetching results: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'r.deleted_at' in 'where clause'
+[10-Jul-2026 01:39:31 Africa/Lagos] Error fetching results: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'r.deleted_at' in 'where clause'
+[10-Jul-2026 01:40:34 Africa/Lagos] Error fetching results: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'r.deleted_at' in 'where clause'
+[10-Jul-2026 01:40:35 Africa/Lagos] Error fetching results: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'r.deleted_at' in 'where clause'
+[10-Jul-2026 01:40:36 Africa/Lagos] Error fetching results: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'r.deleted_at' in 'where clause'
+[10-Jul-2026 01:41:08 Africa/Lagos] Error fetching results: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'r.deleted_at' in 'where clause'
+[10-Jul-2026 01:51:19 Africa/Lagos] Email send failed to ibrahim@gmail.com: SMTP Error: Could not connect to SMTP host. Failed to connect to server SMTP server error: Failed to connect to server SMTP code: 10060 Additional SMTP info: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond
+[10-Jul-2026 01:51:40 Africa/Lagos] Email send failed to agent@gmail.com: SMTP Error: Could not connect to SMTP host. Failed to connect to server SMTP server error: Failed to connect to server SMTP code: 10060 Additional SMTP info: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond
+[10-Jul-2026 01:52:01 Africa/Lagos] Email send failed to aliyuabubakar1111@gmail.com: SMTP Error: Could not connect to SMTP host. Failed to connect to server SMTP server error: Failed to connect to server SMTP code: 10060 Additional SMTP info: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond

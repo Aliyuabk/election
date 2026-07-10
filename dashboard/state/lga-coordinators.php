@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// STATE COORDINATOR - VIEW LGA COORDINATORS
+// STATE COORDINATOR - MANAGE LGA COORDINATORS
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -20,51 +20,63 @@ if (SessionManager::get('role_level') !== 'state') {
     exit();
 }
 
-$user_name = SessionManager::get('user_name', 'Coordinator');
+$user_name = SessionManager::get('user_name', 'State Coordinator');
 $user_id = SessionManager::get('user_id');
-$user_email = SessionManager::get('user_email');
-$state_id = SessionManager::get('state_id');
 $tenant_id = SessionManager::get('tenant_id');
+$state_id = SessionManager::get('state_id');
 
-// Get LGA ID from URL
-$lga_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
-
-if ($lga_id <= 0) {
-    header('Location: monitor-lgas.php?error=invalid_lga');
-    exit();
+// If state_id is not set in session, try to get it from user record
+if (empty($state_id)) {
+    $db = getDB();
+    try {
+        $stmt = $db->prepare("SELECT state_id FROM users WHERE id = ?");
+        $stmt->execute([$user_id]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($user && !empty($user['state_id'])) {
+            $state_id = $user['state_id'];
+            SessionManager::set('state_id', $state_id);
+        }
+    } catch (Exception $e) {
+        error_log("Error fetching state_id: " . $e->getMessage());
+    }
 }
 
 $db = getDB();
 
 // ============================================================
-// FETCH LGA AND STATE DATA
+// GET FILTERS
 // ============================================================
-$lga_name = '';
-$state_name = '';
-$lga_data = null;
+$search = isset($_GET['search']) ? trim($_GET['search']) : '';
+$lga_filter = isset($_GET['lga_id']) ? (int)$_GET['lga_id'] : 0;
+$status_filter = isset($_GET['status']) ? $_GET['status'] : '';
 
+// ============================================================
+// FETCH STATE NAME
+// ============================================================
+$state_name = 'Unknown State';
 try {
-    $stmt = $db->prepare("
-        SELECT l.*, s.name as state_name 
-        FROM lgas l 
-        JOIN states s ON l.state_id = s.id 
-        WHERE l.id = ? AND l.state_id = ?
-    ");
-    $stmt->execute([$lga_id, $state_id]);
-    $lga_data = $stmt->fetch(PDO::FETCH_ASSOC);
-    
-    if (!$lga_data) {
-        header('Location: monitor-lgas.php?error=lga_not_found');
-        exit();
+    if (!empty($state_id)) {
+        $stmt = $db->prepare("SELECT name FROM states WHERE id = ?");
+        $stmt->execute([$state_id]);
+        $state = $stmt->fetch(PDO::FETCH_ASSOC);
+        $state_name = $state['name'] ?? 'Unknown State';
     }
-    
-    $lga_name = $lga_data['name'];
-    $state_name = $lga_data['state_name'];
-    
 } catch (Exception $e) {
-    error_log("LGA Coordinators Error: " . $e->getMessage());
-    header('Location: monitor-lgas.php?error=database_error');
-    exit();
+    error_log("Error fetching state: " . $e->getMessage());
+}
+
+// ============================================================
+// FETCH LGAS FOR FILTER
+// ============================================================
+$lgas = [];
+try {
+    if (!empty($state_id)) {
+        $stmt = $db->prepare("SELECT id, name FROM lgas WHERE state_id = ? AND is_active = 1 ORDER BY name");
+        $stmt->execute([$state_id]);
+        $lgas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+} catch (Exception $e) {
+    error_log("Error fetching LGAs: " . $e->getMessage());
 }
 
 // ============================================================
@@ -74,7 +86,7 @@ $coordinators = [];
 $total_coordinators = 0;
 
 try {
-    $stmt = $db->prepare("
+    $sql = "
         SELECT 
             u.id,
             u.user_code,
@@ -87,438 +99,656 @@ try {
             u.last_login_at,
             u.created_at,
             r.name as role_name,
-            r.level as role_level
+            l.id as lga_id,
+            l.name as lga_name,
+            (SELECT COUNT(*) FROM users u2 WHERE u2.lga_id = u.lga_id AND u2.deleted_at IS NULL AND u2.status = 'active') as total_agents
         FROM users u
         JOIN roles r ON u.role_id = r.id
-        WHERE u.tenant_id = ? 
+        LEFT JOIN lgas l ON u.lga_id = l.id
+        WHERE u.tenant_id = ?
+        AND u.state_id = ?
         AND r.level = 'lga'
-        AND u.jurisdiction_id = ?
-        AND (u.deleted_at IS NULL OR u.deleted_at = '0000-00-00 00:00:00')
-        ORDER BY u.full_name ASC
-    ");
-    $stmt->execute([$tenant_id, $lga_id]);
+        AND u.deleted_at IS NULL
+    ";
+    
+    $params = [$tenant_id, $state_id];
+    
+    if (!empty($search)) {
+        $sql .= " AND (u.first_name LIKE ? OR u.last_name LIKE ? OR u.email LIKE ? OR u.phone LIKE ?)";
+        $params[] = "%$search%";
+        $params[] = "%$search%";
+        $params[] = "%$search%";
+        $params[] = "%$search%";
+    }
+    
+    if (!empty($lga_filter)) {
+        $sql .= " AND u.lga_id = ?";
+        $params[] = $lga_filter;
+    }
+    
+    if (!empty($status_filter)) {
+        $sql .= " AND u.status = ?";
+        $params[] = $status_filter;
+    }
+    
+    $sql .= " ORDER BY u.last_name ASC, u.first_name ASC";
+    
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
     $coordinators = $stmt->fetchAll(PDO::FETCH_ASSOC);
     $total_coordinators = count($coordinators);
     
 } catch (Exception $e) {
-    error_log("LGA Coordinators Fetch Error: " . $e->getMessage());
-}
-
-// ============================================================
-// FETCH WARD COORDINATORS FOR THIS LGA
-// ============================================================
-$ward_coordinators = [];
-$total_ward_coordinators = 0;
-
-try {
-    $stmt = $db->prepare("
-        SELECT 
-            u.id,
-            u.user_code,
-            u.first_name,
-            u.last_name,
-            u.full_name,
-            u.email,
-            u.phone,
-            u.status,
-            u.last_login_at,
-            u.created_at,
-            r.name as role_name,
-            r.level as role_level,
-            w.name as ward_name,
-            w.code as ward_code
-        FROM users u
-        JOIN roles r ON u.role_id = r.id
-        JOIN wards w ON u.jurisdiction_id = w.id
-        WHERE u.tenant_id = ? 
-        AND r.level = 'ward'
-        AND u.jurisdiction_id IN (SELECT id FROM wards WHERE lga_id = ?)
-        AND (u.deleted_at IS NULL OR u.deleted_at = '0000-00-00 00:00:00')
-        ORDER BY w.name ASC, u.full_name ASC
-    ");
-    $stmt->execute([$tenant_id, $lga_id]);
-    $ward_coordinators = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    $total_ward_coordinators = count($ward_coordinators);
-    
-} catch (Exception $e) {
-    error_log("Ward Coordinators Fetch Error: " . $e->getMessage());
-}
-
-// ============================================================
-// FETCH PU AGENTS FOR THIS LGA
-// ============================================================
-$pu_agents = [];
-$total_pu_agents = 0;
-
-try {
-    $stmt = $db->prepare("
-        SELECT 
-            u.id,
-            u.user_code,
-            u.first_name,
-            u.last_name,
-            u.full_name,
-            u.email,
-            u.phone,
-            u.status,
-            u.last_login_at,
-            u.created_at,
-            r.name as role_name,
-            r.level as role_level,
-            pu.name as pu_name,
-            pu.code as pu_code,
-            w.name as ward_name
-        FROM users u
-        JOIN roles r ON u.role_id = r.id
-        JOIN polling_units pu ON u.jurisdiction_id = pu.id
-        JOIN wards w ON pu.ward_id = w.id
-        WHERE u.tenant_id = ? 
-        AND r.level = 'pu_agent'
-        AND pu.ward_id IN (SELECT id FROM wards WHERE lga_id = ?)
-        AND (u.deleted_at IS NULL OR u.deleted_at = '0000-00-00 00:00:00')
-        ORDER BY w.name ASC, pu.name ASC, u.full_name ASC
-        LIMIT 50
-    ");
-    $stmt->execute([$tenant_id, $lga_id]);
-    $pu_agents = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    $total_pu_agents = count($pu_agents);
-    
-} catch (Exception $e) {
-    error_log("PU Agents Fetch Error: " . $e->getMessage());
+    error_log("Error fetching coordinators: " . $e->getMessage());
 }
 
 include '../includes/base.php';
 include '../includes/sidebar.php';
-
-$page_title = 'LGA Coordinators';
-$page_subtitle = $lga_name;
 ?>
+
+<style>
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+.page-header h2 {
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin: 0;
+}
+.page-header h2 small {
+    font-size: 0.8rem;
+    font-weight: 400;
+    color: var(--gray-500);
+    display: block;
+    margin-top: 2px;
+}
+
+.btn-primary-sm {
+    padding: 8px 20px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.8rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: var(--transition);
+    font-family: 'Inter', sans-serif;
+}
+.btn-primary-sm:hover {
+    background: var(--primary-dark);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.3);
+}
+
+.btn-secondary-sm {
+    padding: 8px 20px;
+    background: var(--gray-100);
+    color: var(--gray-700);
+    border: 1px solid var(--gray-200);
+    border-radius: 10px;
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 0.8rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: var(--transition);
+    font-family: 'Inter', sans-serif;
+}
+.btn-secondary-sm:hover {
+    background: var(--gray-200);
+}
+
+.filter-bar {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 16px;
+}
+.filter-bar .search-box {
+    flex: 1;
+    min-width: 200px;
+    display: flex;
+    gap: 8px;
+}
+.filter-bar .search-box input {
+    flex: 1;
+    padding: 8px 14px;
+    border: 1px solid var(--gray-200);
+    border-radius: 10px;
+    font-size: 0.85rem;
+    font-family: 'Inter', sans-serif;
+}
+.filter-bar .search-box input:focus {
+    outline: none;
+    border-color: var(--primary);
+}
+.filter-bar select {
+    padding: 8px 14px;
+    border: 1px solid var(--gray-200);
+    border-radius: 10px;
+    font-size: 0.85rem;
+    font-family: 'Inter', sans-serif;
+    background: white;
+}
+.filter-bar .btn-filter {
+    padding: 8px 20px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: 'Inter', sans-serif;
+}
+.filter-bar .btn-filter:hover {
+    background: var(--primary-dark);
+}
+.filter-bar .btn-reset {
+    padding: 8px 20px;
+    background: var(--gray-100);
+    color: var(--gray-600);
+    border: 1px solid var(--gray-200);
+    border-radius: 10px;
+    font-weight: 500;
+    cursor: pointer;
+    text-decoration: none;
+    font-family: 'Inter', sans-serif;
+}
+.filter-bar .btn-reset:hover {
+    background: var(--gray-200);
+}
+
+.table-wrapper {
+    background: white;
+    border-radius: var(--radius);
+    border: 1px solid var(--gray-200);
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+}
+.table-wrapper table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+.table-wrapper table th {
+    background: var(--gray-50);
+    padding: 12px 16px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 0.75rem;
+    color: var(--gray-600);
+    border-bottom: 1px solid var(--gray-200);
+    white-space: nowrap;
+}
+.table-wrapper table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--gray-100);
+    vertical-align: middle;
+}
+.table-wrapper table tr:hover td {
+    background: var(--gray-50);
+}
+.table-wrapper table tr:last-child td {
+    border-bottom: none;
+}
+
+.badge-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 0.65rem;
+    font-weight: 600;
+}
+.badge-status .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    display: inline-block;
+}
+.badge-status.active { background: #ECFDF5; color: #065F46; }
+.badge-status.active .dot { background: #10B981; }
+.badge-status.suspended { background: #FEF2F2; color: #991B1B; }
+.badge-status.suspended .dot { background: #EF4444; }
+.badge-status.pending { background: #FFFBEB; color: #92400E; }
+.badge-status.pending .dot { background: #F59E0B; }
+
+.btn-action {
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: none;
+    font-size: 0.7rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-family: 'Inter', sans-serif;
+}
+.btn-action.btn-view {
+    background: #EFF6FF;
+    color: #3B82F6;
+}
+.btn-action.btn-view:hover {
+    background: #DBEAFE;
+}
+.btn-action.btn-edit {
+    background: #F5F3FF;
+    color: #8B5CF6;
+}
+.btn-action.btn-edit:hover {
+    background: #EDE9FE;
+}
+.btn-action.btn-suspend {
+    background: #FEF2F2;
+    color: #EF4444;
+}
+.btn-action.btn-suspend:hover {
+    background: #FEE2E2;
+}
+.btn-action.btn-activate {
+    background: #ECFDF5;
+    color: #10B981;
+}
+.btn-action.btn-activate:hover {
+    background: #D1FAE5;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--gray-400);
+}
+.empty-state i {
+    font-size: 3rem;
+    display: block;
+    margin-bottom: 12px;
+    color: var(--gray-300);
+}
+
+.coordinator-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.8rem;
+    color: white;
+    flex-shrink: 0;
+}
+.coordinator-avatar.blue { background: #3B82F6; }
+.coordinator-avatar.green { background: #10B981; }
+.coordinator-avatar.purple { background: #8B5CF6; }
+.coordinator-avatar.orange { background: #F59E0B; }
+.coordinator-avatar.red { background: #EF4444; }
+.coordinator-avatar.teal { background: #0D9488; }
+.coordinator-avatar.pink { background: #EC4899; }
+
+.user-cell {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.user-cell .user-info .name {
+    font-weight: 600;
+    color: var(--gray-800);
+}
+.user-cell .user-info .email {
+    font-size: 0.7rem;
+    color: var(--gray-400);
+}
+
+@media (max-width: 768px) {
+    .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .table-wrapper {
+        overflow-x: auto;
+    }
+    .filter-bar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .filter-bar .search-box {
+        flex-direction: column;
+    }
+}
+</style>
 
 <main class="main-content">
     <?php include '../includes/header.php'; ?>
     
     <div class="main-content-inner">
-        <!-- Breadcrumb -->
-        <div class="welcome-section">
-            <div class="breadcrumb">
-                <i class="fas fa-home"></i>
-                <a href="index.php" style="text-decoration:none;color:var(--gray-500);">Dashboard</a>
-                <i class="fas fa-chevron-right" style="font-size:0.6rem;color:var(--gray-400);"></i>
-                <a href="monitor-lgas.php" style="text-decoration:none;color:var(--gray-500);">Monitor LGAs</a>
-                <i class="fas fa-chevron-right" style="font-size:0.6rem;color:var(--gray-400);"></i>
-                <a href="lga-dashboard.php?id=<?php echo $lga_id; ?>" style="text-decoration:none;color:var(--gray-500);"><?php echo htmlspecialchars($lga_name); ?></a>
-                <i class="fas fa-chevron-right" style="font-size:0.6rem;color:var(--gray-400);"></i>
-                <span style="font-weight:600;color:var(--gray-800);">Coordinators</span>
-            </div>
-            
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px;margin-top:8px;">
-                <div>
-                    <h2 style="font-size:1.5rem;font-weight:700;margin:0;">
-                        <?php echo htmlspecialchars($lga_name); ?> Coordinators
-                    </h2>
-                    <p style="color:var(--gray-500);margin:2px 0 0;">
-                        <i class="fas fa-user-tie"></i> 
-                        <?php echo $total_coordinators; ?> LGA Coordinators • 
-                        <?php echo $total_ward_coordinators; ?> Ward Coordinators • 
-                        <?php echo $total_pu_agents; ?> PU Agents
-                    </p>
-                    <p style="color:var(--gray-400);font-size:0.75rem;margin:2px 0 0;">
-                        <?php echo htmlspecialchars($state_name); ?> • <?php echo htmlspecialchars($lga_name); ?>
-                    </p>
-                </div>
-                <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                    <a href="lga-dashboard.php?id=<?php echo $lga_id; ?>" class="btn-secondary" style="padding:8px 20px;background:var(--gray-100);color:var(--gray-700);border:1px solid var(--gray-200);border-radius:10px;text-decoration:none;font-weight:500;font-size:0.8rem;display:inline-flex;align-items:center;gap:6px;">
-                        <i class="fas fa-arrow-left"></i> Back
-                    </a>
-                    <a href="coordinators-create.php?lga=<?php echo $lga_id; ?>&level=lga" class="btn-primary" style="padding:8px 20px;background:var(--primary);color:white;border:none;border-radius:10px;text-decoration:none;font-weight:600;font-size:0.8rem;display:inline-flex;align-items:center;gap:6px;">
-                        <i class="fas fa-user-plus"></i> Add Coordinator
-                    </a>
-                </div>
-            </div>
-        </div>
-
-        <!-- Stats Cards -->
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-icon blue"><i class="fas fa-user-tie"></i></div>
-                <div class="stat-number"><?php echo number_format($total_coordinators); ?></div>
-                <div class="stat-label">LGA Coordinators</div>
-                <div class="stat-change">Active staff</div>
-            </div>
-            
-            <div class="stat-card">
-                <div class="stat-icon purple"><i class="fas fa-users"></i></div>
-                <div class="stat-number"><?php echo number_format($total_ward_coordinators); ?></div>
-                <div class="stat-label">Ward Coordinators</div>
-                <div class="stat-change">Supervisors</div>
-            </div>
-            
-            <div class="stat-card">
-                <div class="stat-icon green"><i class="fas fa-user"></i></div>
-                <div class="stat-number"><?php echo number_format($total_pu_agents); ?></div>
-                <div class="stat-label">PU Agents</div>
-                <div class="stat-change">Field staff</div>
-            </div>
-            
-            <div class="stat-card">
-                <div class="stat-icon orange"><i class="fas fa-flag-checkered"></i></div>
-                <div class="stat-number"><?php echo number_format($total_coordinators + $total_ward_coordinators + $total_pu_agents); ?></div>
-                <div class="stat-label">Total Personnel</div>
-                <div class="stat-change">All staff</div>
-            </div>
-        </div>
-
-        <!-- LGA Coordinators Section -->
-        <div style="background:white;border-radius:var(--radius);overflow:hidden;border:1px solid var(--gray-200);margin-bottom:20px;">
-            <div style="padding:12px 20px;border-bottom:1px solid var(--gray-200);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-                <h4 style="font-size:0.9rem;font-weight:600;margin:0;">
-                    <i class="fas fa-user-tie" style="color:var(--primary);margin-right:6px;"></i>
+        <!-- Page Header -->
+        <div class="page-header">
+            <div>
+                <h2>
+                    <i class="fas fa-user-tie" style="color:var(--primary);margin-right:8px;"></i>
                     LGA Coordinators
-                </h4>
-                <span style="font-size:0.75rem;color:var(--gray-500);"><?php echo $total_coordinators; ?> coordinators</span>
+                    <small><?php echo htmlspecialchars($state_name); ?> - Manage LGA Coordinators</small>
+                </h2>
             </div>
-            
+            <div>
+                <a href="lga-coordinators-assign.php" class="btn-primary-sm">
+                    <i class="fas fa-user-plus"></i> Assign Coordinator
+                </a>
+                <a href="index.php" class="btn-secondary-sm">
+                    <i class="fas fa-arrow-left"></i> Back
+                </a>
+            </div>
+        </div>
+
+        <!-- Stats -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px;">
+            <div style="background:white;border-radius:10px;padding:14px 18px;border:1px solid var(--gray-200);text-align:center;">
+                <div style="font-size:1.4rem;font-weight:700;color:var(--gray-800);"><?php echo number_format($total_coordinators); ?></div>
+                <div style="font-size:0.7rem;color:var(--gray-500);">Total Coordinators</div>
+            </div>
+            <div style="background:white;border-radius:10px;padding:14px 18px;border:1px solid var(--gray-200);text-align:center;">
+                <div style="font-size:1.4rem;font-weight:700;color:#10B981;">
+                    <?php 
+                    $active = array_filter($coordinators, function($c) { return $c['status'] === 'active'; });
+                    echo number_format(count($active));
+                    ?>
+                </div>
+                <div style="font-size:0.7rem;color:var(--gray-500);">Active</div>
+            </div>
+            <div style="background:white;border-radius:10px;padding:14px 18px;border:1px solid var(--gray-200);text-align:center;">
+                <div style="font-size:1.4rem;font-weight:700;color:#F59E0B;">
+                    <?php 
+                    $pending = array_filter($coordinators, function($c) { return $c['status'] === 'pending'; });
+                    echo number_format(count($pending));
+                    ?>
+                </div>
+                <div style="font-size:0.7rem;color:var(--gray-500);">Pending</div>
+            </div>
+            <div style="background:white;border-radius:10px;padding:14px 18px;border:1px solid var(--gray-200);text-align:center;">
+                <div style="font-size:1.4rem;font-weight:700;color:#EF4444;">
+                    <?php 
+                    $suspended = array_filter($coordinators, function($c) { return $c['status'] === 'suspended'; });
+                    echo number_format(count($suspended));
+                    ?>
+                </div>
+                <div style="font-size:0.7rem;color:var(--gray-500);">Suspended</div>
+            </div>
+        </div>
+
+        <!-- Filter Bar -->
+        <form method="GET" action="" class="filter-bar">
+            <div class="search-box">
+                <input type="text" name="search" placeholder="Search coordinators..." value="<?php echo htmlspecialchars($search); ?>">
+                <button type="submit" class="btn-filter"><i class="fas fa-search"></i> Filter</button>
+            </div>
+            <select name="lga_id">
+                <option value="">All LGAs</option>
+                <?php foreach ($lgas as $lga): ?>
+                    <option value="<?php echo $lga['id']; ?>" <?php echo $lga_filter == $lga['id'] ? 'selected' : ''; ?>>
+                        <?php echo htmlspecialchars($lga['name']); ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+            <select name="status">
+                <option value="">All Status</option>
+                <option value="active" <?php echo $status_filter === 'active' ? 'selected' : ''; ?>>Active</option>
+                <option value="pending" <?php echo $status_filter === 'pending' ? 'selected' : ''; ?>>Pending</option>
+                <option value="suspended" <?php echo $status_filter === 'suspended' ? 'selected' : ''; ?>>Suspended</option>
+            </select>
+            <a href="lga-coordinators.php" class="btn-reset"><i class="fas fa-times"></i> Reset</a>
+        </form>
+
+        <!-- Table -->
+        <div class="table-wrapper">
             <?php if (count($coordinators) > 0): ?>
-                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;padding:16px;">
-                    <?php foreach ($coordinators as $coord): ?>
-                        <div style="background:var(--gray-50);border-radius:12px;padding:16px;border:1px solid var(--gray-200);transition:var(--transition);hover:transform:translateY(-2px);hover:box-shadow:var(--shadow-hover);">
-                            <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
-                                <div style="width:48px;height:48px;border-radius:50%;background:var(--primary);color:white;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1rem;flex-shrink:0;">
-                                    <?php echo strtoupper(substr($coord['first_name'] ?? 'U', 0, 1) . substr($coord['last_name'] ?? 'N', 0, 1)); ?>
-                                </div>
-                                <div style="flex:1;min-width:0;">
-                                    <div style="font-weight:600;font-size:0.9rem;"><?php echo htmlspecialchars($coord['full_name'] ?? 'Unknown'); ?></div>
-                                    <div style="font-size:0.7rem;color:var(--gray-500);">
-                                        <span class="badge <?php echo ($coord['status'] ?? '') === 'active' ? 'badge-success' : 'badge-danger'; ?>">
-                                            <?php echo ucfirst($coord['status'] ?? 'Unknown'); ?>
-                                        </span>
-                                        • <?php echo htmlspecialchars($coord['role_name'] ?? 'Unknown'); ?>
-                                    </div>
-                                    <div style="font-size:0.65rem;color:var(--gray-400);">
-                                        <i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($lga_name); ?>
-                                    </div>
-                                </div>
-                            </div>
-                            <div style="font-size:0.75rem;color:var(--gray-500);">
-                                <div><i class="fas fa-envelope" style="width:16px;"></i> <?php echo htmlspecialchars($coord['email'] ?? 'N/A'); ?></div>
-                                <div><i class="fas fa-phone" style="width:16px;"></i> <?php echo htmlspecialchars($coord['phone'] ?? 'N/A'); ?></div>
-                                <div><i class="fas fa-clock" style="width:16px;"></i> Last login: <?php echo ($coord['last_login_at'] ?? null) ? date('M j, Y g:i A', strtotime($coord['last_login_at'])) : 'Never'; ?></div>
-                            </div>
-                            <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;">
-                                <a href="coordinator-view.php?id=<?php echo $coord['id']; ?>" class="btn-sm" style="padding:4px 12px;border-radius:6px;background:var(--primary);color:white;text-decoration:none;font-size:0.7rem;">View</a>
-                                <a href="coordinator-edit.php?id=<?php echo $coord['id']; ?>" class="btn-sm" style="padding:4px 12px;border-radius:6px;background:var(--gray-200);color:var(--gray-700);text-decoration:none;font-size:0.7rem;">Edit</a>
-                                <?php if ($coord['status'] === 'active'): ?>
-                                    <a href="coordinator-suspend.php?id=<?php echo $coord['id']; ?>" class="btn-sm" style="padding:4px 12px;border-radius:6px;background:#FEE2E2;color:#991B1B;text-decoration:none;font-size:0.7rem;" onclick="return confirm('Suspend this coordinator?')">Suspend</a>
-                                <?php endif; ?>
-                                <a href="coordinator-reset-password.php?id=<?php echo $coord['id']; ?>" class="btn-sm" style="padding:4px 12px;border-radius:6px;background:#FEF3C7;color:#92400E;text-decoration:none;font-size:0.7rem;">Reset Password</a>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-            <?php else: ?>
-                <div style="padding:30px;text-align:center;color:var(--gray-500);">
-                    <i class="fas fa-user-tie" style="font-size:1.5rem;display:block;margin-bottom:8px;color:var(--gray-300);"></i>
-                    No LGA coordinators assigned yet
-                    <div style="margin-top:12px;">
-                        <a href="coordinators-create.php?lga=<?php echo $lga_id; ?>&level=lga" class="btn-primary" style="padding:8px 20px;background:var(--primary);color:white;border:none;border-radius:10px;text-decoration:none;font-weight:600;font-size:0.8rem;">
-                            <i class="fas fa-user-plus"></i> Add LGA Coordinator
-                        </a>
-                    </div>
-                </div>
-            <?php endif; ?>
-        </div>
-
-        <!-- Ward Coordinators Section -->
-        <div style="background:white;border-radius:var(--radius);overflow:hidden;border:1px solid var(--gray-200);margin-bottom:20px;">
-            <div style="padding:12px 20px;border-bottom:1px solid var(--gray-200);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-                <h4 style="font-size:0.9rem;font-weight:600;margin:0;">
-                    <i class="fas fa-users" style="color:var(--secondary);margin-right:6px;"></i>
-                    Ward Coordinators
-                </h4>
-                <span style="font-size:0.75rem;color:var(--gray-500);"><?php echo $total_ward_coordinators; ?> coordinators</span>
-            </div>
-            
-            <?php if (count($ward_coordinators) > 0): ?>
-                <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;padding:16px;">
-                    <?php foreach ($ward_coordinators as $coord): ?>
-                        <div style="background:var(--gray-50);border-radius:12px;padding:16px;border:1px solid var(--gray-200);transition:var(--transition);hover:transform:translateY(-2px);hover:box-shadow:var(--shadow-hover);">
-                            <div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
-                                <div style="width:48px;height:48px;border-radius:50%;background:var(--secondary);color:white;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1rem;flex-shrink:0;">
-                                    <?php echo strtoupper(substr($coord['first_name'] ?? 'U', 0, 1) . substr($coord['last_name'] ?? 'N', 0, 1)); ?>
-                                </div>
-                                <div style="flex:1;min-width:0;">
-                                    <div style="font-weight:600;font-size:0.9rem;"><?php echo htmlspecialchars($coord['full_name'] ?? 'Unknown'); ?></div>
-                                    <div style="font-size:0.7rem;color:var(--gray-500);">
-                                        <span class="badge <?php echo ($coord['status'] ?? '') === 'active' ? 'badge-success' : 'badge-danger'; ?>">
-                                            <?php echo ucfirst($coord['status'] ?? 'Unknown'); ?>
-                                        </span>
-                                        • <?php echo htmlspecialchars($coord['role_name'] ?? 'Unknown'); ?>
-                                    </div>
-                                    <div style="font-size:0.65rem;color:var(--gray-400);">
-                                        <i class="fas fa-layer-group"></i> <?php echo htmlspecialchars($coord['ward_name'] ?? 'Unknown Ward'); ?>
-                                        <?php if (!empty($coord['ward_code'])): ?>
-                                            (<?php echo htmlspecialchars($coord['ward_code']); ?>)
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
-                            </div>
-                            <div style="font-size:0.75rem;color:var(--gray-500);">
-                                <div><i class="fas fa-envelope" style="width:16px;"></i> <?php echo htmlspecialchars($coord['email'] ?? 'N/A'); ?></div>
-                                <div><i class="fas fa-phone" style="width:16px;"></i> <?php echo htmlspecialchars($coord['phone'] ?? 'N/A'); ?></div>
-                                <div><i class="fas fa-clock" style="width:16px;"></i> Last login: <?php echo ($coord['last_login_at'] ?? null) ? date('M j, Y g:i A', strtotime($coord['last_login_at'])) : 'Never'; ?></div>
-                            </div>
-                            <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;">
-                                <a href="coordinator-view.php?id=<?php echo $coord['id']; ?>" class="btn-sm" style="padding:4px 12px;border-radius:6px;background:var(--primary);color:white;text-decoration:none;font-size:0.7rem;">View</a>
-                                <a href="coordinator-edit.php?id=<?php echo $coord['id']; ?>" class="btn-sm" style="padding:4px 12px;border-radius:6px;background:var(--gray-200);color:var(--gray-700);text-decoration:none;font-size:0.7rem;">Edit</a>
-                                <?php if ($coord['status'] === 'active'): ?>
-                                    <a href="coordinator-suspend.php?id=<?php echo $coord['id']; ?>" class="btn-sm" style="padding:4px 12px;border-radius:6px;background:#FEE2E2;color:#991B1B;text-decoration:none;font-size:0.7rem;" onclick="return confirm('Suspend this coordinator?')">Suspend</a>
-                                <?php endif; ?>
-                                <a href="coordinator-reset-password.php?id=<?php echo $coord['id']; ?>" class="btn-sm" style="padding:4px 12px;border-radius:6px;background:#FEF3C7;color:#92400E;text-decoration:none;font-size:0.7rem;">Reset Password</a>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-            <?php else: ?>
-                <div style="padding:30px;text-align:center;color:var(--gray-500);">
-                    <i class="fas fa-users" style="font-size:1.5rem;display:block;margin-bottom:8px;color:var(--gray-300);"></i>
-                    No ward coordinators assigned yet
-                </div>
-            <?php endif; ?>
-        </div>
-
-        <!-- PU Agents Section -->
-        <div style="background:white;border-radius:var(--radius);overflow:hidden;border:1px solid var(--gray-200);margin-bottom:20px;">
-            <div style="padding:12px 20px;border-bottom:1px solid var(--gray-200);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-                <h4 style="font-size:0.9rem;font-weight:600;margin:0;">
-                    <i class="fas fa-user" style="color:var(--warning);margin-right:6px;"></i>
-                    PU Agents (Recent)
-                </h4>
-                <span style="font-size:0.75rem;color:var(--gray-500);">Showing <?php echo min($total_pu_agents, 50); ?> of <?php echo $total_pu_agents; ?> agents</span>
-            </div>
-            
-            <?php if (count($pu_agents) > 0): ?>
-                <div style="overflow-x:auto;">
-                    <table style="width:100%;border-collapse:collapse;font-size:0.75rem;">
-                        <thead style="background:var(--gray-50);border-bottom:2px solid var(--gray-200);">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>S/N</th>
+                            <th>Coordinator</th>
+                            <th>LGA</th>
+                            <th>Phone</th>
+                            <th>Agents</th>
+                            <th>Last Login</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php 
+                        $sn = 1;
+                        $avatar_colors = ['blue', 'green', 'purple', 'orange', 'red', 'teal', 'pink'];
+                        ?>
+                        <?php foreach ($coordinators as $coordinator): ?>
+                            <?php 
+                            $color_idx = ($coordinator['id'] ?? 0) % count($avatar_colors);
+                            $avatar_color = $avatar_colors[$color_idx];
+                            $initials = strtoupper(substr($coordinator['first_name'] ?? '', 0, 1) . substr($coordinator['last_name'] ?? '', 0, 1));
+                            ?>
                             <tr>
-                                <th style="padding:8px 12px;text-align:left;font-weight:600;color:var(--gray-600);">Agent</th>
-                                <th style="padding:8px 12px;text-align:center;font-weight:600;color:var(--gray-600);">PU / Ward</th>
-                                <th style="padding:8px 12px;text-align:center;font-weight:600;color:var(--gray-600);">Status</th>
-                                <th style="padding:8px 12px;text-align:center;font-weight:600;color:var(--gray-600);">Last Login</th>
-                                <th style="padding:8px 12px;text-align:center;font-weight:600;color:var(--gray-600);">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <?php foreach (array_slice($pu_agents, 0, 50) as $agent): ?>
-                                <tr style="border-bottom:1px solid var(--gray-100);transition:var(--transition);hover:background:var(--gray-50);">
-                                    <td style="padding:8px 12px;">
-                                        <div style="font-weight:500;font-size:0.8rem;"><?php echo htmlspecialchars($agent['full_name'] ?? 'Unknown'); ?></div>
-                                        <div style="font-size:0.6rem;color:var(--gray-400);"><?php echo htmlspecialchars($agent['email'] ?? 'N/A'); ?></div>
-                                    </td>
-                                    <td style="padding:8px 12px;text-align:center;font-size:0.7rem;">
-                                        <div><?php echo htmlspecialchars($agent['pu_name'] ?? 'Unknown PU'); ?></div>
-                                        <div style="font-size:0.55rem;color:var(--gray-400);"><?php echo htmlspecialchars($agent['ward_name'] ?? ''); ?></div>
-                                    </td>
-                                    <td style="padding:8px 12px;text-align:center;">
-                                        <span style="display:inline-block;padding:2px 8px;border-radius:8px;font-size:0.6rem;font-weight:600;background:<?php echo ($agent['status'] ?? '') === 'active' ? '#D1FAE5' : '#FEE2E2'; ?>;color:<?php echo ($agent['status'] ?? '') === 'active' ? '#065F46' : '#991B1B'; ?>;">
-                                            <?php echo ucfirst($agent['status'] ?? 'Unknown'); ?>
-                                        </span>
-                                    </td>
-                                    <td style="padding:8px 12px;text-align:center;font-size:0.65rem;color:var(--gray-500);">
-                                        <?php if ($agent['last_login_at']): ?>
-                                            <?php echo date('M j, Y', strtotime($agent['last_login_at'])); ?>
-                                        <?php else: ?>
-                                            <span style="color:var(--gray-400);">Never</span>
-                                        <?php endif; ?>
-                                    </td>
-                                    <td style="padding:8px 12px;text-align:center;">
-                                        <div style="display:flex;gap:3px;justify-content:center;flex-wrap:wrap;">
-                                            <a href="coordinator-view.php?id=<?php echo $agent['id']; ?>" class="btn-sm" style="padding:2px 8px;border-radius:4px;background:var(--primary);color:white;text-decoration:none;font-size:0.6rem;" title="View">
-                                                <i class="fas fa-eye"></i>
-                                            </a>
-                                            <a href="coordinator-edit.php?id=<?php echo $agent['id']; ?>" class="btn-sm" style="padding:2px 8px;border-radius:4px;background:var(--gray-200);color:var(--gray-700);text-decoration:none;font-size:0.6rem;" title="Edit">
-                                                <i class="fas fa-edit"></i>
-                                            </a>
+                                <td><?php echo $sn++; ?></td>
+                                <td>
+                                    <div class="user-cell">
+                                        <div class="coordinator-avatar <?php echo $avatar_color; ?>">
+                                            <?php echo $initials ?: '?'; ?>
                                         </div>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
-                    </table>
-                </div>
-                <?php if ($total_pu_agents > 50): ?>
-                    <div style="padding:10px 20px;text-align:center;background:var(--gray-50);border-top:1px solid var(--gray-200);">
-                        <span style="font-size:0.75rem;color:var(--gray-500);">
-                            Showing 50 of <?php echo number_format($total_pu_agents); ?> agents. 
-                            <a href="pu-agents.php?lga=<?php echo $lga_id; ?>" style="color:var(--primary);text-decoration:none;">View All →</a>
-                        </span>
-                    </div>
-                <?php endif; ?>
+                                        <div class="user-info">
+                                            <div class="name"><?php echo htmlspecialchars($coordinator['full_name'] ?? $coordinator['first_name'] . ' ' . $coordinator['last_name']); ?></div>
+                                            <div class="email"><?php echo htmlspecialchars($coordinator['email'] ?? ''); ?></div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td><?php echo htmlspecialchars($coordinator['lga_name'] ?? 'N/A'); ?></td>
+                                <td><?php echo htmlspecialchars($coordinator['phone'] ?? 'N/A'); ?></td>
+                                <td><?php echo number_format($coordinator['total_agents'] ?? 0); ?></td>
+                                <td>
+                                    <?php if (!empty($coordinator['last_login_at'])): ?>
+                                        <?php echo date('M j, Y', strtotime($coordinator['last_login_at'])); ?>
+                                    <?php else: ?>
+                                        <span style="color:var(--gray-400);">Never</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <span class="badge-status <?php echo $coordinator['status']; ?>">
+                                        <span class="dot"></span>
+                                        <?php echo ucfirst($coordinator['status'] ?? 'N/A'); ?>
+                                    </span>
+                                </td>
+                                <td>
+                                    <a href="coordinator-view.php?id=<?php echo $coordinator['id']; ?>" class="btn-action btn-view">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    <a href="coordinator-edit.php?id=<?php echo $coordinator['id']; ?>" class="btn-action btn-edit">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <?php if ($coordinator['status'] === 'active'): ?>
+                                        <button onclick="confirmAction('suspend', <?php echo $coordinator['id']; ?>)" class="btn-action btn-suspend">
+                                            <i class="fas fa-pause"></i>
+                                        </button>
+                                    <?php elseif ($coordinator['status'] === 'suspended'): ?>
+                                        <button onclick="confirmAction('activate', <?php echo $coordinator['id']; ?>)" class="btn-action btn-activate">
+                                            <i class="fas fa-play"></i>
+                                        </button>
+                                    <?php endif; ?>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
             <?php else: ?>
-                <div style="padding:30px;text-align:center;color:var(--gray-500);">
-                    <i class="fas fa-user" style="font-size:1.5rem;display:block;margin-bottom:8px;color:var(--gray-300);"></i>
-                    No PU agents assigned yet
+                <div class="empty-state">
+                    <i class="fas fa-user-tie"></i>
+                    <p>No LGA coordinators found.</p>
+                    <?php if (!empty($search) || !empty($lga_filter) || !empty($status_filter)): ?>
+                        <p style="font-size:0.8rem;">Try adjusting your filters.</p>
+                    <?php else: ?>
+                        <p style="font-size:0.8rem;">
+                            <a href="lga-coordinators-assign.php" style="color:var(--primary);text-decoration:none;font-weight:600;">
+                                Assign a coordinator
+                            </a> to get started.
+                        </p>
+                    <?php endif; ?>
                 </div>
             <?php endif; ?>
-        </div>
-
-        <!-- Quick Actions -->
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">
-            <a href="coordinator-activity.php?lga=<?php echo $lga_id; ?>" class="quick-action-btn" style="display:flex;align-items:center;gap:10px;padding:12px 16px;background:white;border-radius:var(--radius);border:1px solid var(--gray-200);text-decoration:none;color:var(--gray-700);font-weight:500;transition:var(--transition);">
-                <i class="fas fa-clock" style="color:var(--primary);"></i>
-                <span>View Activity Log</span>
-            </a>
-            <a href="coordinator-performance.php?lga=<?php echo $lga_id; ?>" class="quick-action-btn" style="display:flex;align-items:center;gap:10px;padding:12px 16px;background:white;border-radius:var(--radius);border:1px solid var(--gray-200);text-decoration:none;color:var(--gray-700);font-weight:500;transition:var(--transition);">
-                <i class="fas fa-chart-bar" style="color:var(--secondary);"></i>
-                <span>Performance Report</span>
-            </a>
-            <a href="broadcasts-create.php?lga=<?php echo $lga_id; ?>&target=coordinators" class="quick-action-btn" style="display:flex;align-items:center;gap:10px;padding:12px 16px;background:white;border-radius:var(--radius);border:1px solid var(--gray-200);text-decoration:none;color:var(--gray-700);font-weight:500;transition:var(--transition);">
-                <i class="fas fa-bullhorn" style="color:var(--warning);"></i>
-                <span>Broadcast to Coordinators</span>
-            </a>
-            <a href="pu-agents.php?lga=<?php echo $lga_id; ?>" class="quick-action-btn" style="display:flex;align-items:center;gap:10px;padding:12px 16px;background:white;border-radius:var(--radius);border:1px solid var(--gray-200);text-decoration:none;color:var(--gray-700);font-weight:500;transition:var(--transition);">
-                <i class="fas fa-user" style="color:var(--primary);"></i>
-                <span>View All PU Agents</span>
-            </a>
         </div>
     </div>
 </main>
 
-<style>
-.badge-success { background: #D1FAE5; color: #065F46; padding: 2px 10px; border-radius: 12px; font-size: 0.65rem; font-weight: 600; }
-.badge-danger { background: #FEE2E2; color: #991B1B; padding: 2px 10px; border-radius: 12px; font-size: 0.65rem; font-weight: 600; }
-.btn-sm:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-.quick-action-btn:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); border-color: var(--primary); }
-.btn-secondary:hover { background: var(--gray-200); transform: translateY(-1px); }
-.btn-primary:hover { background: var(--primary-dark); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.3); }
+<!-- ============================================================
+CONFIRMATION MODAL
+============================================================ -->
+<div class="modal-overlay" id="confirmModal">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 id="confirmTitle">Confirm Action</h3>
+            <button class="close-btn" onclick="closeModal()">&times;</button>
+        </div>
+        <div class="modal-body" id="confirmBody">
+            <p>Are you sure you want to perform this action?</p>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+            <form method="POST" action="" id="confirmForm">
+                <input type="hidden" name="action" id="confirmAction" value="">
+                <input type="hidden" name="user_id" id="confirmUserId" value="">
+                <button type="submit" class="btn btn-danger" id="confirmBtn">Confirm</button>
+            </form>
+        </div>
+    </div>
+</div>
 
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 14px;
+<style>
+.modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 300;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+.modal-overlay.active { display: flex; }
+.modal {
+    background: white;
+    border-radius: var(--radius);
+    max-width: 440px;
+    width: 100%;
+    padding: 28px 32px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+    animation: modalIn 0.25s ease;
+}
+@keyframes modalIn {
+    from { transform: scale(0.95) translateY(10px); opacity: 0; }
+    to { transform: scale(1) translateY(0); opacity: 1; }
+}
+.modal .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+.modal .modal-header h3 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--gray-800);
+}
+.modal .modal-header .close-btn {
+    background: none;
+    border: none;
+    font-size: 1.4rem;
+    color: var(--gray-400);
+    cursor: pointer;
+    transition: var(--transition);
+    padding: 0 4px;
+}
+.modal .modal-header .close-btn:hover {
+    color: var(--gray-600);
+}
+.modal .modal-body {
     margin-bottom: 20px;
+    color: var(--gray-600);
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+.modal .modal-body strong {
+    color: var(--gray-800);
+}
+.modal .modal-footer {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+}
+.modal .modal-footer .btn {
+    padding: 8px 20px;
+    border-radius: 8px;
+    border: none;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: var(--transition);
+    font-family: 'Inter', sans-serif;
+}
+.modal .modal-footer .btn-secondary {
+    background: var(--gray-100);
+    color: var(--gray-600);
+}
+.modal .modal-footer .btn-secondary:hover {
+    background: var(--gray-200);
+}
+.modal .modal-footer .btn-danger {
+    background: var(--danger);
+    color: white;
+}
+.modal .modal-footer .btn-danger:hover {
+    background: #DC2626;
+}
+.modal .modal-footer .btn-primary {
+    background: var(--primary);
+    color: white;
+}
+.modal .modal-footer .btn-primary:hover {
+    background: var(--primary-dark);
 }
 
-@media (max-width: 768px) {
-    .stats-grid { grid-template-columns: 1fr 1fr; }
-    div[style*="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))"] {
-        grid-template-columns: 1fr !important;
-    }
+@media (max-width: 480px) {
+    .modal { padding: 20px; margin: 10px; }
+    .modal .modal-footer { flex-direction: column; }
+    .modal .modal-footer .btn { width: 100%; justify-content: center; }
 }
 </style>
 
 <script>
 // ============================================================
-// SIDEBAR TOGGLE, DROPDOWNS, PROFILE, SEARCH
+// PRELOADER
 // ============================================================
 window.addEventListener('load', function() {
     var preloader = document.getElementById('preloader');
     if (preloader) {
         preloader.classList.add('hidden');
-        setTimeout(function() { preloader.style.display = 'none'; }, 600);
+        setTimeout(function() {
+            preloader.style.display = 'none';
+        }, 600);
     }
 });
 
+// ============================================================
+// SIDEBAR TOGGLE
+// ============================================================
 var sidebar = document.getElementById('sidebar');
 var sidebarToggle = document.getElementById('sidebarToggle');
 var sidebarOverlay = document.getElementById('sidebarOverlay');
@@ -557,6 +787,9 @@ window.addEventListener('resize', function() {
     }
 });
 
+// ============================================================
+// SIDEBAR DROPDOWNS
+// ============================================================
 document.querySelectorAll('.dropdown-toggle').forEach(function(toggle) {
     toggle.addEventListener('click', function(e) {
         e.preventDefault();
@@ -570,6 +803,9 @@ document.querySelectorAll('.dropdown-toggle').forEach(function(toggle) {
     });
 });
 
+// ============================================================
+// PROFILE DROPDOWN
+// ============================================================
 var profileBtn = document.getElementById('profileBtn');
 var profileMenu = document.getElementById('profileMenu');
 
@@ -583,6 +819,34 @@ if (profileBtn && profileMenu) {
             profileMenu.classList.remove('active');
         }
     });
+}
+
+// ============================================================
+// CONFIRMATION MODAL
+// ============================================================
+function confirmAction(action, userId) {
+    var modal = document.getElementById('confirmModal');
+    
+    if (action === 'suspend') {
+        document.getElementById('confirmTitle').textContent = 'Suspend Coordinator';
+        document.getElementById('confirmBody').innerHTML = 'Are you sure you want to suspend this LGA coordinator? The user will lose access to the platform.';
+        document.getElementById('confirmAction').value = 'suspend';
+        document.getElementById('confirmBtn').className = 'btn btn-danger';
+        document.getElementById('confirmBtn').textContent = 'Suspend';
+    } else if (action === 'activate') {
+        document.getElementById('confirmTitle').textContent = 'Activate Coordinator';
+        document.getElementById('confirmBody').innerHTML = 'Are you sure you want to activate this LGA coordinator? The user will regain full access.';
+        document.getElementById('confirmAction').value = 'activate';
+        document.getElementById('confirmBtn').className = 'btn btn-primary';
+        document.getElementById('confirmBtn').textContent = 'Activate';
+    }
+    
+    document.getElementById('confirmUserId').value = userId;
+    modal.classList.add('active');
+}
+
+function closeModal() {
+    document.getElementById('confirmModal').classList.remove('active');
 }
 </script>
 </body>

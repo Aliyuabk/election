@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// STATE COORDINATOR - COORDINATOR EDIT
+// STATE COORDINATOR - PROFILE
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -52,42 +52,35 @@ if (empty($_SESSION['csrf_token'])) {
 $csrf_token = $_SESSION['csrf_token'];
 
 // ============================================================
-// GET COORDINATOR ID
+// FETCH USER PROFILE
 // ============================================================
-$coordinator_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
-
-if ($coordinator_id <= 0) {
-    header('Location: lga-coordinators.php');
-    exit();
-}
-
-// ============================================================
-// FETCH COORDINATOR DETAILS
-// ============================================================
-$coordinator = null;
+$profile = null;
+$state_name = 'Unknown State';
+$lga_name = 'N/A';
 
 try {
     $stmt = $db->prepare("
-        SELECT u.*, r.name as role_name, r.level as role_level
+        SELECT 
+            u.*,
+            r.name as role_name,
+            r.level as role_level,
+            s.name as state_name,
+            l.name as lga_name
         FROM users u
         JOIN roles r ON u.role_id = r.id
+        LEFT JOIN states s ON u.state_id = s.id
+        LEFT JOIN lgas l ON u.lga_id = l.id
         WHERE u.id = ? AND u.deleted_at IS NULL
     ");
-    $stmt->execute([$coordinator_id]);
-    $coordinator = $stmt->fetch(PDO::FETCH_ASSOC);
+    $stmt->execute([$user_id]);
+    $profile = $stmt->fetch(PDO::FETCH_ASSOC);
     
-    if (!$coordinator) {
-        header('Location: lga-coordinators.php');
-        exit();
+    if ($profile) {
+        $state_name = $profile['state_name'] ?? 'Unknown State';
+        $lga_name = $profile['lga_name'] ?? 'N/A';
     }
-    
-    // Get LGAs for dropdown
-    $stmt = $db->prepare("SELECT id, name FROM lgas WHERE state_id = ? AND is_active = 1 ORDER BY name");
-    $stmt->execute([$state_id]);
-    $lgas = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
 } catch (Exception $e) {
-    error_log("Error fetching coordinator: " . $e->getMessage());
+    error_log("Error fetching profile: " . $e->getMessage());
 }
 
 // ============================================================
@@ -103,15 +96,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $action = $_POST['action'] ?? '';
         
-        if ($action === 'update') {
+        if ($action === 'profile') {
             $first_name = trim($_POST['first_name'] ?? '');
             $last_name = trim($_POST['last_name'] ?? '');
             $email = trim($_POST['email'] ?? '');
             $phone = trim($_POST['phone'] ?? '');
             $gender = $_POST['gender'] ?? '';
             $date_of_birth = $_POST['date_of_birth'] ?? null;
-            $lga_id = (int)($_POST['lga_id'] ?? 0);
-            $status = $_POST['status'] ?? 'active';
             
             $errors = [];
             
@@ -126,82 +117,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 $errors[] = 'Invalid email address.';
             }
-            if (empty($lga_id)) {
-                $errors[] = 'Please select an LGA.';
-            }
-            
-            // Check if email already exists (excluding current user)
-            if (!empty($email)) {
-                $stmt = $db->prepare("SELECT id FROM users WHERE email = ? AND id != ? AND deleted_at IS NULL");
-                $stmt->execute([$email, $coordinator_id]);
-                if ($stmt->fetch(PDO::FETCH_ASSOC)) {
-                    $errors[] = 'Email already registered by another user.';
-                }
-            }
             
             if (empty($errors)) {
                 try {
                     $stmt = $db->prepare("
                         UPDATE users 
                         SET first_name = ?, last_name = ?, email = ?, phone = ?,
-                            gender = ?, date_of_birth = ?, lga_id = ?, state_id = ?,
-                            status = ?, updated_at = NOW()
+                            gender = ?, date_of_birth = ?, updated_at = NOW()
                         WHERE id = ?
                     ");
-                    $stmt->execute([
-                        $first_name, $last_name, $email, $phone,
-                        $gender, $date_of_birth, $lga_id, $state_id,
-                        $status, $coordinator_id
-                    ]);
+                    $stmt->execute([$first_name, $last_name, $email, $phone, $gender, $date_of_birth, $user_id]);
                     
-                    // Update password if provided
-                    $password = $_POST['password'] ?? '';
-                    if (!empty($password) && strlen($password) >= 8) {
-                        $password_hash = password_hash($password, PASSWORD_DEFAULT);
-                        $stmt = $db->prepare("UPDATE users SET password_hash = ? WHERE id = ?");
-                        $stmt->execute([$password_hash, $coordinator_id]);
-                    }
+                    // Update session
+                    SessionManager::set('user_name', $first_name . ' ' . $last_name);
+                    SessionManager::set('user_email', $email);
                     
-                    logActivity($user_id, 'user_updated', "Updated coordinator: $first_name $last_name (ID: $coordinator_id)");
-                    $success = 'Coordinator updated successfully!';
+                    $success = 'Profile updated successfully!';
                     
-                    // Refresh coordinator data
+                    // Refresh profile data
                     $stmt = $db->prepare("
-                        SELECT u.*, r.name as role_name, r.level as role_level
+                        SELECT 
+                            u.*,
+                            r.name as role_name,
+                            r.level as role_level,
+                            s.name as state_name,
+                            l.name as lga_name
                         FROM users u
                         JOIN roles r ON u.role_id = r.id
+                        LEFT JOIN states s ON u.state_id = s.id
+                        LEFT JOIN lgas l ON u.lga_id = l.id
                         WHERE u.id = ? AND u.deleted_at IS NULL
                     ");
-                    $stmt->execute([$coordinator_id]);
-                    $coordinator = $stmt->fetch(PDO::FETCH_ASSOC);
+                    $stmt->execute([$user_id]);
+                    $profile = $stmt->fetch(PDO::FETCH_ASSOC);
+                    
+                    logActivity($user_id, 'profile_updated', 'Updated profile information');
                     
                 } catch (Exception $e) {
-                    $error = 'Error updating coordinator: ' . $e->getMessage();
+                    $error = 'Error updating profile: ' . $e->getMessage();
                 }
             } else {
                 $error = implode('<br>', $errors);
-            }
-        } elseif ($action === 'suspend' || $action === 'activate') {
-            $status = $action === 'activate' ? 'active' : 'suspended';
-            try {
-                $stmt = $db->prepare("UPDATE users SET status = ?, updated_at = NOW() WHERE id = ?");
-                $stmt->execute([$status, $coordinator_id]);
-                
-                logActivity($user_id, "user_{$action}ed", "Coordinator ID: $coordinator_id");
-                $success = "Coordinator " . ($action === 'activate' ? 'activated' : 'suspended') . " successfully!";
-                
-                // Refresh coordinator data
-                $stmt = $db->prepare("
-                    SELECT u.*, r.name as role_name, r.level as role_level
-                    FROM users u
-                    JOIN roles r ON u.role_id = r.id
-                    WHERE u.id = ? AND u.deleted_at IS NULL
-                ");
-                $stmt->execute([$coordinator_id]);
-                $coordinator = $stmt->fetch(PDO::FETCH_ASSOC);
-                
-            } catch (Exception $e) {
-                $error = 'Error: ' . $e->getMessage();
             }
         }
     }
@@ -250,6 +206,61 @@ include '../includes/sidebar.php';
 }
 .btn-secondary-sm:hover {
     background: var(--gray-200);
+}
+
+.profile-header {
+    background: white;
+    border-radius: var(--radius);
+    border: 1px solid var(--gray-200);
+    padding: 24px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    flex-wrap: wrap;
+    box-shadow: var(--shadow);
+    margin-bottom: 20px;
+}
+.profile-avatar {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    font-weight: 700;
+    color: white;
+    flex-shrink: 0;
+}
+.profile-avatar.blue { background: #3B82F6; }
+.profile-avatar.green { background: #10B981; }
+.profile-avatar.purple { background: #8B5CF6; }
+.profile-avatar.orange { background: #F59E0B; }
+.profile-avatar.red { background: #EF4444; }
+.profile-avatar.teal { background: #0D9488; }
+
+.profile-info h2 {
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin: 0;
+}
+.profile-info .subtitle {
+    color: var(--gray-500);
+    font-size: 0.85rem;
+    margin-top: 2px;
+}
+.profile-info .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-top: 6px;
+    font-size: 0.8rem;
+    color: var(--gray-500);
+}
+.profile-info .meta span {
+    display: flex;
+    align-items: center;
+    gap: 4px;
 }
 
 .form-container {
@@ -386,20 +397,6 @@ include '../includes/sidebar.php';
 .form-actions .btn-secondary:hover {
     background: var(--gray-200);
 }
-.form-actions .btn-danger {
-    background: var(--danger);
-    color: white;
-}
-.form-actions .btn-danger:hover {
-    background: #DC2626;
-}
-.form-actions .btn-success {
-    background: var(--secondary);
-    color: white;
-}
-.form-actions .btn-success:hover {
-    background: #059669;
-}
 
 .error-message {
     background: #FEF2F2;
@@ -434,32 +431,17 @@ include '../includes/sidebar.php';
     font-size: 1.1rem;
 }
 
-.badge-status {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 2px 10px;
-    border-radius: 20px;
-    font-size: 0.65rem;
-    font-weight: 600;
-}
-.badge-status .dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    display: inline-block;
-}
-.badge-status.active { background: #ECFDF5; color: #065F46; }
-.badge-status.active .dot { background: #10B981; }
-.badge-status.suspended { background: #FEF2F2; color: #991B1B; }
-.badge-status.suspended .dot { background: #EF4444; }
-.badge-status.pending { background: #FFFBEB; color: #92400E; }
-.badge-status.pending .dot { background: #F59E0B; }
-
 @media (max-width: 768px) {
     .page-header {
         flex-direction: column;
         align-items: flex-start;
+    }
+    .profile-header {
+        flex-direction: column;
+        text-align: center;
+    }
+    .profile-info .meta {
+        justify-content: center;
     }
     .form-grid {
         grid-template-columns: 1fr;
@@ -486,148 +468,125 @@ include '../includes/sidebar.php';
         <div class="page-header">
             <div>
                 <h2>
-                    <i class="fas fa-edit" style="color:var(--primary);margin-right:8px;"></i>
-                    Edit Coordinator
-                    <small>Update coordinator information</small>
+                    <i class="fas fa-user-circle" style="color:var(--primary);margin-right:8px;"></i>
+                    My Profile
+                    <small>View and manage your profile information</small>
                 </h2>
             </div>
             <div>
-                <a href="coordinator-view.php?id=<?php echo $coordinator_id; ?>" class="btn-secondary-sm">
-                    <i class="fas fa-arrow-left"></i> Back to Profile
+                <a href="index.php" class="btn-secondary-sm">
+                    <i class="fas fa-arrow-left"></i> Back to Dashboard
                 </a>
             </div>
         </div>
 
-        <!-- Messages -->
-        <?php if (!empty($error)): ?>
-            <div class="error-message">
-                <i class="fas fa-exclamation-circle"></i>
-                <div><?php echo $error; ?></div>
+        <?php if ($profile): ?>
+            <!-- Profile Header -->
+            <?php 
+            $avatar_colors = ['blue', 'green', 'purple', 'orange', 'red', 'teal'];
+            $color_idx = ($profile['id'] ?? 0) % count($avatar_colors);
+            $avatar_color = $avatar_colors[$color_idx];
+            $initials = strtoupper(substr($profile['first_name'] ?? '', 0, 1) . substr($profile['last_name'] ?? '', 0, 1));
+            ?>
+            
+            <div class="profile-header">
+                <div class="profile-avatar <?php echo $avatar_color; ?>">
+                    <?php echo $initials ?: '?'; ?>
+                </div>
+                <div class="profile-info">
+                    <h2><?php echo htmlspecialchars($profile['first_name'] . ' ' . $profile['last_name']); ?></h2>
+                    <div class="subtitle">
+                        <i class="fas fa-user-tie"></i> 
+                        <?php echo htmlspecialchars($profile['role_name'] ?? 'State Coordinator'); ?>
+                    </div>
+                    <div class="meta">
+                        <span><i class="fas fa-envelope"></i> <?php echo htmlspecialchars($profile['email'] ?? 'N/A'); ?></span>
+                        <span><i class="fas fa-phone"></i> <?php echo htmlspecialchars($profile['phone'] ?? 'N/A'); ?></span>
+                        <span><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($state_name); ?></span>
+                        <span><i class="fas fa-code"></i> <?php echo htmlspecialchars($profile['user_code'] ?? 'N/A'); ?></span>
+                        <span><i class="fas fa-calendar"></i> Joined: <?php echo date('M j, Y', strtotime($profile['created_at'])); ?></span>
+                    </div>
+                </div>
             </div>
-        <?php endif; ?>
-        
-        <?php if (!empty($success)): ?>
-            <div class="success-message">
-                <i class="fas fa-check-circle"></i>
-                <div><?php echo $success; ?></div>
-            </div>
-        <?php endif; ?>
 
-        <?php if ($coordinator): ?>
-            <!-- Form -->
+            <!-- Messages -->
+            <?php if (!empty($error)): ?>
+                <div class="error-message">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <div><?php echo $error; ?></div>
+                </div>
+            <?php endif; ?>
+            
+            <?php if (!empty($success)): ?>
+                <div class="success-message">
+                    <i class="fas fa-check-circle"></i>
+                    <div><?php echo $success; ?></div>
+                </div>
+            <?php endif; ?>
+
+            <!-- Edit Form -->
             <div class="form-container">
                 <div class="form-title">
-                    <i class="fas fa-user-edit"></i> Coordinator Information
+                    <i class="fas fa-edit"></i> Edit Profile
                 </div>
                 <div class="form-subtitle">
-                    Update information for <?php echo htmlspecialchars($coordinator['first_name'] . ' ' . $coordinator['last_name']); ?>
-                    <span class="badge-status <?php echo $coordinator['status']; ?>" style="margin-left:8px;">
-                        <span class="dot"></span>
-                        <?php echo ucfirst($coordinator['status']); ?>
-                    </span>
+                    Update your personal information.
                 </div>
                 
-                <form method="POST" action="" id="editForm">
+                <form method="POST" action="" id="profileForm">
                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
-                    <input type="hidden" name="action" value="update">
+                    <input type="hidden" name="action" value="profile">
                     
                     <div class="form-grid">
-                        <!-- Personal Information -->
                         <div class="form-section-title">
                             <i class="fas fa-user"></i> Personal Information
                         </div>
                         
                         <div class="form-group">
                             <label for="first_name">First Name <span class="required">*</span></label>
-                            <input type="text" name="first_name" id="first_name" value="<?php echo htmlspecialchars($coordinator['first_name']); ?>" required>
+                            <input type="text" name="first_name" id="first_name" value="<?php echo htmlspecialchars($profile['first_name'] ?? ''); ?>" required>
                         </div>
                         
                         <div class="form-group">
                             <label for="last_name">Last Name <span class="required">*</span></label>
-                            <input type="text" name="last_name" id="last_name" value="<?php echo htmlspecialchars($coordinator['last_name']); ?>" required>
+                            <input type="text" name="last_name" id="last_name" value="<?php echo htmlspecialchars($profile['last_name'] ?? ''); ?>" required>
                         </div>
                         
                         <div class="form-group">
-                            <label for="email">Email <span class="required">*</span></label>
-                            <input type="email" name="email" id="email" value="<?php echo htmlspecialchars($coordinator['email']); ?>" required>
-                            <div class="help-text">Changing the email will update login credentials.</div>
+                            <label for="email">Email Address <span class="required">*</span></label>
+                            <input type="email" name="email" id="email" value="<?php echo htmlspecialchars($profile['email'] ?? ''); ?>" required>
+                            <div class="help-text">Changing your email will update your login credentials.</div>
                         </div>
                         
                         <div class="form-group">
-                            <label for="phone">Phone</label>
-                            <input type="tel" name="phone" id="phone" value="<?php echo htmlspecialchars($coordinator['phone']); ?>">
+                            <label for="phone">Phone Number</label>
+                            <input type="tel" name="phone" id="phone" value="<?php echo htmlspecialchars($profile['phone'] ?? ''); ?>">
                         </div>
                         
                         <div class="form-group">
                             <label for="gender">Gender</label>
                             <select name="gender" id="gender">
                                 <option value="">Select Gender</option>
-                                <option value="male" <?php echo ($coordinator['gender'] ?? '') === 'male' ? 'selected' : ''; ?>>Male</option>
-                                <option value="female" <?php echo ($coordinator['gender'] ?? '') === 'female' ? 'selected' : ''; ?>>Female</option>
-                                <option value="other" <?php echo ($coordinator['gender'] ?? '') === 'other' ? 'selected' : ''; ?>>Other</option>
-                                <option value="prefer_not_say" <?php echo ($coordinator['gender'] ?? '') === 'prefer_not_say' ? 'selected' : ''; ?>>Prefer not to say</option>
+                                <option value="male" <?php echo ($profile['gender'] ?? '') === 'male' ? 'selected' : ''; ?>>Male</option>
+                                <option value="female" <?php echo ($profile['gender'] ?? '') === 'female' ? 'selected' : ''; ?>>Female</option>
+                                <option value="other" <?php echo ($profile['gender'] ?? '') === 'other' ? 'selected' : ''; ?>>Other</option>
+                                <option value="prefer_not_say" <?php echo ($profile['gender'] ?? '') === 'prefer_not_say' ? 'selected' : ''; ?>>Prefer not to say</option>
                             </select>
                         </div>
                         
                         <div class="form-group">
                             <label for="date_of_birth">Date of Birth</label>
-                            <input type="date" name="date_of_birth" id="date_of_birth" value="<?php echo htmlspecialchars($coordinator['date_of_birth'] ?? ''); ?>">
-                        </div>
-
-                        <!-- Assignment Details -->
-                        <div class="form-section-title">
-                            <i class="fas fa-map-marker-alt"></i> Assignment Details
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="lga_id">LGA <span class="required">*</span></label>
-                            <select name="lga_id" id="lga_id" required>
-                                <option value="">Select LGA</option>
-                                <?php foreach ($lgas ?? [] as $lga): ?>
-                                    <option value="<?php echo $lga['id']; ?>" <?php echo ($coordinator['lga_id'] ?? 0) == $lga['id'] ? 'selected' : ''; ?>>
-                                        <?php echo htmlspecialchars($lga['name']); ?>
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label for="status">Status</label>
-                            <select name="status" id="status">
-                                <option value="active" <?php echo ($coordinator['status'] ?? '') === 'active' ? 'selected' : ''; ?>>Active</option>
-                                <option value="pending" <?php echo ($coordinator['status'] ?? '') === 'pending' ? 'selected' : ''; ?>>Pending</option>
-                                <option value="suspended" <?php echo ($coordinator['status'] ?? '') === 'suspended' ? 'selected' : ''; ?>>Suspended</option>
-                            </select>
-                        </div>
-
-                        <!-- Security -->
-                        <div class="form-section-title">
-                            <i class="fas fa-lock"></i> Security
-                        </div>
-                        
-                        <div class="form-group full-width">
-                            <label for="password">New Password</label>
-                            <input type="password" name="password" id="password" placeholder="Leave blank to keep current password" minlength="8">
-                            <div class="help-text">Enter a new password only if you want to change it. Min 8 characters.</div>
+                            <input type="date" name="date_of_birth" id="date_of_birth" value="<?php echo htmlspecialchars($profile['date_of_birth'] ?? ''); ?>">
                         </div>
                     </div>
                     
                     <div class="form-actions">
                         <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-save"></i> Update Coordinator
+                            <i class="fas fa-save"></i> Update Profile
                         </button>
-                        <a href="coordinator-view.php?id=<?php echo $coordinator_id; ?>" class="btn btn-secondary">
-                            <i class="fas fa-times"></i> Cancel
+                        <a href="security.php" class="btn btn-secondary">
+                            <i class="fas fa-shield-alt"></i> Security Settings
                         </a>
-                        <?php if ($coordinator['status'] === 'active'): ?>
-                            <button type="button" class="btn btn-danger" onclick="confirmAction('suspend')">
-                                <i class="fas fa-pause"></i> Suspend
-                            </button>
-                        <?php else: ?>
-                            <button type="button" class="btn btn-success" onclick="confirmAction('activate')">
-                                <i class="fas fa-play"></i> Activate
-                            </button>
-                        <?php endif; ?>
                     </div>
                 </form>
             </div>
@@ -725,46 +684,12 @@ if (profileBtn && profileMenu) {
 }
 
 // ============================================================
-// CONFIRMATION MODAL
-// ============================================================
-function confirmAction(action) {
-    var modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.id = 'confirmModal';
-    modal.innerHTML = `
-        <div class="modal">
-            <div class="modal-header">
-                <h3>${action === 'suspend' ? 'Suspend' : 'Activate'} Coordinator</h3>
-                <button class="close-btn" onclick="this.closest('.modal-overlay').remove()">&times;</button>
-            </div>
-            <div class="modal-body">
-                <p>Are you sure you want to ${action} this coordinator?</p>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">Cancel</button>
-                <form method="POST" action="">
-                    <input type="hidden" name="csrf_token" value="<?php echo $csrf_token; ?>">
-                    <input type="hidden" name="action" value="${action}">
-                    <input type="hidden" name="user_id" value="<?php echo $coordinator_id; ?>">
-                    <button type="submit" class="btn ${action === 'suspend' ? 'btn-danger' : 'btn-success'}">
-                        ${action === 'suspend' ? 'Suspend' : 'Activate'}
-                    </button>
-                </form>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(modal);
-    modal.classList.add('active');
-}
-
-// ============================================================
 // FORM VALIDATION
 // ============================================================
-document.getElementById('editForm').addEventListener('submit', function(e) {
+document.getElementById('profileForm').addEventListener('submit', function(e) {
     var firstName = document.getElementById('first_name');
     var lastName = document.getElementById('last_name');
     var email = document.getElementById('email');
-    var lga = document.getElementById('lga_id');
     var isValid = true;
     
     document.querySelectorAll('.error').forEach(function(el) {
@@ -781,10 +706,6 @@ document.getElementById('editForm').addEventListener('submit', function(e) {
     }
     if (!email.value.trim() || !email.value.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
         email.classList.add('error');
-        isValid = false;
-    }
-    if (!lga.value) {
-        lga.classList.add('error');
         isValid = false;
     }
     

@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// STATE COORDINATOR - BROADCAST CREATE (WITH SMTP)
+// STATE COORDINATOR - INCIDENT REPORT (CREATE)
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -67,10 +67,15 @@ try {
 }
 
 // ============================================================
-// FETCH ELECTIONS
+// FETCH ELECTIONS, LGAS, WARDS, PUS
 // ============================================================
 $elections = [];
+$lgas = [];
+$wards = [];
+$polling_units = [];
+
 try {
+    // Elections
     $stmt = $db->prepare("
         SELECT id, name, status 
         FROM elections 
@@ -80,26 +85,48 @@ try {
     ");
     $stmt->execute([$tenant_id, '%"' . $state_id . '"%']);
     $elections = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // LGAs
+    $stmt = $db->prepare("SELECT id, name FROM lgas WHERE state_id = ? AND is_active = 1 ORDER BY name");
+    $stmt->execute([$state_id]);
+    $lgas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Wards
+    $stmt = $db->prepare("SELECT id, name, lga_id FROM wards WHERE is_active = 1 ORDER BY name");
+    $stmt->execute();
+    $wards = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Polling Units
+    $stmt = $db->prepare("SELECT id, name, code, ward_id FROM polling_units WHERE is_active = 1 ORDER BY name");
+    $stmt->execute();
+    $polling_units = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
 } catch (Exception $e) {
-    error_log("Error fetching elections: " . $e->getMessage());
+    error_log("Error fetching data: " . $e->getMessage());
 }
 
 // ============================================================
-// FETCH USERS FOR TARGETING
+// INCIDENT TYPES AND SEVERITY
 // ============================================================
-$users = [];
-try {
-    $stmt = $db->prepare("
-        SELECT id, email, first_name, last_name, phone 
-        FROM users 
-        WHERE tenant_id = ? AND state_id = ? 
-        AND deleted_at IS NULL AND status = 'active'
-    ");
-    $stmt->execute([$tenant_id, $state_id]);
-    $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (Exception $e) {
-    error_log("Error fetching users: " . $e->getMessage());
-}
+$incident_types = [
+    'violence' => 'Violence',
+    'intimidation' => 'Intimidation',
+    'ballot_stuffing' => 'Ballot Stuffing',
+    'vote_buying' => 'Vote Buying',
+    'voter_suppression' => 'Voter Suppression',
+    'material_shortage' => 'Material Shortage',
+    'delay' => 'Delay',
+    'technical_issue' => 'Technical Issue',
+    'other' => 'Other',
+    'panic_button' => 'Panic Button'
+];
+
+$severity_levels = [
+    'low' => 'Low',
+    'medium' => 'Medium',
+    'high' => 'High',
+    'critical' => 'Critical'
+];
 
 // ============================================================
 // HANDLE FORM SUBMISSION
@@ -107,8 +134,6 @@ try {
 $error = '';
 $success = '';
 $form_data = [];
-$sent_count = 0;
-$failed_count = 0;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Verify CSRF token
@@ -116,13 +141,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Security validation failed. Please try again.';
     } else {
         $form_data = [
-            'title' => trim($_POST['title'] ?? ''),
-            'message' => trim($_POST['message'] ?? ''),
-            'target_audience' => $_POST['target_audience'] ?? 'all',
             'election_id' => !empty($_POST['election_id']) ? (int)$_POST['election_id'] : null,
-            'send_via' => isset($_POST['send_via']) ? $_POST['send_via'] : ['email'],
-            'scheduled_at' => $_POST['scheduled_at'] ?? null,
-            'status' => $_POST['status'] ?? 'draft'
+            'incident_type' => $_POST['incident_type'] ?? '',
+            'severity' => $_POST['severity'] ?? 'medium',
+            'title' => trim($_POST['title'] ?? ''),
+            'description' => trim($_POST['description'] ?? ''),
+            'lga_id' => !empty($_POST['lga_id']) ? (int)$_POST['lga_id'] : null,
+            'ward_id' => !empty($_POST['ward_id']) ? (int)$_POST['ward_id'] : null,
+            'pu_id' => !empty($_POST['pu_id']) ? (int)$_POST['pu_id'] : null,
+            'is_panic' => isset($_POST['is_panic']) ? 1 : 0,
+            'status' => 'reported'
         ];
         
         $errors = [];
@@ -130,68 +158,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (empty($form_data['title'])) {
             $errors[] = 'Title is required.';
         }
-        if (empty($form_data['message'])) {
-            $errors[] = 'Message is required.';
+        if (empty($form_data['description'])) {
+            $errors[] = 'Description is required.';
         }
-        if (empty($form_data['target_audience'])) {
-            $errors[] = 'Target audience is required.';
+        if (empty($form_data['incident_type'])) {
+            $errors[] = 'Incident type is required.';
         }
-        if (empty($form_data['send_via'])) {
-            $errors[] = 'At least one delivery method is required.';
-        }
-        
-        // Validate scheduled time
-        if ($form_data['status'] === 'scheduled' && empty($form_data['scheduled_at'])) {
-            $errors[] = 'Scheduled time is required for scheduled broadcasts.';
+        if (empty($form_data['lga_id'])) {
+            $errors[] = 'Please select an LGA.';
         }
         
         if (empty($errors)) {
             try {
-                // Begin transaction
-                $db->beginTransaction();
-                
-                // Filter users based on target audience
-                $target_users = [];
-                if ($form_data['target_audience'] === 'all') {
-                    $target_users = $users;
-                } elseif ($form_data['target_audience'] === 'state') {
-                    $target_users = $users;
-                } elseif ($form_data['target_audience'] === 'lga') {
-                    // Get LGA coordinators
-                    $stmt = $db->prepare("
-                        SELECT u.* FROM users u
-                        JOIN roles r ON u.role_id = r.id
-                        WHERE u.tenant_id = ? AND u.state_id = ? 
-                        AND r.level = 'lga' AND u.deleted_at IS NULL AND u.status = 'active'
-                    ");
-                    $stmt->execute([$tenant_id, $state_id]);
-                    $target_users = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                } elseif ($form_data['target_audience'] === 'ward') {
-                    // Get Ward coordinators
-                    $stmt = $db->prepare("
-                        SELECT u.* FROM users u
-                        JOIN roles r ON u.role_id = r.id
-                        WHERE u.tenant_id = ? AND u.state_id = ? 
-                        AND r.level = 'ward' AND u.deleted_at IS NULL AND u.status = 'active'
-                    ");
-                    $stmt->execute([$tenant_id, $state_id]);
-                    $target_users = $stmt->fetchAll(PDO::FETCH_ASSOC);
-                }
-                
-                $send_via_json = json_encode($form_data['send_via']);
-                $target_ids = json_encode([$state_id]);
-                $total_recipients = count($target_users);
-                
-                // Insert broadcast
                 $stmt = $db->prepare("
-                    INSERT INTO broadcasts (
-                        tenant_id, election_id, sender_id, title, message,
-                        target_audience, target_ids_json, send_via,
-                        scheduled_at, status, total_recipients, created_at
+                    INSERT INTO incidents (
+                        tenant_id, election_id, reporter_id,
+                        incident_type, severity, title, description,
+                        state_id, lga_id, ward_id, pu_id,
+                        is_panic, status, created_at
                     ) VALUES (
-                        ?, ?, ?, ?, ?,
                         ?, ?, ?,
-                        ?, ?, ?, NOW()
+                        ?, ?, ?, ?,
+                        ?, ?, ?, ?,
+                        ?, ?, NOW()
                     )
                 ");
                 
@@ -199,73 +188,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $tenant_id,
                     $form_data['election_id'],
                     $user_id,
+                    $form_data['incident_type'],
+                    $form_data['severity'],
                     $form_data['title'],
-                    $form_data['message'],
-                    $form_data['target_audience'],
-                    $target_ids,
-                    $send_via_json,
-                    $form_data['scheduled_at'] ?: null,
-                    $form_data['status'],
-                    $total_recipients
+                    $form_data['description'],
+                    $state_id,
+                    $form_data['lga_id'],
+                    $form_data['ward_id'] ?: null,
+                    $form_data['pu_id'] ?: null,
+                    $form_data['is_panic'],
+                    $form_data['status']
                 ]);
                 
-                $broadcast_id = $db->lastInsertId();
+                $incident_id = $db->lastInsertId();
                 
-                // If status is 'sent', send immediately
-                if ($form_data['status'] === 'sent' && in_array('email', $form_data['send_via'])) {
-                    // Send emails to all target users
-                    $subject = $form_data['title'];
-                    $message_body = $form_data['message'] . "\n\n---\nSent via " . APP_NAME . " Broadcast System";
-                    
-                    foreach ($target_users as $user) {
-                        if (!empty($user['email'])) {
-                            try {
-                                // Use the sendEmail function from functions.php
-                                $result = sendEmail(
-                                    $user['email'],
-                                    $subject,
-                                    $message_body,
-                                    "From: " . APP_NAME . " <" . (defined('SENDER_EMAIL') ? SENDER_EMAIL : 'noreply@' . $_SERVER['HTTP_HOST']) . ">"
-                                );
-                                
-                                if ($result) {
-                                    $sent_count++;
-                                } else {
-                                    $failed_count++;
-                                }
-                            } catch (Exception $e) {
-                                $failed_count++;
-                                error_log("Broadcast email failed for {$user['email']}: " . $e->getMessage());
-                            }
-                        }
-                    }
-                    
-                    // Update broadcast with sent stats
-                    $stmt = $db->prepare("
-                        UPDATE broadcasts 
-                        SET status = 'sent', sent_at = NOW() 
-                        WHERE id = ?
-                    ");
-                    $stmt->execute([$broadcast_id]);
-                }
+                logActivity($user_id, 'incident_reported', "Reported incident: {$form_data['title']} (ID: $incident_id)");
                 
-                // Commit transaction
-                $db->commit();
-                
-                logActivity($user_id, 'broadcast_created', "Created broadcast: {$form_data['title']} (ID: $broadcast_id)");
-                
-                if ($form_data['status'] === 'sent') {
-                    $success = "Broadcast sent successfully! Emails sent: $sent_count, Failed: $failed_count";
-                } else {
-                    $success = "Broadcast saved successfully!";
-                }
-                
+                $success = "Incident reported successfully!";
                 $form_data = [];
                 
             } catch (Exception $e) {
-                $db->rollBack();
-                $error = 'Error creating broadcast: ' . $e->getMessage();
-                error_log("Broadcast creation error: " . $e->getMessage());
+                $error = 'Error reporting incident: ' . $e->getMessage();
+                error_log("Incident report error: " . $e->getMessage());
             }
         } else {
             $error = implode('<br>', $errors);
@@ -276,7 +220,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 include '../includes/base.php';
 include '../includes/sidebar.php';
 ?>
-<!-- Rest of the HTML remains the same as your existing broadcast-create.php -->
 
 <style>
 .page-header {
@@ -335,7 +278,7 @@ include '../includes/sidebar.php';
     gap: 8px;
 }
 .form-container .form-title i {
-    color: var(--primary);
+    color: var(--danger);
 }
 .form-container .form-subtitle {
     color: var(--gray-500);
@@ -395,27 +338,28 @@ include '../includes/sidebar.php';
 }
 .form-group textarea {
     resize: vertical;
-    min-height: 120px;
+    min-height: 100px;
 }
 .form-group .checkbox-group {
     display: flex;
-    gap: 16px;
+    align-items: center;
+    gap: 10px;
     padding-top: 6px;
-    flex-wrap: wrap;
+}
+.form-group .checkbox-group input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    accent-color: var(--danger);
+    cursor: pointer;
+    flex-shrink: 0;
 }
 .form-group .checkbox-group label {
     font-weight: 400;
     cursor: pointer;
     font-size: 0.85rem;
-    display: flex;
-    align-items: center;
-    gap: 6px;
 }
-.form-group .checkbox-group input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-    accent-color: var(--primary);
-    cursor: pointer;
+.form-group .checkbox-group label i {
+    color: var(--danger);
 }
 
 .form-section-title {
@@ -432,7 +376,7 @@ include '../includes/sidebar.php';
     gap: 8px;
 }
 .form-section-title i {
-    color: var(--primary);
+    color: var(--danger);
     font-size: 0.85rem;
 }
 
@@ -458,14 +402,14 @@ include '../includes/sidebar.php';
     align-items: center;
     gap: 8px;
 }
-.form-actions .btn-primary {
-    background: var(--primary);
+.form-actions .btn-danger {
+    background: var(--danger);
     color: white;
 }
-.form-actions .btn-primary:hover {
-    background: var(--primary-dark);
+.form-actions .btn-danger:hover {
+    background: #DC2626;
     transform: translateY(-1px);
-    box-shadow: 0 4px 16px rgba(var(--primary-rgb), 0.25);
+    box-shadow: 0 4px 16px rgba(239, 68, 68, 0.25);
 }
 .form-actions .btn-secondary {
     background: var(--gray-100);
@@ -473,13 +417,6 @@ include '../includes/sidebar.php';
 }
 .form-actions .btn-secondary:hover {
     background: var(--gray-200);
-}
-.form-actions .btn-success {
-    background: #10B981;
-    color: white;
-}
-.form-actions .btn-success:hover {
-    background: #059669;
 }
 
 .error-message {
@@ -534,10 +471,6 @@ include '../includes/sidebar.php';
         justify-content: center;
         width: 100%;
     }
-    .form-group .checkbox-group {
-        flex-direction: column;
-        gap: 8px;
-    }
 }
 </style>
 
@@ -549,14 +482,14 @@ include '../includes/sidebar.php';
         <div class="page-header">
             <div>
                 <h2>
-                    <i class="fas fa-bullhorn" style="color:var(--primary);margin-right:8px;"></i>
-                    Create Broadcast
-                    <small>Send messages to <?php echo htmlspecialchars($state_name); ?> users</small>
+                    <i class="fas fa-exclamation-triangle" style="color:var(--danger);margin-right:8px;"></i>
+                    Report Incident
+                    <small>Report an incident in <?php echo htmlspecialchars($state_name); ?></small>
                 </h2>
             </div>
             <div>
-                <a href="broadcasts.php" class="btn-secondary-sm">
-                    <i class="fas fa-arrow-left"></i> Back to Broadcasts
+                <a href="incidents.php" class="btn-secondary-sm">
+                    <i class="fas fa-arrow-left"></i> Back to Incidents
                 </a>
             </div>
         </div>
@@ -579,47 +512,58 @@ include '../includes/sidebar.php';
         <!-- Form -->
         <div class="form-container">
             <div class="form-title">
-                <i class="fas fa-pen"></i> Broadcast Message
+                <i class="fas fa-flag"></i> Incident Report Form
             </div>
             <div class="form-subtitle">
-                Create a message to send to users in <?php echo htmlspecialchars($state_name); ?>.
+                Fill in the details below to report an incident. All fields marked with <span class="required">*</span> are required.
             </div>
             
-            <form method="POST" action="" id="broadcastForm">
+            <form method="POST" action="" id="incidentForm">
                 <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
                 
                 <div class="form-grid">
-                    <!-- Message Details -->
+                    <!-- Incident Details -->
                     <div class="form-section-title">
-                        <i class="fas fa-info-circle"></i> Message Details
+                        <i class="fas fa-info-circle"></i> Incident Details
                     </div>
                     
                     <div class="form-group full-width">
                         <label for="title">Title <span class="required">*</span></label>
-                        <input type="text" name="title" id="title" placeholder="e.g., Election Day Update" value="<?php echo htmlspecialchars($form_data['title'] ?? ''); ?>" required>
+                        <input type="text" name="title" id="title" placeholder="e.g., Violence at Polling Unit" value="<?php echo htmlspecialchars($form_data['title'] ?? ''); ?>" required>
                     </div>
                     
                     <div class="form-group full-width">
-                        <label for="message">Message <span class="required">*</span></label>
-                        <textarea name="message" id="message" placeholder="Enter your broadcast message..." required><?php echo htmlspecialchars($form_data['message'] ?? ''); ?></textarea>
-                        <div class="help-text">Keep messages clear and concise. Maximum 500 characters recommended.</div>
-                    </div>
-
-                    <!-- Target Audience -->
-                    <div class="form-section-title">
-                        <i class="fas fa-users"></i> Target Audience
+                        <label for="description">Description <span class="required">*</span></label>
+                        <textarea name="description" id="description" placeholder="Provide detailed description of the incident..." required><?php echo htmlspecialchars($form_data['description'] ?? ''); ?></textarea>
                     </div>
                     
                     <div class="form-group">
-                        <label for="target_audience">Target Audience <span class="required">*</span></label>
-                        <select name="target_audience" id="target_audience" required>
-                            <option value="all" <?php echo ($form_data['target_audience'] ?? '') === 'all' ? 'selected' : ''; ?>>All Users</option>
-                            <option value="state" <?php echo ($form_data['target_audience'] ?? '') === 'state' ? 'selected' : ''; ?>>State Users</option>
-                            <option value="lga" <?php echo ($form_data['target_audience'] ?? '') === 'lga' ? 'selected' : ''; ?>>LGA Coordinators</option>
-                            <option value="ward" <?php echo ($form_data['target_audience'] ?? '') === 'ward' ? 'selected' : ''; ?>>Ward Coordinators</option>
-                            <option value="role_specific" <?php echo ($form_data['target_audience'] ?? '') === 'role_specific' ? 'selected' : ''; ?>>Specific Role</option>
+                        <label for="incident_type">Incident Type <span class="required">*</span></label>
+                        <select name="incident_type" id="incident_type" required>
+                            <option value="">Select Type</option>
+                            <?php foreach ($incident_types as $key => $label): ?>
+                                <option value="<?php echo $key; ?>" <?php echo ($form_data['incident_type'] ?? '') === $key ? 'selected' : ''; ?>>
+                                    <?php echo $label; ?>
+                                </option>
+                            <?php endforeach; ?>
                         </select>
-                        <div class="help-text">Select who should receive this broadcast.</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="severity">Severity <span class="required">*</span></label>
+                        <select name="severity" id="severity" required>
+                            <option value="">Select Severity</option>
+                            <?php foreach ($severity_levels as $key => $label): ?>
+                                <option value="<?php echo $key; ?>" <?php echo ($form_data['severity'] ?? '') === $key ? 'selected' : ''; ?>>
+                                    <?php echo $label; ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <!-- Location -->
+                    <div class="form-section-title">
+                        <i class="fas fa-map-marker-alt"></i> Location
                     </div>
                     
                     <div class="form-group">
@@ -632,62 +576,65 @@ include '../includes/sidebar.php';
                                 </option>
                             <?php endforeach; ?>
                         </select>
-                        <div class="help-text">Optional: Link this broadcast to an election.</div>
-                    </div>
-
-                    <!-- Delivery Methods -->
-                    <div class="form-section-title">
-                        <i class="fas fa-paper-plane"></i> Delivery Methods
-                    </div>
-                    
-                    <div class="form-group full-width">
-                        <label>Send Via <span class="required">*</span></label>
-                        <div class="checkbox-group">
-                            <label>
-                                <input type="checkbox" name="send_via[]" value="email" <?php echo (in_array('email', $form_data['send_via'] ?? ['email'])) ? 'checked' : ''; ?>>
-                                <i class="fas fa-envelope"></i> Email
-                            </label>
-                            <label>
-                                <input type="checkbox" name="send_via[]" value="sms" <?php echo (in_array('sms', $form_data['send_via'] ?? [])) ? 'checked' : ''; ?>>
-                                <i class="fas fa-sms"></i> SMS
-                            </label>
-                            <label>
-                                <input type="checkbox" name="send_via[]" value="in_app" <?php echo (in_array('in_app', $form_data['send_via'] ?? ['in_app'])) ? 'checked' : ''; ?>>
-                                <i class="fas fa-bell"></i> In-App Notification
-                            </label>
-                        </div>
-                        <div class="help-text">Select how the message should be delivered.</div>
-                    </div>
-
-                    <!-- Schedule -->
-                    <div class="form-section-title">
-                        <i class="fas fa-clock"></i> Schedule
                     </div>
                     
                     <div class="form-group">
-                        <label for="status">Status</label>
-                        <select name="status" id="status">
-                            <option value="draft" <?php echo ($form_data['status'] ?? '') === 'draft' ? 'selected' : ''; ?>>Save as Draft</option>
-                            <option value="scheduled" <?php echo ($form_data['status'] ?? '') === 'scheduled' ? 'selected' : ''; ?>>Schedule for Later</option>
-                            <option value="sent" <?php echo ($form_data['status'] ?? '') === 'sent' ? 'selected' : ''; ?>>Send Now</option>
+                        <label for="lga_id">LGA <span class="required">*</span></label>
+                        <select name="lga_id" id="lga_id" required>
+                            <option value="">Select LGA</option>
+                            <?php foreach ($lgas as $l): ?>
+                                <option value="<?php echo $l['id']; ?>" <?php echo ($form_data['lga_id'] ?? 0) == $l['id'] ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($l['name']); ?>
+                                </option>
+                            <?php endforeach; ?>
                         </select>
                     </div>
                     
-                    <div class="form-group" id="scheduleGroup" style="<?php echo (($form_data['status'] ?? '') === 'scheduled') ? '' : 'display:none;'; ?>">
-                        <label for="scheduled_at">Scheduled Time</label>
-                        <input type="datetime-local" name="scheduled_at" id="scheduled_at" value="<?php echo htmlspecialchars($form_data['scheduled_at'] ?? ''); ?>">
-                        <div class="help-text">Date and time to send the broadcast.</div>
+                    <div class="form-group">
+                        <label for="ward_id">Ward</label>
+                        <select name="ward_id" id="ward_id">
+                            <option value="">Select Ward</option>
+                            <?php foreach ($wards as $w): ?>
+                                <option value="<?php echo $w['id']; ?>" <?php echo ($form_data['ward_id'] ?? 0) == $w['id'] ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($w['name']); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="pu_id">Polling Unit</label>
+                        <select name="pu_id" id="pu_id">
+                            <option value="">Select Polling Unit</option>
+                            <?php foreach ($polling_units as $pu): ?>
+                                <option value="<?php echo $pu['id']; ?>" <?php echo ($form_data['pu_id'] ?? 0) == $pu['id'] ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($pu['name']); ?> (<?php echo htmlspecialchars($pu['code'] ?? ''); ?>)
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <!-- Additional -->
+                    <div class="form-section-title">
+                        <i class="fas fa-flag"></i> Additional Information
+                    </div>
+                    
+                    <div class="form-group full-width">
+                        <div class="checkbox-group">
+                            <input type="checkbox" name="is_panic" id="is_panic" value="1" <?php echo isset($form_data['is_panic']) && $form_data['is_panic'] ? 'checked' : ''; ?>>
+                            <label for="is_panic">
+                                <i class="fas fa-bell"></i> This is a <strong style="color:var(--danger);">PANIC</strong> situation - immediate attention required
+                            </label>
+                        </div>
+                        <div class="help-text">Check this if the incident requires urgent response.</div>
                     </div>
                 </div>
                 
                 <div class="form-actions">
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-save"></i> Save Broadcast
+                    <button type="submit" class="btn btn-danger">
+                        <i class="fas fa-flag"></i> Report Incident
                     </button>
-                    <button type="submit" class="btn btn-success" id="sendNowBtn">
-                        <i class="fas fa-paper-plane"></i> Send Now
-                    </button>
-                    <a href="broadcasts.php" class="btn btn-secondary">
+                    <a href="incidents.php" class="btn btn-secondary">
                         <i class="fas fa-times"></i> Cancel
                     </a>
                 </div>
@@ -786,34 +733,70 @@ if (profileBtn && profileMenu) {
 }
 
 // ============================================================
-// STATUS TOGGLE
+// DYNAMIC WARD LOADING
 // ============================================================
-document.getElementById('status').addEventListener('change', function() {
-    var scheduleGroup = document.getElementById('scheduleGroup');
-    if (this.value === 'scheduled') {
-        scheduleGroup.style.display = 'block';
+document.getElementById('lga_id').addEventListener('change', function() {
+    var lgaId = this.value;
+    var wardSelect = document.getElementById('ward_id');
+    var puSelect = document.getElementById('pu_id');
+    
+    wardSelect.innerHTML = '<option value="">Loading...</option>';
+    puSelect.innerHTML = '<option value="">Select Polling Unit</option>';
+    
+    if (lgaId) {
+        fetch('ajax/get-wards.php?lga_id=' + lgaId)
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                wardSelect.innerHTML = '<option value="">Select Ward</option>';
+                data.forEach(function(ward) {
+                    var option = document.createElement('option');
+                    option.value = ward.id;
+                    option.textContent = ward.name;
+                    wardSelect.appendChild(option);
+                });
+            })
+            .catch(function() {
+                wardSelect.innerHTML = '<option value="">Error loading wards</option>';
+            });
     } else {
-        scheduleGroup.style.display = 'none';
+        wardSelect.innerHTML = '<option value="">Select Ward</option>';
     }
 });
 
-// ============================================================
-// SEND NOW BUTTON
-// ============================================================
-document.getElementById('sendNowBtn').addEventListener('click', function(e) {
-    e.preventDefault();
-    var statusSelect = document.getElementById('status');
-    statusSelect.value = 'sent';
-    document.getElementById('broadcastForm').submit();
+document.getElementById('ward_id').addEventListener('change', function() {
+    var wardId = this.value;
+    var puSelect = document.getElementById('pu_id');
+    
+    puSelect.innerHTML = '<option value="">Loading...</option>';
+    
+    if (wardId) {
+        fetch('ajax/get-polling-units.php?ward_id=' + wardId)
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                puSelect.innerHTML = '<option value="">Select Polling Unit</option>';
+                data.forEach(function(pu) {
+                    var option = document.createElement('option');
+                    option.value = pu.id;
+                    option.textContent = pu.name + ' (' + pu.code + ')';
+                    puSelect.appendChild(option);
+                });
+            })
+            .catch(function() {
+                puSelect.innerHTML = '<option value="">Error loading polling units</option>';
+            });
+    } else {
+        puSelect.innerHTML = '<option value="">Select Polling Unit</option>';
+    }
 });
 
 // ============================================================
 // FORM VALIDATION
 // ============================================================
-document.getElementById('broadcastForm').addEventListener('submit', function(e) {
+document.getElementById('incidentForm').addEventListener('submit', function(e) {
     var title = document.getElementById('title');
-    var message = document.getElementById('message');
-    var target = document.getElementById('target_audience');
+    var description = document.getElementById('description');
+    var type = document.getElementById('incident_type');
+    var lga = document.getElementById('lga_id');
     var isValid = true;
     
     document.querySelectorAll('.error').forEach(function(el) {
@@ -824,19 +807,16 @@ document.getElementById('broadcastForm').addEventListener('submit', function(e) 
         title.classList.add('error');
         isValid = false;
     }
-    if (!message.value.trim()) {
-        message.classList.add('error');
+    if (!description.value.trim()) {
+        description.classList.add('error');
         isValid = false;
     }
-    if (!target.value) {
-        target.classList.add('error');
+    if (!type.value) {
+        type.classList.add('error');
         isValid = false;
     }
-    
-    // Check if at least one delivery method is selected
-    var checked = document.querySelectorAll('input[name="send_via[]"]:checked');
-    if (checked.length === 0) {
-        document.querySelector('.checkbox-group').classList.add('error');
+    if (!lga.value) {
+        lga.classList.add('error');
         isValid = false;
     }
     

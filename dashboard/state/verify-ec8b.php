@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// STATE COORDINATOR - BROADCASTS
+// STATE COORDINATOR - VERIFY EC8B (WARD RESULTS)
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -54,10 +54,12 @@ $csrf_token = $_SESSION['csrf_token'];
 // ============================================================
 // GET FILTERS
 // ============================================================
-$status_filter = isset($_GET['status']) ? $_GET['status'] : '';
+$status_filter = isset($_GET['status']) ? $_GET['status'] : 'pending';
+$election_filter = isset($_GET['election_id']) ? (int)$_GET['election_id'] : 0;
+$lga_filter = isset($_GET['lga_id']) ? (int)$_GET['lga_id'] : 0;
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-$per_page = 10;
+$per_page = 15;
 $offset = ($page - 1) * $per_page;
 
 // ============================================================
@@ -76,104 +78,154 @@ try {
 }
 
 // ============================================================
-// FETCH BROADCASTS
+// FETCH ELECTIONS FOR FILTER
 // ============================================================
-$broadcasts = [];
-$total_broadcasts = 0;
+$elections = [];
+try {
+    $stmt = $db->prepare("
+        SELECT id, name, status 
+        FROM elections 
+        WHERE tenant_id = ? AND deleted_at IS NULL 
+        AND (states_json LIKE ? OR states_json IS NULL OR states_json = '[]')
+        ORDER BY election_date DESC
+    ");
+    $stmt->execute([$tenant_id, '%"' . $state_id . '"%']);
+    $elections = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    error_log("Error fetching elections: " . $e->getMessage());
+}
+
+// ============================================================
+// FETCH LGAS FOR FILTER
+// ============================================================
+$lgas = [];
+try {
+    $stmt = $db->prepare("SELECT id, name FROM lgas WHERE state_id = ? AND is_active = 1 ORDER BY name");
+    $stmt->execute([$state_id]);
+    $lgas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    error_log("Error fetching LGAs: " . $e->getMessage());
+}
+
+// ============================================================
+// FETCH EC8B RESULTS
+// ============================================================
+$results = [];
+$total_results = 0;
 $total_pages = 0;
 
 try {
     $sql = "
         SELECT 
-            b.*,
-            u.first_name as sender_first,
-            u.last_name as sender_last,
-            (SELECT COUNT(*) FROM broadcasts WHERE status = 'sent') as total_sent
-        FROM broadcasts b
-        LEFT JOIN users u ON b.sender_id = u.id
-        WHERE b.tenant_id = ?
-        AND (b.target_audience IN ('state', 'all', 'lga', 'ward') OR b.target_audience = 'role_specific')
+            r.*,
+            u.first_name as coordinator_first,
+            u.last_name as coordinator_last,
+            u.phone as coordinator_phone,
+            w.name as ward_name,
+            l.name as lga_name,
+            s.name as state_name,
+            e.name as election_name,
+            e.type as election_type
+        FROM results_ec8b r
+        JOIN users u ON r.coordinator_id = u.id
+        JOIN wards w ON r.ward_id = w.id
+        JOIN lgas l ON w.lga_id = l.id
+        JOIN states s ON l.state_id = s.id
+        JOIN elections e ON r.election_id = e.id
+        WHERE r.tenant_id = ?
+        AND l.state_id = ?
     ";
     
-    $params = [$tenant_id];
+    $params = [$tenant_id, $state_id];
     
-    // Filter by state in target_ids_json
-    if (!empty($state_id)) {
-        $sql .= " AND (b.target_ids_json LIKE ? OR b.target_ids_json IS NULL)";
-        $params[] = '%"' . $state_id . '"%';
+    if (!empty($status_filter)) {
+        $sql .= " AND r.status = ?";
+        $params[] = $status_filter;
+    }
+    
+    if (!empty($election_filter)) {
+        $sql .= " AND r.election_id = ?";
+        $params[] = $election_filter;
+    }
+    
+    if (!empty($lga_filter)) {
+        $sql .= " AND l.id = ?";
+        $params[] = $lga_filter;
     }
     
     if (!empty($search)) {
-        $sql .= " AND (b.title LIKE ? OR b.message LIKE ?)";
+        $sql .= " AND (w.name LIKE ? OR u.first_name LIKE ? OR u.last_name LIKE ?)";
         $params[] = "%$search%";
         $params[] = "%$search%";
-    }
-    
-    if (!empty($status_filter)) {
-        $sql .= " AND b.status = ?";
-        $params[] = $status_filter;
+        $params[] = "%$search%";
     }
     
     // Count total
     $count_sql = str_replace(
         "SELECT 
-            b.*,
-            u.first_name as sender_first,
-            u.last_name as sender_last,
-            (SELECT COUNT(*) FROM broadcasts WHERE status = 'sent') as total_sent",
+            r.*,
+            u.first_name as coordinator_first,
+            u.last_name as coordinator_last,
+            u.phone as coordinator_phone,
+            w.name as ward_name,
+            l.name as lga_name,
+            s.name as state_name,
+            e.name as election_name,
+            e.type as election_type",
         "SELECT COUNT(*) as count",
         $sql
     );
     
     $stmt = $db->prepare($count_sql);
     $stmt->execute($params);
-    $total_broadcasts = (int)($stmt->fetch(PDO::FETCH_ASSOC)['count'] ?? 0);
-    $total_pages = ceil($total_broadcasts / $per_page);
+    $total_results = (int)($stmt->fetch(PDO::FETCH_ASSOC)['count'] ?? 0);
+    $total_pages = ceil($total_results / $per_page);
     
     // Get data
-    $sql .= " ORDER BY b.created_at DESC LIMIT ? OFFSET ?";
+    $sql .= " ORDER BY r.created_at DESC LIMIT ? OFFSET ?";
     $params[] = $per_page;
     $params[] = $offset;
     
     $stmt = $db->prepare($sql);
     $stmt->execute($params);
-    $broadcasts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
 } catch (Exception $e) {
-    error_log("Error fetching broadcasts: " . $e->getMessage());
+    error_log("Error fetching EC8B results: " . $e->getMessage());
 }
 
 // ============================================================
-// FETCH STATISTICS
+// GET STATISTICS
 // ============================================================
 $stats = [
     'total' => 0,
-    'sent' => 0,
-    'draft' => 0,
-    'scheduled' => 0,
-    'failed' => 0
+    'pending' => 0,
+    'verified' => 0,
+    'rejected' => 0,
+    'flagged' => 0
 ];
 
 try {
     $stmt = $db->prepare("
         SELECT 
             COUNT(*) as total,
-            SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) as sent,
-            SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END) as draft,
-            SUM(CASE WHEN status = 'scheduled' THEN 1 ELSE 0 END) as scheduled,
-            SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed
-        FROM broadcasts
-        WHERE tenant_id = ?
-        AND (target_ids_json LIKE ? OR target_ids_json IS NULL)
+            SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+            SUM(CASE WHEN status = 'verified' THEN 1 ELSE 0 END) as verified,
+            SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected,
+            SUM(CASE WHEN status = 'flagged' THEN 1 ELSE 0 END) as flagged
+        FROM results_ec8b r
+        JOIN wards w ON r.ward_id = w.id
+        JOIN lgas l ON w.lga_id = l.id
+        WHERE r.tenant_id = ? AND l.state_id = ?
     ");
-    $stmt->execute([$tenant_id, '%"' . $state_id . '"%']);
+    $stmt->execute([$tenant_id, $state_id]);
     $stats_data = $stmt->fetch(PDO::FETCH_ASSOC);
     
     $stats['total'] = (int)($stats_data['total'] ?? 0);
-    $stats['sent'] = (int)($stats_data['sent'] ?? 0);
-    $stats['draft'] = (int)($stats_data['draft'] ?? 0);
-    $stats['scheduled'] = (int)($stats_data['scheduled'] ?? 0);
-    $stats['failed'] = (int)($stats_data['failed'] ?? 0);
+    $stats['pending'] = (int)($stats_data['pending'] ?? 0);
+    $stats['verified'] = (int)($stats_data['verified'] ?? 0);
+    $stats['rejected'] = (int)($stats_data['rejected'] ?? 0);
+    $stats['flagged'] = (int)($stats_data['flagged'] ?? 0);
     
 } catch (Exception $e) {
     error_log("Error fetching stats: " . $e->getMessage());
@@ -203,27 +255,6 @@ include '../includes/sidebar.php';
     color: var(--gray-500);
     display: block;
     margin-top: 2px;
-}
-
-.btn-primary-sm {
-    padding: 8px 20px;
-    background: var(--primary);
-    color: white;
-    border: none;
-    border-radius: 10px;
-    text-decoration: none;
-    font-weight: 600;
-    font-size: 0.8rem;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    transition: var(--transition);
-    font-family: 'Inter', sans-serif;
-}
-.btn-primary-sm:hover {
-    background: var(--primary-dark);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.3);
 }
 
 .btn-secondary-sm {
@@ -267,10 +298,10 @@ include '../includes/sidebar.php';
     color: var(--gray-500);
     margin-top: 2px;
 }
-.stat-card .number.primary { color: #3B82F6; }
-.stat-card .number.success { color: #10B981; }
-.stat-card .number.warning { color: #F59E0B; }
-.stat-card .number.danger { color: #EF4444; }
+.stat-card .number.pending { color: #F59E0B; }
+.stat-card .number.verified { color: #10B981; }
+.stat-card .number.rejected { color: #EF4444; }
+.stat-card .number.flagged { color: #8B5CF6; }
 
 .filter-bar {
     display: flex;
@@ -386,16 +417,14 @@ include '../includes/sidebar.php';
     border-radius: 50%;
     display: inline-block;
 }
-.badge-status.sent { background: #ECFDF5; color: #065F46; }
-.badge-status.sent .dot { background: #10B981; }
-.badge-status.draft { background: #F3F4F6; color: #6B7280; }
-.badge-status.draft .dot { background: #9CA3AF; }
-.badge-status.scheduled { background: #FFFBEB; color: #92400E; }
-.badge-status.scheduled .dot { background: #F59E0B; }
-.badge-status.failed { background: #FEF2F2; color: #991B1B; }
-.badge-status.failed .dot { background: #EF4444; }
-.badge-status.sending { background: #EFF6FF; color: #1E40AF; }
-.badge-status.sending .dot { background: #3B82F6; }
+.badge-status.pending { background: #FFFBEB; color: #92400E; }
+.badge-status.pending .dot { background: #F59E0B; }
+.badge-status.verified { background: #ECFDF5; color: #065F46; }
+.badge-status.verified .dot { background: #10B981; }
+.badge-status.rejected { background: #FEF2F2; color: #991B1B; }
+.badge-status.rejected .dot { background: #EF4444; }
+.badge-status.flagged { background: #F5F3FF; color: #5B21B6; }
+.badge-status.flagged .dot { background: #8B5CF6; }
 
 .btn-action {
     padding: 4px 10px;
@@ -418,26 +447,26 @@ include '../includes/sidebar.php';
 .btn-action.btn-view:hover {
     background: #DBEAFE;
 }
-.btn-action.btn-edit {
-    background: #F5F3FF;
-    color: #8B5CF6;
-}
-.btn-action.btn-edit:hover {
-    background: #EDE9FE;
-}
-.btn-action.btn-delete {
-    background: #FEF2F2;
-    color: #EF4444;
-}
-.btn-action.btn-delete:hover {
-    background: #FEE2E2;
-}
-.btn-action.btn-send {
+.btn-action.btn-verify {
     background: #ECFDF5;
     color: #10B981;
 }
-.btn-action.btn-send:hover {
+.btn-action.btn-verify:hover {
     background: #D1FAE5;
+}
+.btn-action.btn-reject {
+    background: #FEF2F2;
+    color: #EF4444;
+}
+.btn-action.btn-reject:hover {
+    background: #FEE2E2;
+}
+.btn-action.btn-flag {
+    background: #F5F3FF;
+    color: #8B5CF6;
+}
+.btn-action.btn-flag:hover {
+    background: #EDE9FE;
 }
 
 .pagination {
@@ -490,13 +519,22 @@ include '../includes/sidebar.php';
     color: var(--gray-300);
 }
 
-.broadcast-message {
-    font-size: 0.8rem;
-    color: var(--gray-600);
-    max-width: 300px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+.mismatch-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.65rem;
+    font-weight: 600;
+}
+.mismatch-indicator.danger {
+    background: #FEF2F2;
+    color: #DC2626;
+}
+.mismatch-indicator.success {
+    background: #ECFDF5;
+    color: #10B981;
 }
 
 @media (max-width: 768px) {
@@ -528,17 +566,14 @@ include '../includes/sidebar.php';
         <div class="page-header">
             <div>
                 <h2>
-                    <i class="fas fa-bullhorn" style="color:var(--primary);margin-right:8px;"></i>
-                    Broadcast Messages
-                    <small><?php echo htmlspecialchars($state_name); ?> - Send and manage broadcasts</small>
+                    <i class="fas fa-file-alt" style="color:var(--primary);margin-right:8px;"></i>
+                    Verify EC8B Forms
+                    <small><?php echo htmlspecialchars($state_name); ?> - Ward Level Results</small>
                 </h2>
             </div>
             <div>
-                <a href="broadcasts-create.php" class="btn-primary-sm">
-                    <i class="fas fa-plus"></i> New Broadcast
-                </a>
-                <a href="index.php" class="btn-secondary-sm">
-                    <i class="fas fa-arrow-left"></i> Back
+                <a href="result-verification.php" class="btn-secondary-sm">
+                    <i class="fas fa-arrow-left"></i> Back to Verification
                 </a>
             </div>
         </div>
@@ -546,122 +581,140 @@ include '../includes/sidebar.php';
         <!-- Stats -->
         <div class="stats-grid">
             <div class="stat-card">
-                <div class="number primary"><?php echo number_format($stats['total']); ?></div>
-                <div class="label">Total Broadcasts</div>
+                <div class="number"><?php echo number_format($stats['total']); ?></div>
+                <div class="label">Total EC8B Forms</div>
             </div>
             <div class="stat-card">
-                <div class="number success"><?php echo number_format($stats['sent']); ?></div>
-                <div class="label">Sent</div>
+                <div class="number pending"><?php echo number_format($stats['pending']); ?></div>
+                <div class="label">Pending Verification</div>
             </div>
             <div class="stat-card">
-                <div class="number warning"><?php echo number_format($stats['draft']); ?></div>
-                <div class="label">Drafts</div>
+                <div class="number verified"><?php echo number_format($stats['verified']); ?></div>
+                <div class="label">Verified</div>
             </div>
             <div class="stat-card">
-                <div class="number warning"><?php echo number_format($stats['scheduled']); ?></div>
-                <div class="label">Scheduled</div>
+                <div class="number rejected"><?php echo number_format($stats['rejected']); ?></div>
+                <div class="label">Rejected</div>
             </div>
             <div class="stat-card">
-                <div class="number danger"><?php echo number_format($stats['failed']); ?></div>
-                <div class="label">Failed</div>
+                <div class="number flagged"><?php echo number_format($stats['flagged']); ?></div>
+                <div class="label">Flagged</div>
             </div>
         </div>
 
         <!-- Filter Bar -->
         <form method="GET" action="" class="filter-bar">
             <div class="search-box">
-                <input type="text" name="search" placeholder="Search broadcasts..." value="<?php echo htmlspecialchars($search); ?>">
+                <input type="text" name="search" placeholder="Search Ward, Coordinator..." value="<?php echo htmlspecialchars($search); ?>">
                 <button type="submit" class="btn-filter"><i class="fas fa-search"></i> Filter</button>
             </div>
             <select name="status">
                 <option value="">All Status</option>
-                <option value="sent" <?php echo $status_filter === 'sent' ? 'selected' : ''; ?>>Sent</option>
-                <option value="draft" <?php echo $status_filter === 'draft' ? 'selected' : ''; ?>>Draft</option>
-                <option value="scheduled" <?php echo $status_filter === 'scheduled' ? 'selected' : ''; ?>>Scheduled</option>
-                <option value="sending" <?php echo $status_filter === 'sending' ? 'selected' : ''; ?>>Sending</option>
-                <option value="failed" <?php echo $status_filter === 'failed' ? 'selected' : ''; ?>>Failed</option>
-                <option value="cancelled" <?php echo $status_filter === 'cancelled' ? 'selected' : ''; ?>>Cancelled</option>
+                <option value="pending" <?php echo $status_filter === 'pending' ? 'selected' : ''; ?>>Pending</option>
+                <option value="verified" <?php echo $status_filter === 'verified' ? 'selected' : ''; ?>>Verified</option>
+                <option value="rejected" <?php echo $status_filter === 'rejected' ? 'selected' : ''; ?>>Rejected</option>
+                <option value="flagged" <?php echo $status_filter === 'flagged' ? 'selected' : ''; ?>>Flagged</option>
             </select>
-            <a href="broadcasts.php" class="btn-reset"><i class="fas fa-times"></i> Reset</a>
+            <select name="election_id">
+                <option value="">All Elections</option>
+                <?php foreach ($elections as $e): ?>
+                    <option value="<?php echo $e['id']; ?>" <?php echo $election_filter == $e['id'] ? 'selected' : ''; ?>>
+                        <?php echo htmlspecialchars($e['name']); ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+            <select name="lga_id">
+                <option value="">All LGAs</option>
+                <?php foreach ($lgas as $l): ?>
+                    <option value="<?php echo $l['id']; ?>" <?php echo $lga_filter == $l['id'] ? 'selected' : ''; ?>>
+                        <?php echo htmlspecialchars($l['name']); ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+            <a href="verify-ec8b.php" class="btn-reset"><i class="fas fa-times"></i> Reset</a>
         </form>
 
         <!-- Table -->
         <div class="table-wrapper">
-            <?php if (count($broadcasts) > 0): ?>
+            <?php if (count($results) > 0): ?>
                 <table>
                     <thead>
                         <tr>
                             <th>S/N</th>
-                            <th>Title</th>
-                            <th>Message</th>
-                            <th>Audience</th>
-                            <th>Recipients</th>
+                            <th>Election</th>
+                            <th>Ward</th>
+                            <th>LGA</th>
+                            <th>Coordinator</th>
+                            <th>Votes</th>
+                            <th>Mismatch</th>
+                            <th>Submitted</th>
                             <th>Status</th>
-                            <th>Sent</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php $sn = $offset + 1; ?>
-                        <?php foreach ($broadcasts as $broadcast): ?>
+                        <?php foreach ($results as $result): 
+                            $party_votes = json_decode($result['party_votes_json'], true);
+                            $total_votes = is_array($party_votes) ? array_sum($party_votes) : 0;
+                            $mismatch = (int)($result['mismatch_alert'] ?? 0);
+                        ?>
                             <tr>
                                 <td><?php echo $sn++; ?></td>
                                 <td>
-                                    <div style="font-weight:600;font-size:0.8rem;"><?php echo htmlspecialchars($broadcast['title']); ?></div>
-                                    <div style="font-size:0.65rem;color:var(--gray-400);">
-                                        By: <?php echo htmlspecialchars($broadcast['sender_first'] . ' ' . $broadcast['sender_last']); ?>
-                                    </div>
+                                    <div style="font-weight:600;font-size:0.8rem;"><?php echo htmlspecialchars($result['election_name']); ?></div>
+                                    <div style="font-size:0.65rem;color:var(--gray-400);"><?php echo ucfirst(str_replace('_', ' ', $result['election_type'])); ?></div>
                                 </td>
                                 <td>
-                                    <div class="broadcast-message">
-                                        <?php echo htmlspecialchars($broadcast['message']); ?>
-                                    </div>
+                                    <div style="font-weight:600;font-size:0.8rem;"><?php echo htmlspecialchars($result['ward_name']); ?></div>
                                 </td>
                                 <td>
-                                    <div style="font-size:0.8rem;font-weight:500;">
-                                        <?php echo ucfirst(str_replace('_', ' ', $broadcast['target_audience'])); ?>
-                                    </div>
+                                    <div style="font-size:0.8rem;"><?php echo htmlspecialchars($result['lga_name']); ?></div>
                                 </td>
                                 <td>
-                                    <div style="font-size:0.8rem;font-weight:600;color:var(--gray-700);">
-                                        <?php echo number_format($broadcast['total_recipients'] ?? 0); ?>
-                                    </div>
-                                    <div style="font-size:0.65rem;color:var(--gray-400);">
-                                        Read: <?php echo number_format($broadcast['read_count'] ?? 0); ?>
-                                    </div>
+                                    <div style="font-size:0.8rem;font-weight:500;"><?php echo htmlspecialchars($result['coordinator_first'] . ' ' . $result['coordinator_last']); ?></div>
+                                    <div style="font-size:0.65rem;color:var(--gray-400);"><?php echo htmlspecialchars($result['coordinator_phone'] ?? 'No phone'); ?></div>
                                 </td>
                                 <td>
-                                    <span class="badge-status <?php echo $broadcast['status']; ?>">
+                                    <div style="font-weight:700;font-size:1rem;color:var(--gray-800);"><?php echo number_format($total_votes); ?></div>
+                                    <div style="font-size:0.6rem;color:var(--gray-400);"><?php echo count($party_votes ?? []); ?> parties</div>
+                                </td>
+                                <td>
+                                    <?php if ($mismatch > 0): ?>
+                                        <span class="mismatch-indicator danger">
+                                            <i class="fas fa-exclamation-triangle"></i> Mismatch
+                                        </span>
+                                    <?php else: ?>
+                                        <span class="mismatch-indicator success">
+                                            <i class="fas fa-check"></i> Verified
+                                        </span>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <div style="font-size:0.75rem;"><?php echo date('M j, Y', strtotime($result['created_at'])); ?></div>
+                                    <div style="font-size:0.65rem;color:var(--gray-400);"><?php echo date('g:i A', strtotime($result['created_at'])); ?></div>
+                                </td>
+                                <td>
+                                    <span class="badge-status <?php echo $result['status']; ?>">
                                         <span class="dot"></span>
-                                        <?php echo ucfirst($broadcast['status']); ?>
+                                        <?php echo ucfirst($result['status']); ?>
                                     </span>
                                 </td>
                                 <td>
-                                    <?php if ($broadcast['sent_at']): ?>
-                                        <div style="font-size:0.75rem;"><?php echo date('M j, Y', strtotime($broadcast['sent_at'])); ?></div>
-                                        <div style="font-size:0.65rem;color:var(--gray-400);"><?php echo date('g:i A', strtotime($broadcast['sent_at'])); ?></div>
-                                    <?php elseif ($broadcast['scheduled_at']): ?>
-                                        <div style="font-size:0.75rem;color:#F59E0B;">Scheduled</div>
-                                        <div style="font-size:0.65rem;color:var(--gray-400);"><?php echo date('M j, Y g:i A', strtotime($broadcast['scheduled_at'])); ?></div>
-                                    <?php else: ?>
-                                        <span style="color:var(--gray-400);font-size:0.75rem;">Not sent</span>
-                                    <?php endif; ?>
-                                </td>
-                                <td>
-                                    <a href="broadcast-view.php?id=<?php echo $broadcast['id']; ?>" class="btn-action btn-view">
+                                    <a href="ec8b-view.php?id=<?php echo $result['id']; ?>" class="btn-action btn-view">
                                         <i class="fas fa-eye"></i>
                                     </a>
-                                    <?php if ($broadcast['status'] === 'draft'): ?>
-                                        <a href="broadcast-edit.php?id=<?php echo $broadcast['id']; ?>" class="btn-action btn-edit">
-                                            <i class="fas fa-edit"></i>
-                                        </a>
-                                        <button onclick="sendBroadcast(<?php echo $broadcast['id']; ?>)" class="btn-action btn-send">
-                                            <i class="fas fa-paper-plane"></i>
+                                    <?php if ($result['status'] === 'pending'): ?>
+                                        <button onclick="verifyResult(<?php echo $result['id']; ?>)" class="btn-action btn-verify">
+                                            <i class="fas fa-check"></i>
+                                        </button>
+                                        <button onclick="rejectResult(<?php echo $result['id']; ?>)" class="btn-action btn-reject">
+                                            <i class="fas fa-times"></i>
                                         </button>
                                     <?php endif; ?>
-                                    <?php if ($broadcast['status'] === 'draft' || $broadcast['status'] === 'scheduled'): ?>
-                                        <button onclick="deleteBroadcast(<?php echo $broadcast['id']; ?>)" class="btn-action btn-delete">
-                                            <i class="fas fa-trash"></i>
+                                    <?php if ($result['status'] === 'verified' || $result['status'] === 'pending'): ?>
+                                        <button onclick="flagResult(<?php echo $result['id']; ?>)" class="btn-action btn-flag">
+                                            <i class="fas fa-flag"></i>
                                         </button>
                                     <?php endif; ?>
                                 </td>
@@ -687,24 +740,20 @@ include '../includes/sidebar.php';
                             <i class="fas fa-chevron-right"></i>
                         </a>
                         <span class="page-info">
-                            Showing <?php echo min($total_broadcasts, ($page - 1) * $per_page + 1); ?> - 
-                            <?php echo min($total_broadcasts, $page * $per_page); ?> of <?php echo number_format($total_broadcasts); ?>
+                            Showing <?php echo min($total_results, ($page - 1) * $per_page + 1); ?> - 
+                            <?php echo min($total_results, $page * $per_page); ?> of <?php echo number_format($total_results); ?>
                         </span>
                     </div>
                 <?php endif; ?>
                 
             <?php else: ?>
                 <div class="empty-state">
-                    <i class="fas fa-bullhorn"></i>
-                    <p>No broadcasts found.</p>
-                    <?php if (!empty($search) || !empty($status_filter)): ?>
+                    <i class="fas fa-file-alt"></i>
+                    <p>No EC8B forms found.</p>
+                    <?php if (!empty($search) || !empty($status_filter) || !empty($election_filter) || !empty($lga_filter)): ?>
                         <p style="font-size:0.8rem;">Try adjusting your filters.</p>
                     <?php else: ?>
-                        <p style="font-size:0.8rem;">
-                            <a href="broadcasts-create.php" style="color:var(--primary);text-decoration:none;font-weight:600;">
-                                Create a broadcast
-                            </a> to send messages to your team.
-                        </p>
+                        <p style="font-size:0.8rem;">EC8B forms will appear here once ward coordinators submit them.</p>
                     <?php endif; ?>
                 </div>
             <?php endif; ?>
@@ -802,18 +851,18 @@ if (profileBtn && profileMenu) {
 }
 
 // ============================================================
-// BROADCAST ACTIONS
+// RESULT ACTIONS
 // ============================================================
-function sendBroadcast(broadcastId) {
-    if (confirm('Are you sure you want to send this broadcast now?')) {
+function verifyResult(resultId) {
+    if (confirm('Are you sure you want to verify this EC8B form?')) {
         var form = document.createElement('form');
         form.method = 'POST';
-        form.action = 'broadcast-send.php';
+        form.action = 'ec8b-verify.php';
         
         var input = document.createElement('input');
         input.type = 'hidden';
-        input.name = 'broadcast_id';
-        input.value = broadcastId;
+        input.name = 'result_id';
+        input.value = resultId;
         form.appendChild(input);
         
         var token = document.createElement('input');
@@ -827,26 +876,67 @@ function sendBroadcast(broadcastId) {
     }
 }
 
-function deleteBroadcast(broadcastId) {
-    if (confirm('Are you sure you want to delete this broadcast?')) {
-        var form = document.createElement('form');
-        form.method = 'POST';
-        form.action = 'broadcast-delete.php';
-        
-        var input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = 'broadcast_id';
-        input.value = broadcastId;
-        form.appendChild(input);
-        
-        var token = document.createElement('input');
-        token.type = 'hidden';
-        token.name = 'csrf_token';
-        token.value = '<?php echo $csrf_token; ?>';
-        form.appendChild(token);
-        
-        document.body.appendChild(form);
-        form.submit();
+function rejectResult(resultId) {
+    var reason = prompt('Please provide a reason for rejection:');
+    if (reason !== null) {
+        if (confirm('Are you sure you want to reject this EC8B form?')) {
+            var form = document.createElement('form');
+            form.method = 'POST';
+            form.action = 'ec8b-reject.php';
+            
+            var input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'result_id';
+            input.value = resultId;
+            form.appendChild(input);
+            
+            var reasonInput = document.createElement('input');
+            reasonInput.type = 'hidden';
+            reasonInput.name = 'reason';
+            reasonInput.value = reason;
+            form.appendChild(reasonInput);
+            
+            var token = document.createElement('input');
+            token.type = 'hidden';
+            token.name = 'csrf_token';
+            token.value = '<?php echo $csrf_token; ?>';
+            form.appendChild(token);
+            
+            document.body.appendChild(form);
+            form.submit();
+        }
+    }
+}
+
+function flagResult(resultId) {
+    var reason = prompt('Please provide a reason for flagging:');
+    if (reason !== null) {
+        if (confirm('Are you sure you want to flag this EC8B form for review?')) {
+            var form = document.createElement('form');
+            form.method = 'POST';
+            form.action = 'ec8b-flag.php';
+            
+            var input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'result_id';
+            input.value = resultId;
+            form.appendChild(input);
+            
+            var reasonInput = document.createElement('input');
+            reasonInput.type = 'hidden';
+            reasonInput.name = 'reason';
+            reasonInput.value = reason;
+            form.appendChild(reasonInput);
+            
+            var token = document.createElement('input');
+            token.type = 'hidden';
+            token.name = 'csrf_token';
+            token.value = '<?php echo $csrf_token; ?>';
+            form.appendChild(token);
+            
+            document.body.appendChild(form);
+            form.submit();
+        }
     }
 }
 </script>
