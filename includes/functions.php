@@ -307,7 +307,30 @@ function getUserAgent() {
 }
 
 function generateDeviceFingerprint() {
-    $data = getClientIP() . getUserAgent() . (php_uname('n') ?? '');
+    // Safe hostname detection without php_uname
+    $hostname = '';
+    
+    // Method 1: Server variables
+    if (isset($_SERVER['SERVER_NAME']) && !empty($_SERVER['SERVER_NAME'])) {
+        $hostname = $_SERVER['SERVER_NAME'];
+    }
+    
+    // Method 2: HTTP Host
+    if (empty($hostname) && isset($_SERVER['HTTP_HOST']) && !empty($_SERVER['HTTP_HOST'])) {
+        $hostname = $_SERVER['HTTP_HOST'];
+    }
+    
+    // Method 3: gethostname if available
+    if (empty($hostname) && function_exists('gethostname')) {
+        $hostname = gethostname() ?: '';
+    }
+    
+    // Method 4: Fallback
+    if (empty($hostname)) {
+        $hostname = 'localhost';
+    }
+    
+    $data = getClientIP() . getUserAgent() . $hostname;
     return hash('sha256', $data);
 }
 
