@@ -1648,3 +1648,4 @@ Stack trace:
 [09-Jul-2026 23:53:53 Africa/Lagos] Monitor LGAs Error: SQLSTATE[HY093]: Invalid parameter number
 [09-Jul-2026 23:55:20 Africa/Lagos] Redirecting to: ../dashboard/client-admin/ for role: client_admin
 [09-Jul-2026 23:55:41 Africa/Lagos] Redirecting to: ../dashboard/super-admin/ for role: super_admin
+[10-Jul-2026 00:18:00 Africa/Lagos] Email send failed to ibrahim@gmail.com: SMTP Error: Could not connect to SMTP host. Failed to connect to server SMTP server error: Failed to connect to server SMTP code: 10060 Additional SMTP info: A connection attempt failed because the connected party did not properly respond after a period of time, or established connection failed because connected host has failed to respond
