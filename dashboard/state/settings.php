@@ -6,7 +6,6 @@ require_once '../../config/config.php';
 require_once '../../includes/session.php';
 require_once '../../includes/functions.php';
 
-// Start session
 SessionManager::start();
 
 if (!SessionManager::isLoggedIn()) {
@@ -14,7 +13,6 @@ if (!SessionManager::isLoggedIn()) {
     exit();
 }
 
-// Only state coordinator can access
 if (SessionManager::get('role_level') !== 'state') {
     header('Location: ../client-admin/');
     exit();
@@ -25,7 +23,6 @@ $user_id = SessionManager::get('user_id');
 $tenant_id = SessionManager::get('tenant_id');
 $state_id = SessionManager::get('state_id');
 
-// If state_id is not set in session, try to get it from user record
 if (empty($state_id)) {
     $db = getDB();
     try {
@@ -43,382 +40,368 @@ if (empty($state_id)) {
 
 $db = getDB();
 
-// ============================================================
-// GENERATE CSRF TOKEN
-// ============================================================
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
-$csrf_token = $_SESSION['csrf_token'];
-
-// ============================================================
-// FETCH STATE NAME
-// ============================================================
+// Get state name
 $state_name = 'Unknown State';
+if (!empty($state_id)) {
+    $stmt = $db->prepare("SELECT name FROM states WHERE id = ?");
+    $stmt->execute([$state_id]);
+    $state = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_name = $state['name'] ?? 'Unknown State';
+}
+
+// Get user settings
+$settings = [];
+$message = '';
+$error = '';
+
 try {
-    if (!empty($state_id)) {
-        $stmt = $db->prepare("SELECT name FROM states WHERE id = ?");
-        $stmt->execute([$state_id]);
-        $state = $stmt->fetch(PDO::FETCH_ASSOC);
-        $state_name = $state['name'] ?? 'Unknown State';
+    // Get user settings from tenant_settings or user preferences
+    $stmt = $db->prepare("SELECT * FROM tenant_settings WHERE tenant_id = ?");
+    $stmt->execute([$tenant_id]);
+    $settings_list = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    foreach ($settings_list as $s) {
+        $settings[$s['key']] = $s['value'];
     }
 } catch (Exception $e) {
-    error_log("Error fetching state: " . $e->getMessage());
+    error_log("Error fetching settings: " . $e->getMessage());
 }
 
-// ============================================================
-// FETCH CURRENT USER SETTINGS
-// ============================================================
-$user_settings = [];
-try {
-    $stmt = $db->prepare("
-        SELECT first_name, last_name, email, phone, gender, date_of_birth
-        FROM users WHERE id = ?
-    ");
-    $stmt->execute([$user_id]);
-    $user_settings = $stmt->fetch(PDO::FETCH_ASSOC);
-} catch (Exception $e) {
-    error_log("Error fetching user settings: " . $e->getMessage());
-}
-
-// ============================================================
-// HANDLE FORM SUBMISSION
-// ============================================================
-$error = '';
-$success = '';
-
+// Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Verify CSRF token
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-        $error = 'Security validation failed. Please try again.';
-    } else {
-        $action = $_POST['action'] ?? '';
-        
+    $action = $_POST['action'] ?? '';
+    
+    try {
         if ($action === 'profile') {
             $first_name = trim($_POST['first_name'] ?? '');
             $last_name = trim($_POST['last_name'] ?? '');
-            $email = trim($_POST['email'] ?? '');
             $phone = trim($_POST['phone'] ?? '');
-            $gender = $_POST['gender'] ?? '';
-            $date_of_birth = $_POST['date_of_birth'] ?? null;
+            $email = trim($_POST['email'] ?? '');
             
-            $errors = [];
-            
-            if (empty($first_name)) {
-                $errors[] = 'First name is required.';
-            }
-            if (empty($last_name)) {
-                $errors[] = 'Last name is required.';
-            }
-            if (empty($email)) {
-                $errors[] = 'Email is required.';
-            } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                $errors[] = 'Invalid email address.';
-            }
-            
-            if (empty($errors)) {
-                try {
-                    $stmt = $db->prepare("
-                        UPDATE users 
-                        SET first_name = ?, last_name = ?, email = ?, phone = ?, 
-                            gender = ?, date_of_birth = ?, updated_at = NOW()
-                        WHERE id = ?
-                    ");
-                    $stmt->execute([$first_name, $last_name, $email, $phone, $gender, $date_of_birth, $user_id]);
-                    
-                    // Update session
-                    SessionManager::set('user_name', $first_name . ' ' . $last_name);
-                    SessionManager::set('user_email', $email);
-                    
-                    $success = 'Profile updated successfully!';
-                    
-                    // Refresh data
-                    $user_settings['first_name'] = $first_name;
-                    $user_settings['last_name'] = $last_name;
-                    $user_settings['email'] = $email;
-                    $user_settings['phone'] = $phone;
-                    $user_settings['gender'] = $gender;
-                    $user_settings['date_of_birth'] = $date_of_birth;
-                    
-                    logActivity($user_id, 'profile_updated', 'Updated profile information');
-                    
-                } catch (Exception $e) {
-                    $error = 'Error updating profile: ' . $e->getMessage();
-                }
+            if (empty($first_name) || empty($last_name)) {
+                $error = 'Name fields are required.';
             } else {
-                $error = implode('<br>', $errors);
+                $stmt = $db->prepare("
+                    UPDATE users 
+                    SET first_name = ?, last_name = ?, phone = ?, email = ?
+                    WHERE id = ? AND tenant_id = ?
+                ");
+                $stmt->execute([$first_name, $last_name, $phone, $email, $user_id, $tenant_id]);
+                
+                // Update session
+                SessionManager::set('user_name', $first_name . ' ' . $last_name);
+                SessionManager::set('user_email', $email);
+                
+                $message = 'Profile updated successfully!';
             }
         } elseif ($action === 'password') {
             $current_password = $_POST['current_password'] ?? '';
             $new_password = $_POST['new_password'] ?? '';
             $confirm_password = $_POST['confirm_password'] ?? '';
             
-            $errors = [];
+            // Get current user password hash
+            $stmt = $db->prepare("SELECT password_hash FROM users WHERE id = ?");
+            $stmt->execute([$user_id]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
             
-            if (empty($current_password)) {
-                $errors[] = 'Current password is required.';
-            }
-            if (empty($new_password)) {
-                $errors[] = 'New password is required.';
+            if (!verifyPassword($current_password, $user['password_hash'])) {
+                $error = 'Current password is incorrect.';
             } elseif (strlen($new_password) < 8) {
-                $errors[] = 'New password must be at least 8 characters.';
-            }
-            if ($new_password !== $confirm_password) {
-                $errors[] = 'Passwords do not match.';
-            }
-            
-            if (empty($errors)) {
-                try {
-                    // Verify current password
-                    $stmt = $db->prepare("SELECT password_hash FROM users WHERE id = ?");
-                    $stmt->execute([$user_id]);
-                    $user = $stmt->fetch(PDO::FETCH_ASSOC);
-                    
-                    if (!password_verify($current_password, $user['password_hash'])) {
-                        $errors[] = 'Current password is incorrect.';
-                    }
-                } catch (Exception $e) {
-                    $error = 'Error verifying password: ' . $e->getMessage();
-                }
-            }
-            
-            if (empty($errors) && empty($error)) {
-                try {
-                    $new_hash = password_hash($new_password, PASSWORD_DEFAULT);
-                    $stmt = $db->prepare("UPDATE users SET password_hash = ?, updated_at = NOW() WHERE id = ?");
-                    $stmt->execute([$new_hash, $user_id]);
-                    
-                    $success = 'Password updated successfully!';
-                    logActivity($user_id, 'password_change', 'Changed password');
-                    
-                } catch (Exception $e) {
-                    $error = 'Error updating password: ' . $e->getMessage();
-                }
+                $error = 'New password must be at least 8 characters.';
+            } elseif ($new_password !== $confirm_password) {
+                $error = 'Passwords do not match.';
             } else {
-                $error = implode('<br>', $errors);
+                $new_hash = hashPassword($new_password);
+                $stmt = $db->prepare("UPDATE users SET password_hash = ? WHERE id = ?");
+                $stmt->execute([$new_hash, $user_id]);
+                
+                // Log activity
+                logActivity($user_id, 'password_change', 'Password changed successfully');
+                
+                $message = 'Password updated successfully!';
             }
-        } elseif ($action === 'security') {
-            $two_factor = isset($_POST['two_factor_enabled']) ? 1 : 0;
+        } elseif ($action === 'preferences') {
+            $notification_email = isset($_POST['notification_email']) ? 1 : 0;
+            $notification_inapp = isset($_POST['notification_inapp']) ? 1 : 0;
+            $language = $_POST['language'] ?? 'en';
+            $timezone = $_POST['timezone'] ?? 'Africa/Lagos';
             
-            try {
-                $stmt = $db->prepare("UPDATE users SET two_factor_enabled = ?, updated_at = NOW() WHERE id = ?");
-                $stmt->execute([$two_factor, $user_id]);
-                
-                $success = 'Security settings updated successfully!';
-                logActivity($user_id, $two_factor ? '2fa_enabled' : '2fa_disabled', 'Two-factor authentication ' . ($two_factor ? 'enabled' : 'disabled'));
-                
-            } catch (Exception $e) {
-                $error = 'Error updating security settings: ' . $e->getMessage();
+            // Save preferences - use tenant_settings or a user_preferences table
+            $preferences = [
+                'notification_email' => $notification_email,
+                'notification_inapp' => $notification_inapp,
+                'language' => $language,
+                'timezone' => $timezone
+            ];
+            
+            // Update each setting
+            foreach ($preferences as $key => $value) {
+                $stmt = $db->prepare("
+                    INSERT INTO tenant_settings (tenant_id, `key`, value, type) 
+                    VALUES (?, ?, ?, 'string')
+                    ON DUPLICATE KEY UPDATE value = VALUES(value)
+                ");
+                $stmt->execute([$tenant_id, 'user_' . $key, $value]);
             }
+            
+            $message = 'Preferences updated successfully!';
+        } elseif ($action === 'security') {
+            $two_factor = isset($_POST['two_factor']) ? 1 : 0;
+            $session_timeout = (int)($_POST['session_timeout'] ?? 3600);
+            
+            $stmt = $db->prepare("UPDATE users SET two_factor_enabled = ? WHERE id = ?");
+            $stmt->execute([$two_factor, $user_id]);
+            
+            $stmt = $db->prepare("
+                INSERT INTO tenant_settings (tenant_id, `key`, value, type) 
+                VALUES (?, 'session_timeout', ?, 'integer')
+                ON DUPLICATE KEY UPDATE value = VALUES(value)
+            ");
+            $stmt->execute([$tenant_id, $session_timeout]);
+            
+            $message = 'Security settings updated successfully!';
         }
+    } catch (Exception $e) {
+        $error = 'Failed to update settings: ' . $e->getMessage();
+        error_log("Settings update error: " . $e->getMessage());
     }
 }
 
+// Get user data for profile
+$user_data = null;
+try {
+    $stmt = $db->prepare("SELECT * FROM users WHERE id = ?");
+    $stmt->execute([$user_id]);
+    $user_data = $stmt->fetch(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    error_log("Error fetching user data: " . $e->getMessage());
+}
+
+$page_title = 'Settings';
 include '../includes/base.php';
 include '../includes/sidebar.php';
 ?>
 
 <style>
-.page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 12px;
-    margin-bottom: 20px;
-}
-.page-header h2 {
-    font-size: 1.3rem;
-    font-weight: 700;
-    margin: 0;
-}
-.page-header h2 small {
-    font-size: 0.8rem;
-    font-weight: 400;
-    color: var(--gray-500);
-    display: block;
-    margin-top: 2px;
+.settings-container {
+    max-width: 800px;
+    margin: 0 auto;
 }
 
-.btn-secondary-sm {
-    padding: 8px 20px;
-    background: var(--gray-100);
-    color: var(--gray-700);
-    border: 1px solid var(--gray-200);
-    border-radius: 10px;
-    text-decoration: none;
-    font-weight: 500;
-    font-size: 0.8rem;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    transition: var(--transition);
-    font-family: 'Inter', sans-serif;
-}
-.btn-secondary-sm:hover {
-    background: var(--gray-200);
-}
-
-.settings-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-}
 .settings-card {
     background: white;
     border-radius: var(--radius);
     border: 1px solid var(--gray-200);
-    padding: 24px;
-    box-shadow: var(--shadow-sm);
+    padding: 24px 28px;
+    margin-bottom: 16px;
 }
+
 .settings-card .card-title {
-    font-size: 1rem;
-    font-weight: 700;
-    margin-bottom: 4px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin: 0 0 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--gray-200);
+    color: var(--gray-700);
 }
+
 .settings-card .card-title i {
     color: var(--primary);
-}
-.settings-card .card-subtitle {
-    color: var(--gray-500);
-    font-size: 0.8rem;
-    margin-bottom: 16px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--gray-100);
+    margin-right: 6px;
 }
 
 .form-group {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    margin-bottom: 14px;
+    margin-bottom: 16px;
 }
+
 .form-group label {
+    display: block;
     font-weight: 600;
-    font-size: 0.82rem;
+    font-size: 0.8rem;
     color: var(--gray-700);
+    margin-bottom: 4px;
 }
+
 .form-group label .required {
-    color: var(--danger);
+    color: #EF4444;
     margin-left: 2px;
 }
-.form-group .help-text {
-    font-size: 0.7rem;
-    color: var(--gray-400);
-    margin-top: 2px;
-}
-.form-group input,
+
+.form-group input[type="text"],
+.form-group input[type="email"],
+.form-group input[type="tel"],
+.form-group input[type="password"],
+.form-group input[type="number"],
 .form-group select {
+    width: 100%;
     padding: 10px 14px;
     border: 1px solid var(--gray-200);
     border-radius: 10px;
-    font-family: 'Inter', sans-serif;
     font-size: 0.85rem;
+    font-family: 'Inter', sans-serif;
     transition: var(--transition);
-    background: var(--gray-50);
-    color: var(--gray-700);
-    width: 100%;
+    background: white;
 }
+
 .form-group input:focus,
 .form-group select:focus {
     outline: none;
     border-color: var(--primary);
-    background: white;
     box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.06);
 }
+
+.form-group .help-text {
+    font-size: 0.65rem;
+    color: var(--gray-400);
+    margin-top: 4px;
+}
+
 .form-group .checkbox-group {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding-top: 6px;
-}
-.form-group .checkbox-group input[type="checkbox"] {
-    width: 20px;
-    height: 20px;
-    accent-color: var(--primary);
-    cursor: pointer;
-    flex-shrink: 0;
-}
-.form-group .checkbox-group label {
-    font-weight: 400;
-    cursor: pointer;
-    font-size: 0.85rem;
+    gap: 8px;
 }
 
-.btn-save {
-    padding: 10px 28px;
+.form-group .checkbox-group input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--primary);
+}
+
+.form-group .checkbox-group label {
+    font-weight: 400;
+    font-size: 0.82rem;
+    color: var(--gray-700);
+    cursor: pointer;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.alert {
+    padding: 12px 16px;
     border-radius: 10px;
+    font-size: 0.85rem;
+    margin-bottom: 16px;
+}
+
+.alert-success {
+    background: #ECFDF5;
+    color: #065F46;
+    border: 1px solid #A7F3D0;
+}
+
+.alert-error {
+    background: #FEF2F2;
+    color: #991B1B;
+    border: 1px solid #FECACA;
+}
+
+.alert i {
+    margin-right: 6px;
+}
+
+.btn-group {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.btn-group button {
+    padding: 10px 28px;
     border: none;
+    border-radius: 10px;
     font-weight: 600;
     font-size: 0.85rem;
     cursor: pointer;
     transition: var(--transition);
     font-family: 'Inter', sans-serif;
+}
+
+.btn-group .btn-save {
     background: var(--primary);
     color: white;
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
 }
-.btn-save:hover {
+
+.btn-group .btn-save:hover {
     background: var(--primary-dark);
     transform: translateY(-1px);
-    box-shadow: 0 4px 16px rgba(var(--primary-rgb), 0.25);
+    box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.3);
 }
 
-.error-message {
-    background: #FEF2F2;
-    color: #DC2626;
-    padding: 14px 18px;
+.btn-group .btn-cancel {
+    background: var(--gray-100);
+    color: var(--gray-700);
+    text-decoration: none;
+    padding: 10px 28px;
     border-radius: 10px;
+    font-weight: 600;
     font-size: 0.85rem;
-    margin-bottom: 16px;
-    border: 1px solid #FECACA;
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-}
-.error-message i {
-    margin-top: 2px;
-    font-size: 1.1rem;
-}
-.success-message {
-    background: #ECFDF5;
-    color: #065F46;
-    padding: 14px 18px;
-    border-radius: 10px;
-    font-size: 0.85rem;
-    margin-bottom: 16px;
-    border: 1px solid #A7F3D0;
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
-}
-.success-message i {
-    margin-top: 2px;
-    font-size: 1.1rem;
+    transition: var(--transition);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
 }
 
-.full-width {
-    grid-column: 1 / -1;
+.btn-group .btn-cancel:hover {
+    background: var(--gray-200);
 }
 
-@media (max-width: 992px) {
-    .settings-grid {
-        grid-template-columns: 1fr;
-    }
+.tab-nav {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--gray-200);
+    margin-bottom: 20px;
+    padding-bottom: 0;
+}
+
+.tab-nav button {
+    padding: 10px 20px;
+    border: none;
+    background: none;
+    font-weight: 500;
+    font-size: 0.82rem;
+    color: var(--gray-500);
+    cursor: pointer;
+    transition: var(--transition);
+    border-bottom: 2px solid transparent;
+    font-family: 'Inter', sans-serif;
+}
+
+.tab-nav button:hover {
+    color: var(--gray-700);
+}
+
+.tab-nav button.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
 }
 
 @media (max-width: 768px) {
-    .page-header {
-        flex-direction: column;
-        align-items: flex-start;
-    }
     .settings-card {
-        padding: 16px;
+        padding: 16px 18px;
+    }
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+    .tab-nav {
+        overflow-x: auto;
+    }
+    .tab-nav button {
+        padding: 8px 14px;
+        font-size: 0.75rem;
+        white-space: nowrap;
     }
 }
 </style>
@@ -427,173 +410,207 @@ include '../includes/sidebar.php';
     <?php include '../includes/header.php'; ?>
     
     <div class="main-content-inner">
-        <!-- Page Header -->
-        <div class="page-header">
-            <div>
-                <h2>
-                    <i class="fas fa-cog" style="color:var(--primary);margin-right:8px;"></i>
-                    Settings
-                    <small><?php echo htmlspecialchars($state_name); ?> - Manage your account settings</small>
-                </h2>
-            </div>
-            <div>
-                <a href="index.php" class="btn-secondary-sm">
-                    <i class="fas fa-arrow-left"></i> Back to Dashboard
-                </a>
-            </div>
-        </div>
-
-        <!-- Messages -->
-        <?php if (!empty($error)): ?>
-            <div class="error-message">
-                <i class="fas fa-exclamation-circle"></i>
-                <div><?php echo $error; ?></div>
-            </div>
-        <?php endif; ?>
-        
-        <?php if (!empty($success)): ?>
-            <div class="success-message">
-                <i class="fas fa-check-circle"></i>
-                <div><?php echo $success; ?></div>
-            </div>
-        <?php endif; ?>
-
-        <!-- Settings Grid -->
-        <div class="settings-grid">
-            <!-- Profile Settings -->
-            <div class="settings-card">
-                <div class="card-title">
-                    <i class="fas fa-user"></i> Profile Information
+        <div class="settings-container">
+            <!-- Page Header -->
+            <div class="welcome-section">
+                <div>
+                    <h1><i class="fas fa-cog"></i> Settings</h1>
+                    <p class="subtitle">
+                        <i class="fas fa-flag"></i> 
+                        <?php echo htmlspecialchars($state_name); ?> State - Manage Your Settings
+                    </p>
                 </div>
-                <div class="card-subtitle">Update your personal information</div>
-                
-                <form method="POST" action="">
-                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
-                    <input type="hidden" name="action" value="profile">
-                    
-                    <div class="form-group">
-                        <label>First Name <span class="required">*</span></label>
-                        <input type="text" name="first_name" value="<?php echo htmlspecialchars($user_settings['first_name'] ?? ''); ?>" required>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>Last Name <span class="required">*</span></label>
-                        <input type="text" name="last_name" value="<?php echo htmlspecialchars($user_settings['last_name'] ?? ''); ?>" required>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>Email <span class="required">*</span></label>
-                        <input type="email" name="email" value="<?php echo htmlspecialchars($user_settings['email'] ?? ''); ?>" required>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>Phone</label>
-                        <input type="tel" name="phone" value="<?php echo htmlspecialchars($user_settings['phone'] ?? ''); ?>">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>Gender</label>
-                        <select name="gender">
-                            <option value="">Select Gender</option>
-                            <option value="male" <?php echo ($user_settings['gender'] ?? '') === 'male' ? 'selected' : ''; ?>>Male</option>
-                            <option value="female" <?php echo ($user_settings['gender'] ?? '') === 'female' ? 'selected' : ''; ?>>Female</option>
-                            <option value="other" <?php echo ($user_settings['gender'] ?? '') === 'other' ? 'selected' : ''; ?>>Other</option>
-                            <option value="prefer_not_say" <?php echo ($user_settings['gender'] ?? '') === 'prefer_not_say' ? 'selected' : ''; ?>>Prefer not to say</option>
-                        </select>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>Date of Birth</label>
-                        <input type="date" name="date_of_birth" value="<?php echo htmlspecialchars($user_settings['date_of_birth'] ?? ''); ?>">
-                    </div>
-                    
-                    <button type="submit" class="btn-save">
-                        <i class="fas fa-save"></i> Update Profile
-                    </button>
-                </form>
             </div>
 
-            <!-- Security Settings -->
-            <div class="settings-card">
-                <div class="card-title">
+            <?php if ($message): ?>
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle"></i> <?php echo htmlspecialchars($message); ?>
+                </div>
+            <?php endif; ?>
+            
+            <?php if ($error): ?>
+                <div class="alert alert-error">
+                    <i class="fas fa-exclamation-circle"></i> <?php echo htmlspecialchars($error); ?>
+                </div>
+            <?php endif; ?>
+
+            <!-- Tab Navigation -->
+            <div class="tab-nav">
+                <button class="active" data-tab="profile" onclick="switchTab('profile')">
+                    <i class="fas fa-user"></i> Profile
+                </button>
+                <button data-tab="password" onclick="switchTab('password')">
+                    <i class="fas fa-key"></i> Password
+                </button>
+                <button data-tab="preferences" onclick="switchTab('preferences')">
+                    <i class="fas fa-sliders-h"></i> Preferences
+                </button>
+                <button data-tab="security" onclick="switchTab('security')">
                     <i class="fas fa-shield-alt"></i> Security
-                </div>
-                <div class="card-subtitle">Manage your security settings</div>
-                
-                <!-- Change Password -->
-                <form method="POST" action="" style="margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid var(--gray-100);">
-                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
-                    <input type="hidden" name="action" value="password">
-                    
-                    <h4 style="font-size:0.85rem;font-weight:600;margin-bottom:12px;">Change Password</h4>
-                    
-                    <div class="form-group">
-                        <label>Current Password <span class="required">*</span></label>
-                        <input type="password" name="current_password" placeholder="Enter current password" required>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>New Password <span class="required">*</span></label>
-                        <input type="password" name="new_password" placeholder="Min 8 characters" required>
-                        <div class="help-text">Password must be at least 8 characters long.</div>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>Confirm Password <span class="required">*</span></label>
-                        <input type="password" name="confirm_password" placeholder="Confirm new password" required>
-                    </div>
-                    
-                    <button type="submit" class="btn-save">
-                        <i class="fas fa-lock"></i> Change Password
-                    </button>
-                </form>
-
-                <!-- Two-Factor Authentication -->
-                <form method="POST" action="">
-                    <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
-                    <input type="hidden" name="action" value="security">
-                    
-                    <h4 style="font-size:0.85rem;font-weight:600;margin-bottom:12px;">Two-Factor Authentication</h4>
-                    
-                    <div class="form-group">
-                        <div class="checkbox-group">
-                            <input type="checkbox" name="two_factor_enabled" id="twoFactor" value="1" <?php echo (SessionManager::get('two_factor_enabled') ?? 0) ? 'checked' : ''; ?>>
-                            <label for="twoFactor">
-                                <i class="fas fa-shield-alt"></i> Enable Two-Factor Authentication (2FA)
-                            </label>
-                        </div>
-                        <div class="help-text">When enabled, you'll need to enter a verification code sent to your email when logging in.</div>
-                    </div>
-                    
-                    <button type="submit" class="btn-save">
-                        <i class="fas fa-save"></i> Update Security Settings
-                    </button>
-                </form>
+                </button>
             </div>
 
-            <!-- State Information -->
-            <div class="settings-card full-width">
-                <div class="card-title">
-                    <i class="fas fa-info-circle"></i> Account Information
+            <!-- Profile Tab -->
+            <div class="tab-content active" id="tab-profile">
+                <div class="settings-card">
+                    <div class="card-title"><i class="fas fa-user"></i> Profile Information</div>
+                    
+                    <form method="POST" action="">
+                        <input type="hidden" name="action" value="profile" />
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>First Name <span class="required">*</span></label>
+                                <input type="text" name="first_name" required value="<?php echo htmlspecialchars($user_data['first_name'] ?? ''); ?>" />
+                            </div>
+                            <div class="form-group">
+                                <label>Last Name <span class="required">*</span></label>
+                                <input type="text" name="last_name" required value="<?php echo htmlspecialchars($user_data['last_name'] ?? ''); ?>" />
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Email Address <span class="required">*</span></label>
+                            <input type="email" name="email" required value="<?php echo htmlspecialchars($user_data['email'] ?? ''); ?>" />
+                        </div>
+
+                        <div class="form-group">
+                            <label>Phone Number</label>
+                            <input type="tel" name="phone" value="<?php echo htmlspecialchars($user_data['phone'] ?? ''); ?>" />
+                        </div>
+
+                        <div class="btn-group">
+                            <button type="submit" class="btn-save">
+                                <i class="fas fa-save"></i> Update Profile
+                            </button>
+                        </div>
+                    </form>
                 </div>
-                <div class="card-subtitle">Your account details and role information</div>
-                
-                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">
-                    <div>
-                        <div style="font-size:0.7rem;color:var(--gray-400);">Role</div>
-                        <div style="font-weight:600;">State Coordinator</div>
-                    </div>
-                    <div>
-                        <div style="font-size:0.7rem;color:var(--gray-400);">State</div>
-                        <div style="font-weight:600;"><?php echo htmlspecialchars($state_name); ?></div>
-                    </div>
-                    <div>
-                        <div style="font-size:0.7rem;color:var(--gray-400);">User ID</div>
-                        <div style="font-weight:600;">#<?php echo $user_id; ?></div>
-                    </div>
-                    <div>
-                        <div style="font-size:0.7rem;color:var(--gray-400);">Tenant</div>
-                        <div style="font-weight:600;"><?php echo htmlspecialchars(SessionManager::get('tenant_name') ?? 'N/A'); ?></div>
+            </div>
+
+            <!-- Password Tab -->
+            <div class="tab-content" id="tab-password">
+                <div class="settings-card">
+                    <div class="card-title"><i class="fas fa-key"></i> Change Password</div>
+                    
+                    <form method="POST" action="">
+                        <input type="hidden" name="action" value="password" />
+                        
+                        <div class="form-group">
+                            <label>Current Password <span class="required">*</span></label>
+                            <input type="password" name="current_password" required />
+                        </div>
+
+                        <div class="form-group">
+                            <label>New Password <span class="required">*</span></label>
+                            <input type="password" name="new_password" required minlength="8" />
+                            <div class="help-text">Minimum 8 characters</div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Confirm New Password <span class="required">*</span></label>
+                            <input type="password" name="confirm_password" required minlength="8" />
+                        </div>
+
+                        <div class="btn-group">
+                            <button type="submit" class="btn-save">
+                                <i class="fas fa-key"></i> Change Password
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Preferences Tab -->
+            <div class="tab-content" id="tab-preferences">
+                <div class="settings-card">
+                    <div class="card-title"><i class="fas fa-sliders-h"></i> Preferences</div>
+                    
+                    <form method="POST" action="">
+                        <input type="hidden" name="action" value="preferences" />
+                        
+                        <div class="form-group">
+                            <label>Language</label>
+                            <select name="language">
+                                <option value="en" <?php echo ($settings['user_language'] ?? 'en') === 'en' ? 'selected' : ''; ?>>English</option>
+                                <option value="fr" <?php echo ($settings['user_language'] ?? '') === 'fr' ? 'selected' : ''; ?>>French</option>
+                                <option value="pt" <?php echo ($settings['user_language'] ?? '') === 'pt' ? 'selected' : ''; ?>>Portuguese</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Timezone</label>
+                            <select name="timezone">
+                                <option value="Africa/Lagos" <?php echo ($settings['user_timezone'] ?? 'Africa/Lagos') === 'Africa/Lagos' ? 'selected' : ''; ?>>Africa/Lagos (WAT)</option>
+                                <option value="Africa/Abidjan" <?php echo ($settings['user_timezone'] ?? '') === 'Africa/Abidjan' ? 'selected' : ''; ?>>Africa/Abidjan (GMT)</option>
+                                <option value="Africa/Cairo" <?php echo ($settings['user_timezone'] ?? '') === 'Africa/Cairo' ? 'selected' : ''; ?>>Africa/Cairo (EET)</option>
+                                <option value="Africa/Johannesburg" <?php echo ($settings['user_timezone'] ?? '') === 'Africa/Johannesburg' ? 'selected' : ''; ?>>Africa/Johannesburg (SAST)</option>
+                                <option value="UTC" <?php echo ($settings['user_timezone'] ?? '') === 'UTC' ? 'selected' : ''; ?>>UTC</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Notifications</label>
+                            <div class="checkbox-group">
+                                <input type="checkbox" name="notification_email" id="notif_email" <?php echo ($settings['user_notification_email'] ?? '1') == 1 ? 'checked' : ''; ?> />
+                                <label for="notif_email">Email Notifications</label>
+                            </div>
+                            <div class="checkbox-group">
+                                <input type="checkbox" name="notification_inapp" id="notif_inapp" <?php echo ($settings['user_notification_inapp'] ?? '1') == 1 ? 'checked' : ''; ?> />
+                                <label for="notif_inapp">In-App Notifications</label>
+                            </div>
+                        </div>
+
+                        <div class="btn-group">
+                            <button type="submit" class="btn-save">
+                                <i class="fas fa-save"></i> Save Preferences
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Security Tab -->
+            <div class="tab-content" id="tab-security">
+                <div class="settings-card">
+                    <div class="card-title"><i class="fas fa-shield-alt"></i> Security Settings</div>
+                    
+                    <form method="POST" action="">
+                        <input type="hidden" name="action" value="security" />
+                        
+                        <div class="form-group">
+                            <div class="checkbox-group">
+                                <input type="checkbox" name="two_factor" id="two_factor" <?php echo ($user_data['two_factor_enabled'] ?? 0) == 1 ? 'checked' : ''; ?> />
+                                <label for="two_factor">Enable Two-Factor Authentication (2FA)</label>
+                            </div>
+                            <div class="help-text">Adds an extra layer of security to your account</div>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Session Timeout (seconds)</label>
+                            <input type="number" name="session_timeout" value="<?php echo htmlspecialchars($settings['session_timeout'] ?? 3600); ?>" min="300" max="86400" />
+                            <div class="help-text">How long before your session expires (300 - 86400 seconds)</div>
+                        </div>
+
+                        <div class="btn-group">
+                            <button type="submit" class="btn-save">
+                                <i class="fas fa-save"></i> Save Security Settings
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="settings-card">
+                    <div class="card-title"><i class="fas fa-history"></i> Session Management</div>
+                    
+                    <div style="padding:10px 0;">
+                        <p style="font-size:0.82rem;color:var(--gray-600);">
+                            <i class="fas fa-info-circle" style="color:var(--primary);"></i>
+                            Active sessions: <strong><?php echo count(getTrustedDevices($user_id)); ?></strong>
+                        </p>
+                        <a href="../../auth/logout-all.php" class="btn-save" style="padding:8px 20px;font-size:0.78rem;background:#EF4444;color:white;text-decoration:none;border-radius:8px;display:inline-block;">
+                            <i class="fas fa-sign-out-alt"></i> Logout All Devices
+                        </a>
                     </div>
                 </div>
             </div>
@@ -602,22 +619,35 @@ include '../includes/sidebar.php';
 </main>
 
 <script>
-// ============================================================
-// PRELOADER
-// ============================================================
+function switchTab(tabName) {
+    // Hide all tabs
+    document.querySelectorAll('.tab-content').forEach(function(tab) {
+        tab.classList.remove('active');
+    });
+    
+    // Remove active class from all tab buttons
+    document.querySelectorAll('.tab-nav button').forEach(function(btn) {
+        btn.classList.remove('active');
+    });
+    
+    // Show selected tab
+    var tab = document.getElementById('tab-' + tabName);
+    if (tab) tab.classList.add('active');
+    
+    // Activate button
+    var btn = document.querySelector('.tab-nav button[data-tab="' + tabName + '"]');
+    if (btn) btn.classList.add('active');
+}
+
+// Same sidebar scripts as index.php
 window.addEventListener('load', function() {
     var preloader = document.getElementById('preloader');
     if (preloader) {
         preloader.classList.add('hidden');
-        setTimeout(function() {
-            preloader.style.display = 'none';
-        }, 600);
+        setTimeout(function() { preloader.style.display = 'none'; }, 600);
     }
 });
 
-// ============================================================
-// SIDEBAR TOGGLE
-// ============================================================
 var sidebar = document.getElementById('sidebar');
 var sidebarToggle = document.getElementById('sidebarToggle');
 var sidebarOverlay = document.getElementById('sidebarOverlay');
@@ -656,9 +686,6 @@ window.addEventListener('resize', function() {
     }
 });
 
-// ============================================================
-// SIDEBAR DROPDOWNS
-// ============================================================
 document.querySelectorAll('.dropdown-toggle').forEach(function(toggle) {
     toggle.addEventListener('click', function(e) {
         e.preventDefault();
@@ -672,9 +699,6 @@ document.querySelectorAll('.dropdown-toggle').forEach(function(toggle) {
     });
 });
 
-// ============================================================
-// PROFILE DROPDOWN
-// ============================================================
 var profileBtn = document.getElementById('profileBtn');
 var profileMenu = document.getElementById('profileMenu');
 

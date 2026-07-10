@@ -6,7 +6,6 @@ require_once '../../config/config.php';
 require_once '../../includes/session.php';
 require_once '../../includes/functions.php';
 
-// Start session
 SessionManager::start();
 
 if (!SessionManager::isLoggedIn()) {
@@ -14,7 +13,6 @@ if (!SessionManager::isLoggedIn()) {
     exit();
 }
 
-// Only state coordinator can access
 if (SessionManager::get('role_level') !== 'state') {
     header('Location: ../client-admin/');
     exit();
@@ -25,7 +23,6 @@ $user_id = SessionManager::get('user_id');
 $tenant_id = SessionManager::get('tenant_id');
 $state_id = SessionManager::get('state_id');
 
-// If state_id is not set in session, try to get it from user record
 if (empty($state_id)) {
     $db = getDB();
     try {
@@ -42,230 +39,155 @@ if (empty($state_id)) {
 }
 
 $db = getDB();
+$lga_id = isset($_GET['lga_id']) ? (int)$_GET['lga_id'] : 0;
 
-// ============================================================
-// GET FILTERS
-// ============================================================
-$election_filter = isset($_GET['election_id']) ? (int)$_GET['election_id'] : 0;
-
-// ============================================================
-// FETCH STATE NAME
-// ============================================================
+// Get state name
 $state_name = 'Unknown State';
-try {
-    if (!empty($state_id)) {
-        $stmt = $db->prepare("SELECT name FROM states WHERE id = ?");
-        $stmt->execute([$state_id]);
-        $state = $stmt->fetch(PDO::FETCH_ASSOC);
-        $state_name = $state['name'] ?? 'Unknown State';
-    }
-} catch (Exception $e) {
-    error_log("Error fetching state: " . $e->getMessage());
+if (!empty($state_id)) {
+    $stmt = $db->prepare("SELECT name FROM states WHERE id = ?");
+    $stmt->execute([$state_id]);
+    $state = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_name = $state['name'] ?? 'Unknown State';
 }
 
-// ============================================================
-// FETCH ELECTIONS FOR FILTER
-// ============================================================
-$elections = [];
+// Get all LGAs for dropdown
+$lgas = [];
 try {
-    $stmt = $db->prepare("
-        SELECT id, name, status 
-        FROM elections 
-        WHERE tenant_id = ? AND deleted_at IS NULL 
-        AND (states_json LIKE ? OR states_json IS NULL OR states_json = '[]')
-        ORDER BY election_date DESC
-    ");
-    $stmt->execute([$tenant_id, '%"' . $state_id . '"%']);
-    $elections = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $stmt = $db->prepare("SELECT id, name FROM lgas WHERE state_id = ? AND is_active = 1 ORDER BY name ASC");
+    $stmt->execute([$state_id]);
+    $lgas = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
-    error_log("Error fetching elections: " . $e->getMessage());
+    error_log("Error fetching LGAs: " . $e->getMessage());
 }
 
-// ============================================================
-// FETCH LGA PERFORMANCE DATA
-// ============================================================
-$lga_performance = [];
-$summary = [];
-
-if ($election_filter > 0) {
-    try {
-        // Get election details
-        $stmt = $db->prepare("SELECT name, election_date FROM elections WHERE id = ? AND tenant_id = ?");
-        $stmt->execute([$election_filter, $tenant_id]);
-        $election = $stmt->fetch(PDO::FETCH_ASSOC);
-        
-        if ($election) {
-            // Get LGAs in state
-            $stmt = $db->prepare("SELECT id, name FROM lgas WHERE state_id = ? AND is_active = 1 ORDER BY name");
-            $stmt->execute([$state_id]);
-            $lgas = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            
-            foreach ($lgas as $lga) {
-                // Get PU counts
-                $stmt = $db->prepare("
-                    SELECT COUNT(*) as total_pus 
-                    FROM polling_units pu
-                    JOIN wards w ON pu.ward_id = w.id
-                    WHERE w.lga_id = ? AND pu.is_active = 1
-                ");
-                $stmt->execute([$lga['id']]);
-                $total_pus = (int)($stmt->fetch(PDO::FETCH_ASSOC)['total_pus'] ?? 0);
-                
-                // Get reported PUs
-                $stmt = $db->prepare("
-                    SELECT 
-                        COUNT(DISTINCT r.pu_id) as reported_pus,
-                        COUNT(DISTINCT CASE WHEN r.status IN ('verified', 'approved') THEN r.pu_id END) as verified_pus,
-                        COUNT(DISTINCT CASE WHEN r.status = 'pending' THEN r.pu_id END) as pending_pus
-                    FROM results_ec8a r
-                    JOIN polling_units pu ON r.pu_id = pu.id
-                    JOIN wards w ON pu.ward_id = w.id
-                    WHERE r.tenant_id = ? 
-                    AND r.election_id = ? 
-                    AND w.lga_id = ?
-                ");
-                $stmt->execute([$tenant_id, $election_filter, $lga['id']]);
-                $data = $stmt->fetch(PDO::FETCH_ASSOC);
-                
-                // Get coordinator info
-                $stmt = $db->prepare("
-                    SELECT u.first_name, u.last_name, u.email, u.phone
-                    FROM users u
-                    JOIN roles r ON u.role_id = r.id
-                    WHERE u.lga_id = ? AND r.level = 'lga' AND u.deleted_at IS NULL AND u.status = 'active'
-                ");
-                $stmt->execute([$lga['id']]);
-                $coordinator = $stmt->fetch(PDO::FETCH_ASSOC);
-                
-                $reported = (int)($data['reported_pus'] ?? 0);
-                $verified = (int)($data['verified_pus'] ?? 0);
-                $pending = (int)($data['pending_pus'] ?? 0);
-                
-                $completion = $total_pus > 0 ? round(($reported / $total_pus) * 100, 1) : 0;
-                $verification = $total_pus > 0 ? round(($verified / $total_pus) * 100, 1) : 0;
-                
-                // Determine status
-                if ($completion >= 80) {
-                    $status = 'Excellent';
-                    $status_class = 'success';
-                } elseif ($completion >= 50) {
-                    $status = 'In Progress';
-                    $status_class = 'warning';
-                } elseif ($completion > 0) {
-                    $status = 'Low';
-                    $status_class = 'danger';
-                } else {
-                    $status = 'No Data';
-                    $status_class = 'secondary';
-                }
-                
-                $lga_performance[] = [
-                    'id' => $lga['id'],
-                    'name' => $lga['name'],
-                    'coordinator' => $coordinator ? ($coordinator['first_name'] . ' ' . $coordinator['last_name']) : 'Not Assigned',
-                    'coordinator_email' => $coordinator['email'] ?? '',
-                    'coordinator_phone' => $coordinator['phone'] ?? '',
-                    'total_pus' => $total_pus,
-                    'reported_pus' => $reported,
-                    'verified_pus' => $verified,
-                    'pending_pus' => $pending,
-                    'unreported_pus' => $total_pus - $reported,
-                    'completion' => $completion,
-                    'verification' => $verification,
-                    'status' => $status,
-                    'status_class' => $status_class
-                ];
-            }
-            
-            // Calculate summary
-            $summary['total_pus'] = array_sum(array_column($lga_performance, 'total_pus'));
-            $summary['reported_pus'] = array_sum(array_column($lga_performance, 'reported_pus'));
-            $summary['verified_pus'] = array_sum(array_column($lga_performance, 'verified_pus'));
-            $summary['pending_pus'] = array_sum(array_column($lga_performance, 'pending_pus'));
-            $summary['avg_completion'] = $summary['total_pus'] > 0 ? round(($summary['reported_pus'] / $summary['total_pus']) * 100, 1) : 0;
-            $summary['avg_verification'] = $summary['total_pus'] > 0 ? round(($summary['verified_pus'] / $summary['total_pus']) * 100, 1) : 0;
-            $summary['lga_count'] = count($lga_performance);
-            
-            // Sort by completion percentage
-            usort($lga_performance, function($a, $b) {
-                return $b['completion'] - $a['completion'];
-            });
+// Get LGA name
+$lga_name = 'All LGAs';
+if ($lga_id > 0) {
+    foreach ($lgas as $l) {
+        if ($l['id'] == $lga_id) {
+            $lga_name = $l['name'];
+            break;
         }
-    } catch (Exception $e) {
-        error_log("Error fetching LGA performance: " . $e->getMessage());
     }
 }
 
+// Fetch performance data
+$performance_data = [];
+$summary = [
+    'total_pus' => 0,
+    'reported_pus' => 0,
+    'verified_pus' => 0,
+    'approved_pus' => 0,
+    'total_incidents' => 0,
+    'resolved_incidents' => 0,
+    'total_coordinators' => 0,
+    'active_coordinators' => 0,
+    'total_agents' => 0,
+    'active_agents' => 0,
+    'reporting_rate' => 0,
+    'verification_rate' => 0,
+    'approval_rate' => 0
+];
+
+try {
+    $sql = "
+        SELECT 
+            l.id as lga_id,
+            l.name as lga_name,
+            COUNT(DISTINCT pu.id) as total_pus,
+            COUNT(DISTINCT r.id) as reported_pus,
+            COUNT(DISTINCT CASE WHEN r.status IN ('verified', 'approved') THEN r.id END) as verified_pus,
+            COUNT(DISTINCT CASE WHEN r.status = 'approved' THEN r.id END) as approved_pus,
+            COUNT(DISTINCT i.id) as total_incidents,
+            COUNT(DISTINCT CASE WHEN i.status IN ('resolved', 'closed') THEN i.id END) as resolved_incidents,
+            COUNT(DISTINCT u.id) as total_coordinators,
+            COUNT(DISTINCT CASE WHEN u.status = 'active' THEN u.id END) as active_coordinators,
+            COUNT(DISTINCT a.id) as total_agents,
+            COUNT(DISTINCT CASE WHEN a.status = 'active' THEN a.id END) as active_agents
+        FROM lgas l
+        LEFT JOIN wards w ON w.lga_id = l.id AND w.is_active = 1
+        LEFT JOIN polling_units pu ON pu.ward_id = w.id AND pu.is_active = 1
+        LEFT JOIN results_ec8a r ON r.pu_id = pu.id AND r.tenant_id = ?
+        LEFT JOIN incidents i ON i.lga_id = l.id
+        LEFT JOIN users u ON u.lga_id = l.id AND u.role_id IN (SELECT id FROM roles WHERE level = 'lga')
+        LEFT JOIN users a ON a.lga_id = l.id AND a.role_id IN (SELECT id FROM roles WHERE level = 'pu_agent')
+        WHERE l.state_id = ? AND l.is_active = 1
+    ";
+    
+    $params = [$tenant_id, $state_id];
+    
+    if ($lga_id > 0) {
+        $sql .= " AND l.id = ?";
+        $params[] = $lga_id;
+    }
+    
+    $sql .= " GROUP BY l.id, l.name ORDER BY l.name ASC";
+    
+    $stmt = $db->prepare($sql);
+    $stmt->execute($params);
+    $performance_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Calculate summary
+    foreach ($performance_data as $data) {
+        $summary['total_pus'] += $data['total_pus'];
+        $summary['reported_pus'] += $data['reported_pus'];
+        $summary['verified_pus'] += $data['verified_pus'];
+        $summary['approved_pus'] += $data['approved_pus'];
+        $summary['total_incidents'] += $data['total_incidents'];
+        $summary['resolved_incidents'] += $data['resolved_incidents'];
+        $summary['total_coordinators'] += $data['total_coordinators'];
+        $summary['active_coordinators'] += $data['active_coordinators'];
+        $summary['total_agents'] += $data['total_agents'];
+        $summary['active_agents'] += $data['active_agents'];
+    }
+    
+    $summary['reporting_rate'] = $summary['total_pus'] > 0 ? round(($summary['reported_pus'] / $summary['total_pus']) * 100, 1) : 0;
+    $summary['verification_rate'] = $summary['reported_pus'] > 0 ? round(($summary['verified_pus'] / $summary['reported_pus']) * 100, 1) : 0;
+    $summary['approval_rate'] = $summary['verified_pus'] > 0 ? round(($summary['approved_pus'] / $summary['verified_pus']) * 100, 1) : 0;
+    
+} catch (Exception $e) {
+    error_log("Error fetching performance data: " . $e->getMessage());
+}
+
+$page_title = 'LGA Performance Report';
 include '../includes/base.php';
 include '../includes/sidebar.php';
 ?>
 
 <style>
-/* Reuse styles from reports-state.php */
-.page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 12px;
-    margin-bottom: 20px;
-}
-.page-header h2 {
-    font-size: 1.3rem;
-    font-weight: 700;
-    margin: 0;
-}
-.page-header h2 small {
-    font-size: 0.8rem;
-    font-weight: 400;
-    color: var(--gray-500);
-    display: block;
-    margin-top: 2px;
-}
-
-.btn-secondary-sm {
-    padding: 8px 20px;
-    background: var(--gray-100);
-    color: var(--gray-700);
-    border: 1px solid var(--gray-200);
-    border-radius: 10px;
-    text-decoration: none;
-    font-weight: 500;
-    font-size: 0.8rem;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    transition: var(--transition);
-    font-family: 'Inter', sans-serif;
-}
-.btn-secondary-sm:hover {
-    background: var(--gray-200);
+.report-container {
+    max-width: 1000px;
+    margin: 0 auto;
 }
 
 .filter-bar {
     display: flex;
-    gap: 10px;
+    gap: 12px;
     flex-wrap: wrap;
-    align-items: center;
     margin-bottom: 20px;
+    align-items: center;
     background: white;
     padding: 16px 20px;
     border-radius: var(--radius);
     border: 1px solid var(--gray-200);
 }
+
 .filter-bar select {
     padding: 8px 14px;
     border: 1px solid var(--gray-200);
     border-radius: 10px;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     font-family: 'Inter', sans-serif;
     background: white;
     min-width: 200px;
 }
+
 .filter-bar select:focus {
     outline: none;
     border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.06);
 }
+
 .filter-bar .btn-filter {
     padding: 8px 24px;
     background: var(--primary);
@@ -273,141 +195,176 @@ include '../includes/sidebar.php';
     border: none;
     border-radius: 10px;
     font-weight: 600;
+    font-size: 0.8rem;
     cursor: pointer;
+    transition: var(--transition);
     font-family: 'Inter', sans-serif;
 }
+
 .filter-bar .btn-filter:hover {
     background: var(--primary-dark);
 }
 
 .summary-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     gap: 12px;
     margin-bottom: 20px;
 }
+
 .summary-card {
     background: white;
-    border-radius: 12px;
-    padding: 16px 20px;
+    border-radius: var(--radius);
+    padding: 12px 14px;
     border: 1px solid var(--gray-200);
     text-align: center;
 }
+
 .summary-card .number {
-    font-size: 1.6rem;
+    font-size: 1.3rem;
     font-weight: 700;
 }
-.summary-card .label {
-    font-size: 0.7rem;
-    color: var(--gray-500);
-    margin-top: 2px;
-}
+
 .summary-card .number.primary { color: #3B82F6; }
 .summary-card .number.success { color: #10B981; }
 .summary-card .number.warning { color: #F59E0B; }
 .summary-card .number.danger { color: #EF4444; }
+.summary-card .number.purple { color: #8B5CF6; }
 
-.table-wrapper {
+.summary-card .label {
+    font-size: 0.6rem;
+    color: var(--gray-500);
+}
+
+.summary-card .sub {
+    font-size: 0.55rem;
+    color: var(--gray-400);
+    margin-top: 2px;
+}
+
+.performance-table-container {
     background: white;
     border-radius: var(--radius);
     border: 1px solid var(--gray-200);
     overflow: hidden;
-    box-shadow: var(--shadow-sm);
 }
-.table-wrapper table {
+
+.performance-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.85rem;
+    font-size: 0.82rem;
 }
-.table-wrapper table th {
+
+.performance-table th {
     background: var(--gray-50);
-    padding: 12px 16px;
+    padding: 10px 12px;
     text-align: left;
     font-weight: 600;
-    font-size: 0.75rem;
-    color: var(--gray-600);
+    color: var(--gray-700);
     border-bottom: 1px solid var(--gray-200);
-    white-space: nowrap;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
 }
-.table-wrapper table td {
-    padding: 12px 16px;
+
+.performance-table td {
+    padding: 8px 12px;
     border-bottom: 1px solid var(--gray-100);
     vertical-align: middle;
 }
-.table-wrapper table tr:hover td {
+
+.performance-table tr:hover td {
     background: var(--gray-50);
 }
-.table-wrapper table tr:last-child td {
-    border-bottom: none;
+
+.performance-table .progress-bar {
+    height: 4px;
+    background: var(--gray-200);
+    border-radius: 2px;
+    overflow: hidden;
+    width: 80px;
+    display: inline-block;
+    vertical-align: middle;
 }
 
-.badge-status {
+.performance-table .progress-bar .fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.8s ease;
+}
+
+.performance-table .progress-bar .fill.success { background: #10B981; }
+.performance-table .progress-bar .fill.warning { background: #F59E0B; }
+.performance-table .progress-bar .fill.danger { background: #EF4444; }
+
+.status-badge {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
+    font-size: 0.55rem;
     padding: 2px 10px;
-    border-radius: 20px;
-    font-size: 0.65rem;
+    border-radius: 12px;
     font-weight: 600;
 }
-.badge-status .dot {
-    width: 6px;
-    height: 6px;
+
+.status-badge .dot {
+    width: 5px;
+    height: 5px;
     border-radius: 50%;
     display: inline-block;
 }
-.badge-status.success { background: #ECFDF5; color: #065F46; }
-.badge-status.success .dot { background: #10B981; }
-.badge-status.warning { background: #FFFBEB; color: #92400E; }
-.badge-status.warning .dot { background: #F59E0B; }
-.badge-status.danger { background: #FEF2F2; color: #991B1B; }
-.badge-status.danger .dot { background: #EF4444; }
-.badge-status.secondary { background: #F3F4F6; color: #6B7280; }
-.badge-status.secondary .dot { background: #9CA3AF; }
 
-.rank-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    font-weight: 700;
-    font-size: 0.7rem;
-}
-.rank-badge.gold { background: #FCD34D; color: #92400E; }
-.rank-badge.silver { background: #D1D5DB; color: #4B5563; }
-.rank-badge.bronze { background: #FCA5A5; color: #7F1D1D; }
+.status-badge.high { background: #ECFDF5; color: #065F46; }
+.status-badge.high .dot { background: #10B981; }
+.status-badge.medium { background: #FFFBEB; color: #92400E; }
+.status-badge.medium .dot { background: #F59E0B; }
+.status-badge.low { background: #FEF2F2; color: #991B1B; }
+.status-badge.low .dot { background: #EF4444; }
 
 .empty-state {
     text-align: center;
-    padding: 60px 20px;
-    color: var(--gray-400);
+    padding: 40px 20px;
 }
+
 .empty-state i {
     font-size: 3rem;
+    color: var(--gray-300);
     display: block;
     margin-bottom: 12px;
-    color: var(--gray-300);
+}
+
+.empty-state h4 {
+    color: var(--gray-600);
+    margin: 0;
+}
+
+.empty-state p {
+    color: var(--gray-400);
+    font-size: 0.85rem;
+    margin-top: 4px;
 }
 
 @media (max-width: 768px) {
-    .page-header {
-        flex-direction: column;
-        align-items: flex-start;
-    }
     .filter-bar {
         flex-direction: column;
         align-items: stretch;
     }
     .filter-bar select {
         width: 100%;
-    }
-    .table-wrapper {
-        overflow-x: auto;
+        min-width: unset;
     }
     .summary-grid {
         grid-template-columns: repeat(2, 1fr);
+    }
+    .performance-table-container {
+        overflow-x: auto;
+    }
+    .performance-table {
+        font-size: 0.7rem;
+    }
+    .performance-table th,
+    .performance-table td {
+        padding: 6px 8px;
     }
 }
 </style>
@@ -416,154 +373,179 @@ include '../includes/sidebar.php';
     <?php include '../includes/header.php'; ?>
     
     <div class="main-content-inner">
-        <!-- Page Header -->
-        <div class="page-header">
-            <div>
-                <h2>
-                    <i class="fas fa-chart-bar" style="color:var(--primary);margin-right:8px;"></i>
-                    LGA Performance Report
-                    <small><?php echo htmlspecialchars($state_name); ?> - LGA performance analysis</small>
-                </h2>
+        <div class="report-container">
+            <!-- Page Header -->
+            <div class="welcome-section">
+                <div>
+                    <h1><i class="fas fa-chart-bar"></i> LGA Performance Report</h1>
+                    <p class="subtitle">
+                        <i class="fas fa-flag"></i> 
+                        <?php echo htmlspecialchars($state_name); ?> State - LGA Performance Analysis
+                    </p>
+                </div>
             </div>
-            <div>
-                <a href="reports-state.php" class="btn-secondary-sm">
-                    <i class="fas fa-arrow-left"></i> Back to Reports
+
+            <!-- Filter -->
+            <div class="filter-bar">
+                <select id="lgaFilter" onchange="applyFilter()">
+                    <option value="0">All LGAs</option>
+                    <?php foreach ($lgas as $l): ?>
+                        <option value="<?php echo $l['id']; ?>" <?php echo $lga_id == $l['id'] ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars($l['name']); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                
+                <button class="btn-filter" onclick="applyFilter()">
+                    <i class="fas fa-filter"></i> Apply
+                </button>
+                
+                <a href="export-pdf.php?type=lga_performance&lga_id=<?php echo $lga_id; ?>" class="btn-primary-sm" style="margin-left:auto;">
+                    <i class="fas fa-file-pdf"></i> Export PDF
                 </a>
             </div>
-        </div>
 
-        <!-- Filter Bar -->
-        <form method="GET" action="" class="filter-bar">
-            <select name="election_id" required>
-                <option value="">Select Election</option>
-                <?php foreach ($elections as $e): ?>
-                    <option value="<?php echo $e['id']; ?>" <?php echo $election_filter == $e['id'] ? 'selected' : ''; ?>>
-                        <?php echo htmlspecialchars($e['name']); ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-            <button type="submit" class="btn-filter"><i class="fas fa-chart-bar"></i> View Performance</button>
-        </form>
-
-        <?php if ($election_filter > 0 && !empty($lga_performance)): ?>
-            <!-- Summary -->
+            <!-- Summary Cards -->
             <div class="summary-grid">
-                <div class="summary-card">
-                    <div class="number primary"><?php echo number_format($summary['lga_count']); ?></div>
-                    <div class="label">LGAs</div>
-                </div>
                 <div class="summary-card">
                     <div class="number primary"><?php echo number_format($summary['total_pus']); ?></div>
                     <div class="label">Total PUs</div>
                 </div>
                 <div class="summary-card">
                     <div class="number success"><?php echo number_format($summary['reported_pus']); ?></div>
-                    <div class="label">Reported</div>
+                    <div class="label">Reported PUs</div>
+                    <div class="sub"><?php echo $summary['reporting_rate']; ?>% Rate</div>
                 </div>
                 <div class="summary-card">
-                    <div class="number success"><?php echo $summary['avg_completion']; ?>%</div>
-                    <div class="label">Avg Completion</div>
+                    <div class="number warning"><?php echo number_format($summary['verified_pus']); ?></div>
+                    <div class="label">Verified PUs</div>
+                    <div class="sub"><?php echo $summary['verification_rate']; ?>% Rate</div>
                 </div>
                 <div class="summary-card">
-                    <div class="number warning"><?php echo $summary['avg_verification']; ?>%</div>
-                    <div class="label">Avg Verification</div>
+                    <div class="number success"><?php echo number_format($summary['approved_pus']); ?></div>
+                    <div class="label">Approved PUs</div>
+                    <div class="sub"><?php echo $summary['approval_rate']; ?>% Rate</div>
+                </div>
+                <div class="summary-card">
+                    <div class="number danger"><?php echo number_format($summary['total_incidents']); ?></div>
+                    <div class="label">Incidents</div>
+                    <div class="sub"><?php echo number_format($summary['resolved_incidents']); ?> Resolved</div>
+                </div>
+                <div class="summary-card">
+                    <div class="number purple"><?php echo number_format($summary['total_coordinators']); ?></div>
+                    <div class="label">Coordinators</div>
+                    <div class="sub"><?php echo number_format($summary['active_coordinators']); ?> Active</div>
+                </div>
+                <div class="summary-card">
+                    <div class="number" style="color:#8B5CF6;"><?php echo number_format($summary['total_agents']); ?></div>
+                    <div class="label">Agents</div>
+                    <div class="sub"><?php echo number_format($summary['active_agents']); ?> Active</div>
+                </div>
+                <div class="summary-card">
+                    <div class="number" style="color:#F97316;"><?php echo number_format($summary['total_incidents'] > 0 ? round(($summary['resolved_incidents'] / $summary['total_incidents']) * 100, 1) : 0); ?>%</div>
+                    <div class="label">Resolution Rate</div>
                 </div>
             </div>
 
-            <!-- LGA Performance Table -->
-            <div class="table-wrapper">
-                <table>
+            <!-- Performance Table -->
+            <div class="performance-table-container">
+                <table class="performance-table">
                     <thead>
                         <tr>
-                            <th>Rank</th>
                             <th>LGA</th>
-                            <th>Coordinator</th>
-                            <th>Total PUs</th>
+                            <th>PUs</th>
                             <th>Reported</th>
                             <th>Verified</th>
-                            <th>Pending</th>
-                            <th>Completion</th>
+                            <th>Approved</th>
+                            <th>Reporting Rate</th>
+                            <th>Coordinators</th>
+                            <th>Agents</th>
+                            <th>Incidents</th>
                             <th>Status</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php $rank = 1; ?>
-                        <?php foreach ($lga_performance as $lga): ?>
+                        <?php foreach ($performance_data as $data): 
+                            $reporting_rate = $data['total_pus'] > 0 ? round(($data['reported_pus'] / $data['total_pus']) * 100, 1) : 0;
+                            $verification_rate = $data['reported_pus'] > 0 ? round(($data['verified_pus'] / $data['reported_pus']) * 100, 1) : 0;
+                            
+                            if ($reporting_rate >= 90) {
+                                $status = 'high';
+                                $status_label = 'High';
+                            } elseif ($reporting_rate >= 60) {
+                                $status = 'medium';
+                                $status_label = 'Medium';
+                            } else {
+                                $status = 'low';
+                                $status_label = 'Low';
+                            }
+                            
+                            $progress_class = $reporting_rate >= 70 ? 'success' : ($reporting_rate >= 50 ? 'warning' : 'danger');
+                        ?>
                             <tr>
+                                <td><strong><?php echo htmlspecialchars($data['lga_name']); ?></strong></td>
+                                <td><?php echo number_format($data['total_pus']); ?></td>
+                                <td><?php echo number_format($data['reported_pus']); ?></td>
+                                <td><?php echo number_format($data['verified_pus']); ?></td>
+                                <td><?php echo number_format($data['approved_pus']); ?></td>
                                 <td>
-                                    <?php if ($rank == 1): ?>
-                                        <span class="rank-badge gold">1</span>
-                                    <?php elseif ($rank == 2): ?>
-                                        <span class="rank-badge silver">2</span>
-                                    <?php elseif ($rank == 3): ?>
-                                        <span class="rank-badge bronze">3</span>
-                                    <?php else: ?>
-                                        <span style="font-weight:600;color:var(--gray-500);"><?php echo $rank; ?></span>
+                                    <div class="progress-bar">
+                                        <div class="fill <?php echo $progress_class; ?>" style="width: <?php echo $reporting_rate; ?>%;"></div>
+                                    </div>
+                                    <?php echo $reporting_rate; ?>%
+                                </td>
+                                <td><?php echo number_format($data['total_coordinators']); ?></td>
+                                <td><?php echo number_format($data['total_agents']); ?></td>
+                                <td>
+                                    <?php echo number_format($data['total_incidents']); ?>
+                                    <?php if ($data['total_incidents'] - $data['resolved_incidents'] > 0): ?>
+                                        <span style="color:#EF4444;font-size:0.6rem;">(<?php echo number_format($data['total_incidents'] - $data['resolved_incidents']); ?> pending)</span>
                                     <?php endif; ?>
                                 </td>
-                                <td><strong><?php echo htmlspecialchars($lga['name']); ?></strong></td>
                                 <td>
-                                    <div style="font-size:0.8rem;font-weight:500;"><?php echo htmlspecialchars($lga['coordinator']); ?></div>
-                                    <div style="font-size:0.65rem;color:var(--gray-400);"><?php echo htmlspecialchars($lga['coordinator_phone']); ?></div>
-                                </td>
-                                <td><?php echo number_format($lga['total_pus']); ?></td>
-                                <td><?php echo number_format($lga['reported_pus']); ?></td>
-                                <td style="color:#10B981;"><?php echo number_format($lga['verified_pus']); ?></td>
-                                <td style="color:#F59E0B;"><?php echo number_format($lga['pending_pus']); ?></td>
-                                <td>
-                                    <div style="display:flex;align-items:center;gap:8px;">
-                                        <div style="flex:1;height:6px;background:var(--gray-200);border-radius:3px;overflow:hidden;min-width:60px;">
-                                            <div style="height:100%;border-radius:3px;background:<?php echo $lga['completion'] >= 80 ? '#10B981' : ($lga['completion'] >= 50 ? '#F59E0B' : '#EF4444'); ?>;width:<?php echo $lga['completion']; ?>%;"></div>
-                                        </div>
-                                        <span style="font-size:0.7rem;font-weight:600;min-width:35px;"><?php echo $lga['completion']; ?>%</span>
-                                    </div>
-                                </td>
-                                <td>
-                                    <span class="badge-status <?php echo $lga['status_class']; ?>">
+                                    <span class="status-badge <?php echo $status; ?>">
                                         <span class="dot"></span>
-                                        <?php echo $lga['status']; ?>
+                                        <?php echo $status_label; ?>
                                     </span>
                                 </td>
                             </tr>
-                            <?php $rank++; ?>
                         <?php endforeach; ?>
+                        
+                        <?php if (empty($performance_data)): ?>
+                            <tr>
+                                <td colspan="10">
+                                    <div class="empty-state">
+                                        <i class="fas fa-chart-bar"></i>
+                                        <h4>No Data Available</h4>
+                                        <p>No performance data available for <?php echo htmlspecialchars($state_name); ?>.</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        <?php endif; ?>
                     </tbody>
                 </table>
             </div>
-
-        <?php elseif ($election_filter > 0): ?>
-            <div class="empty-state">
-                <i class="fas fa-chart-bar"></i>
-                <p>No data found for the selected election.</p>
-                <p style="font-size:0.8rem;">Make sure results have been submitted and verified.</p>
-            </div>
-        <?php else: ?>
-            <div class="empty-state">
-                <i class="fas fa-chart-bar"></i>
-                <p>Select an election to view LGA performance.</p>
-                <p style="font-size:0.8rem;">The report will show performance metrics for each LGA in <?php echo htmlspecialchars($state_name); ?>.</p>
-            </div>
-        <?php endif; ?>
+        </div>
     </div>
 </main>
 
 <script>
-// ============================================================
-// PRELOADER
-// ============================================================
+function applyFilter() {
+    var lga = document.getElementById('lgaFilter').value;
+    var url = window.location.pathname;
+    if (lga && lga !== '0') url += '?lga_id=' + lga;
+    window.location.href = url;
+}
+
+// Same sidebar scripts as index.php
 window.addEventListener('load', function() {
     var preloader = document.getElementById('preloader');
     if (preloader) {
         preloader.classList.add('hidden');
-        setTimeout(function() {
-            preloader.style.display = 'none';
-        }, 600);
+        setTimeout(function() { preloader.style.display = 'none'; }, 600);
     }
 });
 
-// ============================================================
-// SIDEBAR TOGGLE
-// ============================================================
 var sidebar = document.getElementById('sidebar');
 var sidebarToggle = document.getElementById('sidebarToggle');
 var sidebarOverlay = document.getElementById('sidebarOverlay');
@@ -602,9 +584,6 @@ window.addEventListener('resize', function() {
     }
 });
 
-// ============================================================
-// SIDEBAR DROPDOWNS
-// ============================================================
 document.querySelectorAll('.dropdown-toggle').forEach(function(toggle) {
     toggle.addEventListener('click', function(e) {
         e.preventDefault();
@@ -618,9 +597,6 @@ document.querySelectorAll('.dropdown-toggle').forEach(function(toggle) {
     });
 });
 
-// ============================================================
-// PROFILE DROPDOWN
-// ============================================================
 var profileBtn = document.getElementById('profileBtn');
 var profileMenu = document.getElementById('profileMenu');
 

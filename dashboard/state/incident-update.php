@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// STATE COORDINATOR - RESOLVE INCIDENT
+// STATE COORDINATOR - UPDATE INCIDENT STATUS
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -52,7 +52,7 @@ try {
     $stmt = $db->prepare("
         SELECT i.*, 
                u.first_name as reporter_first_name, u.last_name as reporter_last_name,
-               pu.name as pu_name,
+               pu.name as pu_name, pu.code as pu_code,
                w.name as ward_name, l.name as lga_name,
                e.name as election_name
         FROM incidents i
@@ -77,43 +77,68 @@ if (!$incident) {
 $message = '';
 $error = '';
 
+// Get available statuses
+$status_options = [
+    'reported' => 'Reported',
+    'acknowledged' => 'Acknowledged',
+    'investigating' => 'Investigating',
+    'resolved' => 'Resolved',
+    'escalated' => 'Escalated',
+    'closed' => 'Closed',
+    'false_alarm' => 'False Alarm'
+];
+
+// Get users for assignment
+$users = [];
+try {
+    $stmt = $db->prepare("
+        SELECT id, first_name, last_name, email 
+        FROM users 
+        WHERE tenant_id = ? AND status = 'active' AND deleted_at IS NULL
+        ORDER BY first_name ASC
+    ");
+    $stmt->execute([$tenant_id]);
+    $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    error_log("Error fetching users: " . $e->getMessage());
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $resolution_notes = trim($_POST['resolution_notes'] ?? '');
+    $status = $_POST['status'] ?? $incident['status'];
+    $assigned_to = isset($_POST['assigned_to']) ? (int)$_POST['assigned_to'] : $incident['assigned_to'];
+    $severity = $_POST['severity'] ?? $incident['severity'];
+    $update_notes = trim($_POST['update_notes'] ?? '');
     
-    if (empty($resolution_notes)) {
-        $error = 'Please provide resolution notes.';
-    } else {
-        try {
-            $stmt = $db->prepare("
-                UPDATE incidents 
-                SET status = 'resolved', 
-                    resolved_by = ?,
-                    resolved_at = NOW(),
-                    updated_at = NOW()
-                WHERE id = ? AND tenant_id = ?
-            ");
-            $stmt->execute([$user_id, $incident_id, $tenant_id]);
-            
-            // Add notes
+    try {
+        $stmt = $db->prepare("
+            UPDATE incidents 
+            SET status = ?, assigned_to = ?, severity = ?, updated_at = NOW()
+            WHERE id = ? AND tenant_id = ?
+        ");
+        $stmt->execute([$status, $assigned_to, $severity, $incident_id, $tenant_id]);
+        
+        // Add notes if provided
+        if (!empty($update_notes)) {
+            // Append to resolution_notes or create a notes field
             $notes = $incident['resolution_notes'] ?? '';
-            $new_notes = $notes . "\n[" . date('Y-m-d H:i:s') . "] RESOLVED: " . $resolution_notes;
+            $new_notes = $notes . "\n[" . date('Y-m-d H:i:s') . "] " . $update_notes;
             $stmt = $db->prepare("UPDATE incidents SET resolution_notes = ? WHERE id = ?");
             $stmt->execute([$new_notes, $incident_id]);
-            
-            logActivity($user_id, 'incident_resolved', 
-                "Resolved incident #$incident_id",
-                'incidents', $incident_id
-            );
-            
-            $message = "Incident resolved successfully!";
-            
-            // Refresh incident data
-            $stmt = $db->prepare("SELECT * FROM incidents WHERE id = ?");
-            $stmt->execute([$incident_id]);
-            $incident = $stmt->fetch(PDO::FETCH_ASSOC);
-        } catch (Exception $e) {
-            $error = 'Failed to resolve incident: ' . $e->getMessage();
         }
+        
+        logActivity($user_id, 'incident_updated', 
+            "Updated incident #$incident_id: Status changed to $status",
+            'incidents', $incident_id
+        );
+        
+        $message = "Incident updated successfully!";
+        
+        // Refresh incident data
+        $stmt = $db->prepare("SELECT * FROM incidents WHERE id = ?");
+        $stmt->execute([$incident_id]);
+        $incident = $stmt->fetch(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        $error = 'Failed to update incident: ' . $e->getMessage();
     }
 }
 
@@ -130,18 +155,25 @@ $incident_types = [
     'panic_button' => 'Panic Button'
 ];
 
-$page_title = 'Resolve Incident';
+$severity_options = [
+    'low' => 'Low',
+    'medium' => 'Medium',
+    'high' => 'High',
+    'critical' => 'Critical'
+];
+
+$page_title = 'Update Incident';
 include '../includes/base.php';
 include '../includes/sidebar.php';
 ?>
 
 <style>
-.resolve-container {
+.update-container {
     max-width: 700px;
     margin: 0 auto;
 }
 
-.resolve-card {
+.update-card {
     background: white;
     border-radius: var(--radius);
     border: 1px solid var(--gray-200);
@@ -149,7 +181,7 @@ include '../includes/sidebar.php';
     margin-bottom: 16px;
 }
 
-.resolve-card .card-title {
+.update-card .card-title {
     font-size: 0.85rem;
     font-weight: 600;
     margin: 0 0 12px;
@@ -158,8 +190,8 @@ include '../includes/sidebar.php';
     color: var(--gray-700);
 }
 
-.resolve-card .card-title i {
-    color: #10B981;
+.update-card .card-title i {
+    color: var(--primary);
     margin-right: 6px;
 }
 
@@ -181,25 +213,8 @@ include '../includes/sidebar.php';
     color: var(--gray-800);
 }
 
-.detail-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-}
-
-.detail-item {
-    font-size: 0.8rem;
-}
-
-.detail-item .label {
-    color: var(--gray-500);
-    font-size: 0.65rem;
-    display: block;
-}
-
-.detail-item .value {
-    font-weight: 500;
-    color: var(--gray-800);
+.incident-info .value .status-badge {
+    font-size: 0.6rem;
 }
 
 .status-badge {
@@ -219,8 +234,20 @@ include '../includes/sidebar.php';
     display: inline-block;
 }
 
+.status-badge.reported { background: #FFFBEB; color: #92400E; }
+.status-badge.reported .dot { background: #F59E0B; }
+.status-badge.acknowledged { background: #EFF6FF; color: #1E40AF; }
+.status-badge.acknowledged .dot { background: #3B82F6; }
 .status-badge.investigating { background: #F5F3FF; color: #5B21B6; }
 .status-badge.investigating .dot { background: #8B5CF6; }
+.status-badge.resolved { background: #ECFDF5; color: #065F46; }
+.status-badge.resolved .dot { background: #10B981; }
+.status-badge.escalated { background: #FEF2F2; color: #991B1B; }
+.status-badge.escalated .dot { background: #EF4444; }
+.status-badge.closed { background: #F3F4F6; color: #6B7280; }
+.status-badge.closed .dot { background: #9CA3AF; }
+.status-badge.false_alarm { background: #F3F4F6; color: #6B7280; }
+.status-badge.false_alarm .dot { background: #9CA3AF; }
 
 .form-group {
     margin-bottom: 16px;
@@ -234,9 +261,21 @@ include '../includes/sidebar.php';
     margin-bottom: 4px;
 }
 
-.form-group label .required {
-    color: #EF4444;
-    margin-left: 2px;
+.form-group select {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid var(--gray-200);
+    border-radius: 10px;
+    font-size: 0.85rem;
+    font-family: 'Inter', sans-serif;
+    background: white;
+    transition: var(--transition);
+}
+
+.form-group select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.06);
 }
 
 .form-group textarea {
@@ -247,14 +286,14 @@ include '../includes/sidebar.php';
     font-size: 0.85rem;
     font-family: 'Inter', sans-serif;
     resize: vertical;
-    min-height: 100px;
+    min-height: 80px;
     transition: var(--transition);
 }
 
 .form-group textarea:focus {
     outline: none;
-    border-color: #10B981;
-    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.06);
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.06);
 }
 
 .alert {
@@ -280,20 +319,6 @@ include '../includes/sidebar.php';
     margin-right: 6px;
 }
 
-.info-box {
-    background: #F0F9FF;
-    border: 1px solid #BAE6FD;
-    border-radius: 10px;
-    padding: 12px 16px;
-    margin-bottom: 16px;
-    font-size: 0.75rem;
-    color: #0369A1;
-}
-
-.info-box i {
-    margin-right: 6px;
-}
-
 .btn-group {
     display: flex;
     gap: 10px;
@@ -311,15 +336,15 @@ include '../includes/sidebar.php';
     font-family: 'Inter', sans-serif;
 }
 
-.btn-group .btn-resolve {
-    background: #10B981;
+.btn-group .btn-update {
+    background: var(--primary);
     color: white;
 }
 
-.btn-group .btn-resolve:hover {
-    background: #059669;
+.btn-group .btn-update:hover {
+    background: var(--primary-dark);
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.3);
 }
 
 .btn-group .btn-cancel {
@@ -340,8 +365,29 @@ include '../includes/sidebar.php';
     background: var(--gray-200);
 }
 
+.detail-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.detail-item {
+    font-size: 0.8rem;
+}
+
+.detail-item .label {
+    color: var(--gray-500);
+    font-size: 0.65rem;
+    display: block;
+}
+
+.detail-item .value {
+    font-weight: 500;
+    color: var(--gray-800);
+}
+
 @media (max-width: 768px) {
-    .resolve-card {
+    .update-card {
         padding: 16px 18px;
     }
     .detail-grid {
@@ -362,11 +408,11 @@ include '../includes/sidebar.php';
     <?php include '../includes/header.php'; ?>
     
     <div class="main-content-inner">
-        <div class="resolve-container">
+        <div class="update-container">
             <!-- Page Header -->
             <div class="welcome-section">
                 <div>
-                    <h1><i class="fas fa-check-circle" style="color:#10B981;"></i> Resolve Incident</h1>
+                    <h1><i class="fas fa-edit"></i> Update Incident</h1>
                     <p class="subtitle">
                         <i class="fas fa-exclamation-triangle"></i> 
                         #<?php echo $incident_id; ?> - <?php echo htmlspecialchars($incident['title']); ?>
@@ -392,8 +438,8 @@ include '../includes/sidebar.php';
                 </div>
             <?php endif; ?>
 
-            <div class="resolve-card">
-                <div class="card-title"><i class="fas fa-info-circle"></i> Incident Details</div>
+            <div class="update-card">
+                <div class="card-title"><i class="fas fa-info-circle"></i> Incident Information</div>
                 
                 <div class="incident-info">
                     <div class="detail-grid">
@@ -420,29 +466,65 @@ include '../includes/sidebar.php';
                             <span class="value"><?php echo htmlspecialchars($incident['election_name'] ?? 'N/A'); ?></span>
                         </div>
                         <div class="detail-item" style="grid-column: span 2;">
+                            <span class="label">Reported By</span>
+                            <span class="value">
+                                <?php echo htmlspecialchars($incident['reporter_first_name'] ?? '') . ' ' . htmlspecialchars($incident['reporter_last_name'] ?? 'Unknown'); ?>
+                            </span>
+                        </div>
+                        <div class="detail-item" style="grid-column: span 2;">
                             <span class="label">Description</span>
                             <span class="value" style="font-weight:400;"><?php echo htmlspecialchars($incident['description']); ?></span>
                         </div>
                     </div>
                 </div>
 
-                <div class="info-box">
-                    <i class="fas fa-info-circle"></i>
-                    Resolving this incident will mark it as resolved. It can be closed later.
-                </div>
-
                 <form method="POST" action="">
                     <div class="form-group">
-                        <label>Resolution Notes <span class="required">*</span></label>
-                        <textarea name="resolution_notes" required placeholder="Describe how this incident was resolved..."></textarea>
+                        <label>Status <span class="required">*</span></label>
+                        <select name="status" required>
+                            <?php foreach ($status_options as $key => $label): ?>
+                                <option value="<?php echo $key; ?>" <?php echo ($incident['status'] == $key) ? 'selected' : ''; ?>>
+                                    <?php echo $label; ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Severity <span class="required">*</span></label>
+                        <select name="severity" required>
+                            <?php foreach ($severity_options as $key => $label): ?>
+                                <option value="<?php echo $key; ?>" <?php echo ($incident['severity'] == $key) ? 'selected' : ''; ?>>
+                                    <?php echo $label; ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Assign To</label>
+                        <select name="assigned_to">
+                            <option value="">Unassigned</option>
+                            <?php foreach ($users as $user): ?>
+                                <option value="<?php echo $user['id']; ?>" <?php echo ($incident['assigned_to'] == $user['id']) ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?>
+                                    (<?php echo htmlspecialchars($user['email']); ?>)
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Update Notes</label>
+                        <textarea name="update_notes" placeholder="Describe what action was taken or any new information..."></textarea>
                     </div>
 
                     <div class="btn-group">
                         <a href="incidents.php" class="btn-cancel">
                             <i class="fas fa-times"></i> Cancel
                         </a>
-                        <button type="submit" class="btn-resolve">
-                            <i class="fas fa-check"></i> Resolve Incident
+                        <button type="submit" class="btn-update">
+                            <i class="fas fa-save"></i> Update Incident
                         </button>
                     </div>
                 </form>

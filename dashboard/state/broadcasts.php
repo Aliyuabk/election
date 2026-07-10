@@ -1,12 +1,11 @@
 <?php
 // ============================================================
-// STATE COORDINATOR - BROADCASTS
+// STATE COORDINATOR - BROADCASTS LIST
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
 require_once '../../includes/functions.php';
 
-// Start session
 SessionManager::start();
 
 if (!SessionManager::isLoggedIn()) {
@@ -14,7 +13,6 @@ if (!SessionManager::isLoggedIn()) {
     exit();
 }
 
-// Only state coordinator can access
 if (SessionManager::get('role_level') !== 'state') {
     header('Location: ../client-admin/');
     exit();
@@ -25,7 +23,6 @@ $user_id = SessionManager::get('user_id');
 $tenant_id = SessionManager::get('tenant_id');
 $state_id = SessionManager::get('state_id');
 
-// If state_id is not set in session, try to get it from user record
 if (empty($state_id)) {
     $db = getDB();
     try {
@@ -42,480 +39,363 @@ if (empty($state_id)) {
 }
 
 $db = getDB();
-
-// ============================================================
-// GENERATE CSRF TOKEN
-// ============================================================
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
-$csrf_token = $_SESSION['csrf_token'];
-
-// ============================================================
-// GET FILTERS
-// ============================================================
 $status_filter = isset($_GET['status']) ? $_GET['status'] : '';
-$search = isset($_GET['search']) ? trim($_GET['search']) : '';
-$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-$per_page = 10;
-$offset = ($page - 1) * $per_page;
 
-// ============================================================
-// FETCH STATE NAME
-// ============================================================
+// Get state name
 $state_name = 'Unknown State';
-try {
-    if (!empty($state_id)) {
-        $stmt = $db->prepare("SELECT name FROM states WHERE id = ?");
-        $stmt->execute([$state_id]);
-        $state = $stmt->fetch(PDO::FETCH_ASSOC);
-        $state_name = $state['name'] ?? 'Unknown State';
-    }
-} catch (Exception $e) {
-    error_log("Error fetching state: " . $e->getMessage());
+if (!empty($state_id)) {
+    $stmt = $db->prepare("SELECT name FROM states WHERE id = ?");
+    $stmt->execute([$state_id]);
+    $state = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_name = $state['name'] ?? 'Unknown State';
 }
 
-// ============================================================
-// FETCH BROADCASTS
-// ============================================================
+// Fetch broadcasts
 $broadcasts = [];
-$total_broadcasts = 0;
-$total_pages = 0;
+$stats = [
+    'total' => 0,
+    'sent' => 0,
+    'scheduled' => 0,
+    'draft' => 0,
+    'failed' => 0
+];
 
 try {
     $sql = "
         SELECT 
             b.*,
-            u.first_name as sender_first,
-            u.last_name as sender_last,
-            (SELECT COUNT(*) FROM broadcasts WHERE status = 'sent') as total_sent
+            u.first_name as sender_first_name,
+            u.last_name as sender_last_name,
+            (SELECT COUNT(*) FROM notifications WHERE broadcast_id = b.id AND is_read = 1) as read_count
         FROM broadcasts b
         LEFT JOIN users u ON b.sender_id = u.id
         WHERE b.tenant_id = ?
-        AND (b.target_audience IN ('state', 'all', 'lga', 'ward') OR b.target_audience = 'role_specific')
+        AND (b.target_ids_json LIKE ? OR b.target_ids_json IS NULL OR b.target_audience IN ('all', 'state'))
     ";
     
-    $params = [$tenant_id];
-    
-    // Filter by state in target_ids_json
-    if (!empty($state_id)) {
-        $sql .= " AND (b.target_ids_json LIKE ? OR b.target_ids_json IS NULL)";
-        $params[] = '%"' . $state_id . '"%';
-    }
-    
-    if (!empty($search)) {
-        $sql .= " AND (b.title LIKE ? OR b.message LIKE ?)";
-        $params[] = "%$search%";
-        $params[] = "%$search%";
-    }
+    $params = [$tenant_id, '%"' . $state_id . '"%'];
     
     if (!empty($status_filter)) {
         $sql .= " AND b.status = ?";
         $params[] = $status_filter;
     }
     
-    // Count total
-    $count_sql = str_replace(
-        "SELECT 
-            b.*,
-            u.first_name as sender_first,
-            u.last_name as sender_last,
-            (SELECT COUNT(*) FROM broadcasts WHERE status = 'sent') as total_sent",
-        "SELECT COUNT(*) as count",
-        $sql
-    );
-    
-    $stmt = $db->prepare($count_sql);
-    $stmt->execute($params);
-    $total_broadcasts = (int)($stmt->fetch(PDO::FETCH_ASSOC)['count'] ?? 0);
-    $total_pages = ceil($total_broadcasts / $per_page);
-    
-    // Get data
-    $sql .= " ORDER BY b.created_at DESC LIMIT ? OFFSET ?";
-    $params[] = $per_page;
-    $params[] = $offset;
+    $sql .= " ORDER BY b.created_at DESC";
     
     $stmt = $db->prepare($sql);
     $stmt->execute($params);
     $broadcasts = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
+    foreach ($broadcasts as $b) {
+        $stats['total']++;
+        $stats[$b['status']] = ($stats[$b['status']] ?? 0) + 1;
+    }
 } catch (Exception $e) {
     error_log("Error fetching broadcasts: " . $e->getMessage());
 }
 
-// ============================================================
-// FETCH STATISTICS
-// ============================================================
-$stats = [
-    'total' => 0,
-    'sent' => 0,
-    'draft' => 0,
-    'scheduled' => 0,
-    'failed' => 0
+$status_colors = [
+    'draft' => 'secondary',
+    'scheduled' => 'warning',
+    'sending' => 'info',
+    'sent' => 'success',
+    'failed' => 'danger',
+    'cancelled' => 'danger'
 ];
 
-try {
-    $stmt = $db->prepare("
-        SELECT 
-            COUNT(*) as total,
-            SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) as sent,
-            SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END) as draft,
-            SUM(CASE WHEN status = 'scheduled' THEN 1 ELSE 0 END) as scheduled,
-            SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed
-        FROM broadcasts
-        WHERE tenant_id = ?
-        AND (target_ids_json LIKE ? OR target_ids_json IS NULL)
-    ");
-    $stmt->execute([$tenant_id, '%"' . $state_id . '"%']);
-    $stats_data = $stmt->fetch(PDO::FETCH_ASSOC);
-    
-    $stats['total'] = (int)($stats_data['total'] ?? 0);
-    $stats['sent'] = (int)($stats_data['sent'] ?? 0);
-    $stats['draft'] = (int)($stats_data['draft'] ?? 0);
-    $stats['scheduled'] = (int)($stats_data['scheduled'] ?? 0);
-    $stats['failed'] = (int)($stats_data['failed'] ?? 0);
-    
-} catch (Exception $e) {
-    error_log("Error fetching stats: " . $e->getMessage());
-}
+$target_labels = [
+    'all' => 'All Users',
+    'national' => 'National',
+    'state' => 'State',
+    'senatorial' => 'Senatorial',
+    'federal_constituency' => 'Federal Constituency',
+    'lga' => 'LGA',
+    'ward' => 'Ward',
+    'pu' => 'Polling Unit',
+    'role_specific' => 'Specific Role'
+];
 
+$page_title = 'Broadcasts';
 include '../includes/base.php';
 include '../includes/sidebar.php';
 ?>
 
 <style>
-.page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 12px;
-    margin-bottom: 20px;
-}
-.page-header h2 {
-    font-size: 1.3rem;
-    font-weight: 700;
-    margin: 0;
-}
-.page-header h2 small {
-    font-size: 0.8rem;
-    font-weight: 400;
-    color: var(--gray-500);
-    display: block;
-    margin-top: 2px;
-}
-
-.btn-primary-sm {
-    padding: 8px 20px;
-    background: var(--primary);
-    color: white;
-    border: none;
-    border-radius: 10px;
-    text-decoration: none;
-    font-weight: 600;
-    font-size: 0.8rem;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    transition: var(--transition);
-    font-family: 'Inter', sans-serif;
-}
-.btn-primary-sm:hover {
-    background: var(--primary-dark);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.3);
-}
-
-.btn-secondary-sm {
-    padding: 8px 20px;
-    background: var(--gray-100);
-    color: var(--gray-700);
-    border: 1px solid var(--gray-200);
-    border-radius: 10px;
-    text-decoration: none;
-    font-weight: 500;
-    font-size: 0.8rem;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    transition: var(--transition);
-    font-family: 'Inter', sans-serif;
-}
-.btn-secondary-sm:hover {
-    background: var(--gray-200);
-}
-
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 12px;
-    margin-bottom: 20px;
-}
-.stat-card {
-    background: white;
-    border-radius: 12px;
-    padding: 14px 18px;
-    border: 1px solid var(--gray-200);
-    text-align: center;
-}
-.stat-card .number {
-    font-size: 1.6rem;
-    font-weight: 700;
-}
-.stat-card .label {
-    font-size: 0.7rem;
-    color: var(--gray-500);
-    margin-top: 2px;
-}
-.stat-card .number.primary { color: #3B82F6; }
-.stat-card .number.success { color: #10B981; }
-.stat-card .number.warning { color: #F59E0B; }
-.stat-card .number.danger { color: #EF4444; }
-
 .filter-bar {
     display: flex;
-    gap: 10px;
+    gap: 12px;
     flex-wrap: wrap;
+    margin-bottom: 20px;
     align-items: center;
-    margin-bottom: 16px;
     background: white;
-    padding: 14px 20px;
+    padding: 16px 20px;
     border-radius: var(--radius);
     border: 1px solid var(--gray-200);
 }
-.filter-bar .search-box {
-    flex: 1;
-    min-width: 180px;
-    display: flex;
-    gap: 8px;
-}
-.filter-bar .search-box input {
-    flex: 1;
-    padding: 8px 14px;
-    border: 1px solid var(--gray-200);
-    border-radius: 10px;
-    font-size: 0.85rem;
-    font-family: 'Inter', sans-serif;
-}
-.filter-bar .search-box input:focus {
-    outline: none;
-    border-color: var(--primary);
-}
+
 .filter-bar select {
     padding: 8px 14px;
     border: 1px solid var(--gray-200);
     border-radius: 10px;
-    font-size: 0.85rem;
-    font-family: 'Inter', sans-serif;
-    background: white;
-}
-.filter-bar .btn-filter {
-    padding: 8px 20px;
-    background: var(--primary);
-    color: white;
-    border: none;
-    border-radius: 10px;
-    font-weight: 600;
-    cursor: pointer;
-    font-family: 'Inter', sans-serif;
-}
-.filter-bar .btn-filter:hover {
-    background: var(--primary-dark);
-}
-.filter-bar .btn-reset {
-    padding: 8px 20px;
-    background: var(--gray-100);
-    color: var(--gray-600);
-    border: 1px solid var(--gray-200);
-    border-radius: 10px;
-    font-weight: 500;
-    cursor: pointer;
-    text-decoration: none;
-    font-family: 'Inter', sans-serif;
-}
-.filter-bar .btn-reset:hover {
-    background: var(--gray-200);
-}
-
-.table-wrapper {
-    background: white;
-    border-radius: var(--radius);
-    border: 1px solid var(--gray-200);
-    overflow: hidden;
-    box-shadow: var(--shadow-sm);
-}
-.table-wrapper table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.85rem;
-}
-.table-wrapper table th {
-    background: var(--gray-50);
-    padding: 12px 16px;
-    text-align: left;
-    font-weight: 600;
-    font-size: 0.75rem;
-    color: var(--gray-600);
-    border-bottom: 1px solid var(--gray-200);
-    white-space: nowrap;
-}
-.table-wrapper table td {
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--gray-100);
-    vertical-align: middle;
-}
-.table-wrapper table tr:hover td {
-    background: var(--gray-50);
-}
-.table-wrapper table tr:last-child td {
-    border-bottom: none;
-}
-
-.badge-status {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 2px 10px;
-    border-radius: 20px;
-    font-size: 0.65rem;
-    font-weight: 600;
-}
-.badge-status .dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    display: inline-block;
-}
-.badge-status.sent { background: #ECFDF5; color: #065F46; }
-.badge-status.sent .dot { background: #10B981; }
-.badge-status.draft { background: #F3F4F6; color: #6B7280; }
-.badge-status.draft .dot { background: #9CA3AF; }
-.badge-status.scheduled { background: #FFFBEB; color: #92400E; }
-.badge-status.scheduled .dot { background: #F59E0B; }
-.badge-status.failed { background: #FEF2F2; color: #991B1B; }
-.badge-status.failed .dot { background: #EF4444; }
-.badge-status.sending { background: #EFF6FF; color: #1E40AF; }
-.badge-status.sending .dot { background: #3B82F6; }
-
-.btn-action {
-    padding: 4px 10px;
-    border-radius: 6px;
-    border: none;
-    font-size: 0.7rem;
-    font-weight: 600;
-    cursor: pointer;
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    font-family: 'Inter', sans-serif;
-    transition: var(--transition);
-}
-.btn-action.btn-view {
-    background: #EFF6FF;
-    color: #3B82F6;
-}
-.btn-action.btn-view:hover {
-    background: #DBEAFE;
-}
-.btn-action.btn-edit {
-    background: #F5F3FF;
-    color: #8B5CF6;
-}
-.btn-action.btn-edit:hover {
-    background: #EDE9FE;
-}
-.btn-action.btn-delete {
-    background: #FEF2F2;
-    color: #EF4444;
-}
-.btn-action.btn-delete:hover {
-    background: #FEE2E2;
-}
-.btn-action.btn-send {
-    background: #ECFDF5;
-    color: #10B981;
-}
-.btn-action.btn-send:hover {
-    background: #D1FAE5;
-}
-
-.pagination {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 8px;
-    padding: 16px 20px;
-    border-top: 1px solid var(--gray-200);
-}
-.pagination .page-btn {
-    padding: 6px 14px;
-    border: 1px solid var(--gray-200);
-    border-radius: 8px;
-    background: white;
-    color: var(--gray-600);
-    text-decoration: none;
     font-size: 0.8rem;
-    font-weight: 500;
-    transition: var(--transition);
     font-family: 'Inter', sans-serif;
+    background: white;
+    min-width: 150px;
 }
-.pagination .page-btn:hover {
-    background: var(--gray-50);
-    border-color: var(--gray-300);
-}
-.pagination .page-btn.active {
-    background: var(--primary);
-    color: white;
+
+.filter-bar select:focus {
+    outline: none;
     border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.06);
 }
-.pagination .page-btn.disabled {
-    opacity: 0.5;
-    pointer-events: none;
+
+.filter-bar .filter-info {
+    font-size: 0.75rem;
+    color: var(--gray-500);
+    margin-left: auto;
 }
-.pagination .page-info {
-    font-size: 0.8rem;
+
+.stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.stats-row .stat-box {
+    background: white;
+    border-radius: 10px;
+    padding: 10px 14px;
+    border: 1px solid var(--gray-200);
+    text-align: center;
+}
+
+.stats-row .stat-box .number {
+    font-size: 1.2rem;
+    font-weight: 700;
+}
+
+.stats-row .stat-box .number.total { color: #3B82F6; }
+.stats-row .stat-box .number.sent { color: #10B981; }
+.stats-row .stat-box .number.scheduled { color: #F59E0B; }
+.stats-row .stat-box .number.draft { color: #6B7280; }
+.stats-row .stat-box .number.failed { color: #EF4444; }
+
+.stats-row .stat-box .label {
+    font-size: 0.6rem;
     color: var(--gray-500);
 }
 
-.empty-state {
-    text-align: center;
-    padding: 60px 20px;
-    color: var(--gray-400);
-}
-.empty-state i {
-    font-size: 3rem;
-    display: block;
-    margin-bottom: 12px;
-    color: var(--gray-300);
+.broadcast-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 16px;
 }
 
-.broadcast-message {
-    font-size: 0.8rem;
+.broadcast-card {
+    background: white;
+    border-radius: var(--radius);
+    border: 1px solid var(--gray-200);
+    padding: 18px 20px;
+    transition: var(--transition);
+}
+
+.broadcast-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-hover);
+}
+
+.broadcast-card .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 8px;
+}
+
+.broadcast-card .card-header .title {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--gray-800);
+}
+
+.broadcast-card .card-header .title i {
+    color: var(--primary);
+    margin-right: 6px;
+}
+
+.broadcast-card .message-preview {
+    font-size: 0.78rem;
     color: var(--gray-600);
-    max-width: 300px;
-    white-space: nowrap;
+    margin: 6px 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
     overflow: hidden;
-    text-overflow: ellipsis;
+}
+
+.broadcast-card .meta {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    margin: 8px 0;
+    padding: 8px 0;
+    border-top: 1px solid var(--gray-100);
+    border-bottom: 1px solid var(--gray-100);
+}
+
+.broadcast-card .meta .meta-item {
+    font-size: 0.65rem;
+    color: var(--gray-500);
+}
+
+.broadcast-card .meta .meta-item .value {
+    font-weight: 500;
+    color: var(--gray-700);
+}
+
+.broadcast-card .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.55rem;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-weight: 600;
+}
+
+.broadcast-card .status-badge .dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.broadcast-card .status-badge.draft { background: #F3F4F6; color: #6B7280; }
+.broadcast-card .status-badge.draft .dot { background: #9CA3AF; }
+.broadcast-card .status-badge.scheduled { background: #FFFBEB; color: #92400E; }
+.broadcast-card .status-badge.scheduled .dot { background: #F59E0B; }
+.broadcast-card .status-badge.sending { background: #EFF6FF; color: #1E40AF; }
+.broadcast-card .status-badge.sending .dot { background: #3B82F6; animation: pulse-dot 1.5s ease-in-out infinite; }
+.broadcast-card .status-badge.sent { background: #ECFDF5; color: #065F46; }
+.broadcast-card .status-badge.sent .dot { background: #10B981; }
+.broadcast-card .status-badge.failed { background: #FEF2F2; color: #991B1B; }
+.broadcast-card .status-badge.failed .dot { background: #EF4444; }
+.broadcast-card .status-badge.cancelled { background: #FEF2F2; color: #991B1B; }
+.broadcast-card .status-badge.cancelled .dot { background: #EF4444; }
+
+@keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.8); }
+}
+
+.broadcast-card .card-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 10px;
+    flex-wrap: wrap;
+}
+
+.broadcast-card .card-actions a {
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-size: 0.65rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: var(--transition);
+}
+
+.broadcast-card .card-actions .btn-edit {
+    background: var(--gray-100);
+    color: var(--gray-700);
+}
+
+.broadcast-card .card-actions .btn-edit:hover {
+    background: var(--gray-200);
+}
+
+.broadcast-card .card-actions .btn-send {
+    background: #3B82F6;
+    color: white;
+}
+
+.broadcast-card .card-actions .btn-send:hover {
+    background: #2563EB;
+}
+
+.broadcast-card .card-actions .btn-delete {
+    background: #FEF2F2;
+    color: #DC2626;
+}
+
+.broadcast-card .card-actions .btn-delete:hover {
+    background: #FEE2E2;
+}
+
+.broadcast-card .card-actions .btn-view {
+    background: var(--gray-100);
+    color: var(--gray-700);
+}
+
+.broadcast-card .card-actions .btn-view:hover {
+    background: var(--gray-200);
+}
+
+.broadcast-card .card-actions .btn-schedule {
+    background: #FFFBEB;
+    color: #D97706;
+}
+
+.broadcast-card .card-actions .btn-schedule:hover {
+    background: #FEF3C7;
+}
+
+.empty-state {
+    grid-column: 1/-1;
+    text-align: center;
+    padding: 60px 20px;
+    background: white;
+    border-radius: var(--radius);
+    border: 1px solid var(--gray-200);
+}
+
+.empty-state i {
+    font-size: 3rem;
+    color: var(--gray-300);
+    display: block;
+    margin-bottom: 12px;
+}
+
+.empty-state h3 {
+    color: var(--gray-600);
+    margin: 0;
+}
+
+.empty-state p {
+    color: var(--gray-400);
+    margin-top: 6px;
 }
 
 @media (max-width: 768px) {
-    .page-header {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-    .table-wrapper {
-        overflow-x: auto;
+    .broadcast-grid {
+        grid-template-columns: 1fr;
     }
     .filter-bar {
         flex-direction: column;
         align-items: stretch;
     }
-    .filter-bar .search-box {
-        flex-direction: column;
+    .filter-bar select {
+        width: 100%;
+        min-width: unset;
     }
-    .stats-grid {
-        grid-template-columns: repeat(2, 1fr);
+    .filter-bar .filter-info {
+        margin-left: 0;
+        text-align: center;
+    }
+    .stats-row {
+        grid-template-columns: repeat(3, 1fr);
+    }
+    .broadcast-card .meta {
+        grid-template-columns: 1fr 1fr;
     }
 }
 </style>
@@ -525,187 +405,170 @@ include '../includes/sidebar.php';
     
     <div class="main-content-inner">
         <!-- Page Header -->
-        <div class="page-header">
+        <div class="welcome-section">
             <div>
-                <h2>
-                    <i class="fas fa-bullhorn" style="color:var(--primary);margin-right:8px;"></i>
-                    Broadcast Messages
-                    <small><?php echo htmlspecialchars($state_name); ?> - Send and manage broadcasts</small>
-                </h2>
+                <h1><i class="fas fa-bullhorn"></i> Broadcasts</h1>
+                <p class="subtitle">
+                    <i class="fas fa-flag"></i> 
+                    <?php echo htmlspecialchars($state_name); ?> State - Manage Broadcast Messages
+                </p>
             </div>
-            <div>
+            <div class="actions">
                 <a href="broadcasts-create.php" class="btn-primary-sm">
                     <i class="fas fa-plus"></i> New Broadcast
-                </a>
-                <a href="index.php" class="btn-secondary-sm">
-                    <i class="fas fa-arrow-left"></i> Back
                 </a>
             </div>
         </div>
 
-        <!-- Stats -->
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="number primary"><?php echo number_format($stats['total']); ?></div>
-                <div class="label">Total Broadcasts</div>
+        <!-- Stats Row -->
+        <div class="stats-row">
+            <div class="stat-box">
+                <div class="number total"><?php echo $stats['total']; ?></div>
+                <div class="label">Total</div>
             </div>
-            <div class="stat-card">
-                <div class="number success"><?php echo number_format($stats['sent']); ?></div>
+            <div class="stat-box">
+                <div class="number sent"><?php echo $stats['sent'] ?? 0; ?></div>
                 <div class="label">Sent</div>
             </div>
-            <div class="stat-card">
-                <div class="number warning"><?php echo number_format($stats['draft']); ?></div>
-                <div class="label">Drafts</div>
-            </div>
-            <div class="stat-card">
-                <div class="number warning"><?php echo number_format($stats['scheduled']); ?></div>
+            <div class="stat-box">
+                <div class="number scheduled"><?php echo $stats['scheduled'] ?? 0; ?></div>
                 <div class="label">Scheduled</div>
             </div>
-            <div class="stat-card">
-                <div class="number danger"><?php echo number_format($stats['failed']); ?></div>
+            <div class="stat-box">
+                <div class="number draft"><?php echo $stats['draft'] ?? 0; ?></div>
+                <div class="label">Draft</div>
+            </div>
+            <div class="stat-box">
+                <div class="number failed"><?php echo $stats['failed'] ?? 0; ?></div>
                 <div class="label">Failed</div>
             </div>
         </div>
 
         <!-- Filter Bar -->
-        <form method="GET" action="" class="filter-bar">
-            <div class="search-box">
-                <input type="text" name="search" placeholder="Search broadcasts..." value="<?php echo htmlspecialchars($search); ?>">
-                <button type="submit" class="btn-filter"><i class="fas fa-search"></i> Filter</button>
-            </div>
-            <select name="status">
+        <div class="filter-bar">
+            <select id="statusFilter" onchange="applyFilters()">
                 <option value="">All Status</option>
-                <option value="sent" <?php echo $status_filter === 'sent' ? 'selected' : ''; ?>>Sent</option>
                 <option value="draft" <?php echo $status_filter === 'draft' ? 'selected' : ''; ?>>Draft</option>
                 <option value="scheduled" <?php echo $status_filter === 'scheduled' ? 'selected' : ''; ?>>Scheduled</option>
                 <option value="sending" <?php echo $status_filter === 'sending' ? 'selected' : ''; ?>>Sending</option>
+                <option value="sent" <?php echo $status_filter === 'sent' ? 'selected' : ''; ?>>Sent</option>
                 <option value="failed" <?php echo $status_filter === 'failed' ? 'selected' : ''; ?>>Failed</option>
                 <option value="cancelled" <?php echo $status_filter === 'cancelled' ? 'selected' : ''; ?>>Cancelled</option>
             </select>
-            <a href="broadcasts.php" class="btn-reset"><i class="fas fa-times"></i> Reset</a>
-        </form>
 
-        <!-- Table -->
-        <div class="table-wrapper">
-            <?php if (count($broadcasts) > 0): ?>
-                <table>
-                    <thead>
-                        <tr>
-                            <th>S/N</th>
-                            <th>Title</th>
-                            <th>Message</th>
-                            <th>Audience</th>
-                            <th>Recipients</th>
-                            <th>Status</th>
-                            <th>Sent</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php $sn = $offset + 1; ?>
-                        <?php foreach ($broadcasts as $broadcast): ?>
-                            <tr>
-                                <td><?php echo $sn++; ?></td>
-                                <td>
-                                    <div style="font-weight:600;font-size:0.8rem;"><?php echo htmlspecialchars($broadcast['title']); ?></div>
-                                    <div style="font-size:0.65rem;color:var(--gray-400);">
-                                        By: <?php echo htmlspecialchars($broadcast['sender_first'] . ' ' . $broadcast['sender_last']); ?>
-                                    </div>
-                                </td>
-                                <td>
-                                    <div class="broadcast-message">
-                                        <?php echo htmlspecialchars($broadcast['message']); ?>
-                                    </div>
-                                </td>
-                                <td>
-                                    <div style="font-size:0.8rem;font-weight:500;">
-                                        <?php echo ucfirst(str_replace('_', ' ', $broadcast['target_audience'])); ?>
-                                    </div>
-                                </td>
-                                <td>
-                                    <div style="font-size:0.8rem;font-weight:600;color:var(--gray-700);">
-                                        <?php echo number_format($broadcast['total_recipients'] ?? 0); ?>
-                                    </div>
-                                    <div style="font-size:0.65rem;color:var(--gray-400);">
-                                        Read: <?php echo number_format($broadcast['read_count'] ?? 0); ?>
-                                    </div>
-                                </td>
-                                <td>
-                                    <span class="badge-status <?php echo $broadcast['status']; ?>">
-                                        <span class="dot"></span>
-                                        <?php echo ucfirst($broadcast['status']); ?>
-                                    </span>
-                                </td>
-                                <td>
-                                    <?php if ($broadcast['sent_at']): ?>
-                                        <div style="font-size:0.75rem;"><?php echo date('M j, Y', strtotime($broadcast['sent_at'])); ?></div>
-                                        <div style="font-size:0.65rem;color:var(--gray-400);"><?php echo date('g:i A', strtotime($broadcast['sent_at'])); ?></div>
-                                    <?php elseif ($broadcast['scheduled_at']): ?>
-                                        <div style="font-size:0.75rem;color:#F59E0B;">Scheduled</div>
-                                        <div style="font-size:0.65rem;color:var(--gray-400);"><?php echo date('M j, Y g:i A', strtotime($broadcast['scheduled_at'])); ?></div>
-                                    <?php else: ?>
-                                        <span style="color:var(--gray-400);font-size:0.75rem;">Not sent</span>
-                                    <?php endif; ?>
-                                </td>
-                                <td>
-                                    <a href="broadcast-view.php?id=<?php echo $broadcast['id']; ?>" class="btn-action btn-view">
-                                        <i class="fas fa-eye"></i>
-                                    </a>
-                                    <?php if ($broadcast['status'] === 'draft'): ?>
-                                        <a href="broadcast-edit.php?id=<?php echo $broadcast['id']; ?>" class="btn-action btn-edit">
-                                            <i class="fas fa-edit"></i>
-                                        </a>
-                                        <button onclick="sendBroadcast(<?php echo $broadcast['id']; ?>)" class="btn-action btn-send">
-                                            <i class="fas fa-paper-plane"></i>
-                                        </button>
-                                    <?php endif; ?>
-                                    <?php if ($broadcast['status'] === 'draft' || $broadcast['status'] === 'scheduled'): ?>
-                                        <button onclick="deleteBroadcast(<?php echo $broadcast['id']; ?>)" class="btn-action btn-delete">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
-                                    <?php endif; ?>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-                
-                <!-- Pagination -->
-                <?php if ($total_pages > 1): ?>
-                    <div class="pagination">
-                        <a href="?<?php echo http_build_query(array_merge($_GET, ['page' => 1])); ?>" class="page-btn <?php echo $page <= 1 ? 'disabled' : ''; ?>">
-                            <i class="fas fa-chevron-left"></i>
-                        </a>
-                        
-                        <?php for ($i = 1; $i <= $total_pages; $i++): ?>
-                            <a href="?<?php echo http_build_query(array_merge($_GET, ['page' => $i])); ?>" class="page-btn <?php echo $i == $page ? 'active' : ''; ?>">
-                                <?php echo $i; ?>
-                            </a>
-                        <?php endfor; ?>
-                        
-                        <a href="?<?php echo http_build_query(array_merge($_GET, ['page' => $total_pages])); ?>" class="page-btn <?php echo $page >= $total_pages ? 'disabled' : ''; ?>">
-                            <i class="fas fa-chevron-right"></i>
-                        </a>
-                        <span class="page-info">
-                            Showing <?php echo min($total_broadcasts, ($page - 1) * $per_page + 1); ?> - 
-                            <?php echo min($total_broadcasts, $page * $per_page); ?> of <?php echo number_format($total_broadcasts); ?>
+            <span class="filter-info">
+                <i class="fas fa-list"></i> <?php echo count($broadcasts); ?> broadcasts found
+            </span>
+        </div>
+
+        <!-- Broadcast Grid -->
+        <div class="broadcast-grid">
+            <?php foreach ($broadcasts as $broadcast): 
+                $status_class = $broadcast['status'];
+                $target_label = $target_labels[$broadcast['target_audience']] ?? ucfirst($broadcast['target_audience']);
+                $send_via = json_decode($broadcast['send_via'], true);
+                $channels = is_array($send_via) ? implode(', ', array_map('ucfirst', $send_via)) : 'Email';
+            ?>
+                <div class="broadcast-card">
+                    <div class="card-header">
+                        <div class="title">
+                            <i class="fas fa-bullhorn"></i>
+                            <?php echo htmlspecialchars($broadcast['title']); ?>
+                        </div>
+                        <span class="status-badge <?php echo $status_class; ?>">
+                            <span class="dot"></span>
+                            <?php echo ucfirst($broadcast['status']); ?>
                         </span>
                     </div>
-                <?php endif; ?>
-                
-            <?php else: ?>
+
+                    <div class="message-preview">
+                        <?php echo htmlspecialchars(substr($broadcast['message'], 0, 120)) . (strlen($broadcast['message']) > 120 ? '...' : ''); ?>
+                    </div>
+
+                    <div class="meta">
+                        <div class="meta-item">
+                            <span class="label">Target</span>
+                            <div class="value"><?php echo $target_label; ?></div>
+                        </div>
+                        <div class="meta-item">
+                            <span class="label">Channel</span>
+                            <div class="value"><?php echo $channels; ?></div>
+                        </div>
+                        <div class="meta-item">
+                            <span class="label">Recipients</span>
+                            <div class="value"><?php echo number_format($broadcast['total_recipients'] ?? 0); ?></div>
+                        </div>
+                        <div class="meta-item">
+                            <span class="label">Read Rate</span>
+                            <div class="value">
+                                <?php 
+                                    $read_rate = ($broadcast['total_recipients'] ?? 0) > 0 ? 
+                                        round(($broadcast['read_count'] / ($broadcast['total_recipients'] ?? 1)) * 100, 1) : 0;
+                                    echo $read_rate . '%';
+                                ?>
+                            </div>
+                        </div>
+                        <div class="meta-item" style="grid-column: span 2;">
+                            <span class="label"><?php echo $broadcast['status'] === 'sent' ? 'Sent At' : ($broadcast['status'] === 'scheduled' ? 'Scheduled At' : 'Created At'); ?></span>
+                            <div class="value">
+                                <?php 
+                                    $date = $broadcast['sent_at'] ?? $broadcast['scheduled_at'] ?? $broadcast['created_at'];
+                                    echo date('M j, Y g:i A', strtotime($date));
+                                ?>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card-actions">
+                        <?php if ($broadcast['status'] === 'draft'): ?>
+                            <a href="broadcasts-edit.php?id=<?php echo $broadcast['id']; ?>" class="btn-edit">
+                                <i class="fas fa-edit"></i> Edit
+                            </a>
+                            <a href="broadcasts-send.php?id=<?php echo $broadcast['id']; ?>" class="btn-send">
+                                <i class="fas fa-paper-plane"></i> Send
+                            </a>
+                            <a href="broadcasts-schedule.php?id=<?php echo $broadcast['id']; ?>" class="btn-schedule">
+                                <i class="fas fa-calendar-plus"></i> Schedule
+                            </a>
+                            <a href="broadcasts-delete.php?id=<?php echo $broadcast['id']; ?>" class="btn-delete" onclick="return confirm('Are you sure you want to delete this broadcast?')">
+                                <i class="fas fa-trash"></i> Delete
+                            </a>
+                        <?php elseif ($broadcast['status'] === 'scheduled'): ?>
+                            <a href="broadcasts-edit.php?id=<?php echo $broadcast['id']; ?>" class="btn-edit">
+                                <i class="fas fa-edit"></i> Edit
+                            </a>
+                            <a href="broadcasts-send.php?id=<?php echo $broadcast['id']; ?>" class="btn-send">
+                                <i class="fas fa-paper-plane"></i> Send Now
+                            </a>
+                            <a href="broadcasts-delete.php?id=<?php echo $broadcast['id']; ?>" class="btn-delete" onclick="return confirm('Are you sure you want to delete this broadcast?')">
+                                <i class="fas fa-trash"></i> Delete
+                            </a>
+                        <?php elseif ($broadcast['status'] === 'sent'): ?>
+                            <a href="broadcasts-view.php?id=<?php echo $broadcast['id']; ?>" class="btn-view">
+                                <i class="fas fa-eye"></i> View
+                            </a>
+                        <?php else: ?>
+                            <a href="broadcasts-view.php?id=<?php echo $broadcast['id']; ?>" class="btn-view">
+                                <i class="fas fa-eye"></i> View
+                            </a>
+                            <?php if ($broadcast['status'] === 'failed'): ?>
+                                <a href="broadcasts-send.php?id=<?php echo $broadcast['id']; ?>" class="btn-send">
+                                    <i class="fas fa-redo"></i> Retry
+                                </a>
+                            <?php endif; ?>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+
+            <?php if (empty($broadcasts)): ?>
                 <div class="empty-state">
                     <i class="fas fa-bullhorn"></i>
-                    <p>No broadcasts found.</p>
-                    <?php if (!empty($search) || !empty($status_filter)): ?>
-                        <p style="font-size:0.8rem;">Try adjusting your filters.</p>
-                    <?php else: ?>
-                        <p style="font-size:0.8rem;">
-                            <a href="broadcasts-create.php" style="color:var(--primary);text-decoration:none;font-weight:600;">
-                                Create a broadcast
-                            </a> to send messages to your team.
-                        </p>
-                    <?php endif; ?>
+                    <h3>No Broadcasts Found</h3>
+                    <p>You haven't created any broadcasts yet.</p>
+                    <a href="broadcasts-create.php" class="btn-primary-sm" style="margin-top:12px;">
+                        <i class="fas fa-plus"></i> Create Broadcast
+                    </a>
                 </div>
             <?php endif; ?>
         </div>
@@ -713,22 +576,22 @@ include '../includes/sidebar.php';
 </main>
 
 <script>
-// ============================================================
-// PRELOADER
-// ============================================================
+function applyFilters() {
+    var status = document.getElementById('statusFilter').value;
+    var url = window.location.pathname;
+    if (status) url += '?status=' + status;
+    window.location.href = url;
+}
+
+// Same sidebar scripts as index.php
 window.addEventListener('load', function() {
     var preloader = document.getElementById('preloader');
     if (preloader) {
         preloader.classList.add('hidden');
-        setTimeout(function() {
-            preloader.style.display = 'none';
-        }, 600);
+        setTimeout(function() { preloader.style.display = 'none'; }, 600);
     }
 });
 
-// ============================================================
-// SIDEBAR TOGGLE
-// ============================================================
 var sidebar = document.getElementById('sidebar');
 var sidebarToggle = document.getElementById('sidebarToggle');
 var sidebarOverlay = document.getElementById('sidebarOverlay');
@@ -767,9 +630,6 @@ window.addEventListener('resize', function() {
     }
 });
 
-// ============================================================
-// SIDEBAR DROPDOWNS
-// ============================================================
 document.querySelectorAll('.dropdown-toggle').forEach(function(toggle) {
     toggle.addEventListener('click', function(e) {
         e.preventDefault();
@@ -783,9 +643,6 @@ document.querySelectorAll('.dropdown-toggle').forEach(function(toggle) {
     });
 });
 
-// ============================================================
-// PROFILE DROPDOWN
-// ============================================================
 var profileBtn = document.getElementById('profileBtn');
 var profileMenu = document.getElementById('profileMenu');
 
@@ -799,55 +656,6 @@ if (profileBtn && profileMenu) {
             profileMenu.classList.remove('active');
         }
     });
-}
-
-// ============================================================
-// BROADCAST ACTIONS
-// ============================================================
-function sendBroadcast(broadcastId) {
-    if (confirm('Are you sure you want to send this broadcast now?')) {
-        var form = document.createElement('form');
-        form.method = 'POST';
-        form.action = 'broadcast-send.php';
-        
-        var input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = 'broadcast_id';
-        input.value = broadcastId;
-        form.appendChild(input);
-        
-        var token = document.createElement('input');
-        token.type = 'hidden';
-        token.name = 'csrf_token';
-        token.value = '<?php echo $csrf_token; ?>';
-        form.appendChild(token);
-        
-        document.body.appendChild(form);
-        form.submit();
-    }
-}
-
-function deleteBroadcast(broadcastId) {
-    if (confirm('Are you sure you want to delete this broadcast?')) {
-        var form = document.createElement('form');
-        form.method = 'POST';
-        form.action = 'broadcast-delete.php';
-        
-        var input = document.createElement('input');
-        input.type = 'hidden';
-        input.name = 'broadcast_id';
-        input.value = broadcastId;
-        form.appendChild(input);
-        
-        var token = document.createElement('input');
-        token.type = 'hidden';
-        token.name = 'csrf_token';
-        token.value = '<?php echo $csrf_token; ?>';
-        form.appendChild(token);
-        
-        document.body.appendChild(form);
-        form.submit();
-    }
 }
 </script>
 </body>

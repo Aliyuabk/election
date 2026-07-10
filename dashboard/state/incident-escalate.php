@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// STATE COORDINATOR - RESOLVE INCIDENT
+// STATE COORDINATOR - ESCALATE INCIDENT
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -78,41 +78,46 @@ $message = '';
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $resolution_notes = trim($_POST['resolution_notes'] ?? '');
+    $escalate_to = isset($_POST['escalate_to']) ? (int)$_POST['escalate_to'] : 0;
+    $escalation_reason = trim($_POST['escalation_reason'] ?? '');
+    $escalation_notes = trim($_POST['escalation_notes'] ?? '');
     
-    if (empty($resolution_notes)) {
-        $error = 'Please provide resolution notes.';
+    if (empty($escalation_reason)) {
+        $error = 'Please provide a reason for escalation.';
     } else {
         try {
+            // Update incident status to escalated and assign to user
             $stmt = $db->prepare("
                 UPDATE incidents 
-                SET status = 'resolved', 
-                    resolved_by = ?,
-                    resolved_at = NOW(),
+                SET status = 'escalated', 
+                    assigned_to = ?,
                     updated_at = NOW()
                 WHERE id = ? AND tenant_id = ?
             ");
-            $stmt->execute([$user_id, $incident_id, $tenant_id]);
+            $stmt->execute([$escalate_to ?: null, $incident_id, $tenant_id]);
             
             // Add notes
             $notes = $incident['resolution_notes'] ?? '';
-            $new_notes = $notes . "\n[" . date('Y-m-d H:i:s') . "] RESOLVED: " . $resolution_notes;
+            $new_notes = $notes . "\n[" . date('Y-m-d H:i:s') . "] ESCALATED: " . $escalation_reason;
+            if (!empty($escalation_notes)) {
+                $new_notes .= "\n" . $escalation_notes;
+            }
             $stmt = $db->prepare("UPDATE incidents SET resolution_notes = ? WHERE id = ?");
             $stmt->execute([$new_notes, $incident_id]);
             
-            logActivity($user_id, 'incident_resolved', 
-                "Resolved incident #$incident_id",
+            logActivity($user_id, 'incident_escalated', 
+                "Escalated incident #$incident_id - Reason: $escalation_reason",
                 'incidents', $incident_id
             );
             
-            $message = "Incident resolved successfully!";
+            $message = "Incident escalated successfully!";
             
             // Refresh incident data
             $stmt = $db->prepare("SELECT * FROM incidents WHERE id = ?");
             $stmt->execute([$incident_id]);
             $incident = $stmt->fetch(PDO::FETCH_ASSOC);
         } catch (Exception $e) {
-            $error = 'Failed to resolve incident: ' . $e->getMessage();
+            $error = 'Failed to escalate incident: ' . $e->getMessage();
         }
     }
 }
@@ -130,18 +135,35 @@ $incident_types = [
     'panic_button' => 'Panic Button'
 ];
 
-$page_title = 'Resolve Incident';
+// Get users for assignment (only national level users)
+$escalation_users = [];
+try {
+    $stmt = $db->prepare("
+        SELECT u.id, u.first_name, u.last_name, u.email, r.level
+        FROM users u
+        JOIN roles r ON u.role_id = r.id
+        WHERE u.tenant_id = ? AND u.status = 'active' AND u.deleted_at IS NULL
+        AND r.level IN ('national', 'super_admin')
+        ORDER BY r.level ASC, u.first_name ASC
+    ");
+    $stmt->execute([$tenant_id]);
+    $escalation_users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    error_log("Error fetching escalation users: " . $e->getMessage());
+}
+
+$page_title = 'Escalate Incident';
 include '../includes/base.php';
 include '../includes/sidebar.php';
 ?>
 
 <style>
-.resolve-container {
+.escalate-container {
     max-width: 700px;
     margin: 0 auto;
 }
 
-.resolve-card {
+.escalate-card {
     background: white;
     border-radius: var(--radius);
     border: 1px solid var(--gray-200);
@@ -149,7 +171,7 @@ include '../includes/sidebar.php';
     margin-bottom: 16px;
 }
 
-.resolve-card .card-title {
+.escalate-card .card-title {
     font-size: 0.85rem;
     font-weight: 600;
     margin: 0 0 12px;
@@ -158,8 +180,8 @@ include '../includes/sidebar.php';
     color: var(--gray-700);
 }
 
-.resolve-card .card-title i {
-    color: #10B981;
+.escalate-card .card-title i {
+    color: #EF4444;
     margin-right: 6px;
 }
 
@@ -202,6 +224,19 @@ include '../includes/sidebar.php';
     color: var(--gray-800);
 }
 
+.warning-box {
+    background: #FEF2F2;
+    border: 1px solid #FECACA;
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 16px;
+    color: #991B1B;
+}
+
+.warning-box i {
+    margin-right: 6px;
+}
+
 .status-badge {
     display: inline-flex;
     align-items: center;
@@ -219,8 +254,8 @@ include '../includes/sidebar.php';
     display: inline-block;
 }
 
-.status-badge.investigating { background: #F5F3FF; color: #5B21B6; }
-.status-badge.investigating .dot { background: #8B5CF6; }
+.status-badge.escalated { background: #FEF2F2; color: #991B1B; }
+.status-badge.escalated .dot { background: #EF4444; }
 
 .form-group {
     margin-bottom: 16px;
@@ -239,6 +274,7 @@ include '../includes/sidebar.php';
     margin-left: 2px;
 }
 
+.form-group select,
 .form-group textarea {
     width: 100%;
     padding: 10px 14px;
@@ -246,15 +282,20 @@ include '../includes/sidebar.php';
     border-radius: 10px;
     font-size: 0.85rem;
     font-family: 'Inter', sans-serif;
-    resize: vertical;
-    min-height: 100px;
     transition: var(--transition);
+    background: white;
 }
 
+.form-group select:focus,
 .form-group textarea:focus {
     outline: none;
-    border-color: #10B981;
-    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.06);
+    border-color: #EF4444;
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.06);
+}
+
+.form-group textarea {
+    resize: vertical;
+    min-height: 80px;
 }
 
 .alert {
@@ -280,20 +321,6 @@ include '../includes/sidebar.php';
     margin-right: 6px;
 }
 
-.info-box {
-    background: #F0F9FF;
-    border: 1px solid #BAE6FD;
-    border-radius: 10px;
-    padding: 12px 16px;
-    margin-bottom: 16px;
-    font-size: 0.75rem;
-    color: #0369A1;
-}
-
-.info-box i {
-    margin-right: 6px;
-}
-
 .btn-group {
     display: flex;
     gap: 10px;
@@ -311,15 +338,15 @@ include '../includes/sidebar.php';
     font-family: 'Inter', sans-serif;
 }
 
-.btn-group .btn-resolve {
-    background: #10B981;
+.btn-group .btn-escalate {
+    background: #EF4444;
     color: white;
 }
 
-.btn-group .btn-resolve:hover {
-    background: #059669;
+.btn-group .btn-escalate:hover {
+    background: #DC2626;
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
 }
 
 .btn-group .btn-cancel {
@@ -341,7 +368,7 @@ include '../includes/sidebar.php';
 }
 
 @media (max-width: 768px) {
-    .resolve-card {
+    .escalate-card {
         padding: 16px 18px;
     }
     .detail-grid {
@@ -362,11 +389,11 @@ include '../includes/sidebar.php';
     <?php include '../includes/header.php'; ?>
     
     <div class="main-content-inner">
-        <div class="resolve-container">
+        <div class="escalate-container">
             <!-- Page Header -->
             <div class="welcome-section">
                 <div>
-                    <h1><i class="fas fa-check-circle" style="color:#10B981;"></i> Resolve Incident</h1>
+                    <h1><i class="fas fa-arrow-up" style="color:#EF4444;"></i> Escalate Incident</h1>
                     <p class="subtitle">
                         <i class="fas fa-exclamation-triangle"></i> 
                         #<?php echo $incident_id; ?> - <?php echo htmlspecialchars($incident['title']); ?>
@@ -392,7 +419,7 @@ include '../includes/sidebar.php';
                 </div>
             <?php endif; ?>
 
-            <div class="resolve-card">
+            <div class="escalate-card">
                 <div class="card-title"><i class="fas fa-info-circle"></i> Incident Details</div>
                 
                 <div class="incident-info">
@@ -426,23 +453,44 @@ include '../includes/sidebar.php';
                     </div>
                 </div>
 
-                <div class="info-box">
-                    <i class="fas fa-info-circle"></i>
-                    Resolving this incident will mark it as resolved. It can be closed later.
+                <div class="warning-box">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <strong>Escalation Warning:</strong> Escalating this incident will move it to the national level for review and action.
                 </div>
 
                 <form method="POST" action="">
                     <div class="form-group">
-                        <label>Resolution Notes <span class="required">*</span></label>
-                        <textarea name="resolution_notes" required placeholder="Describe how this incident was resolved..."></textarea>
+                        <label>Escalate To <span class="required">*</span></label>
+                        <select name="escalate_to" required>
+                            <option value="">Select user...</option>
+                            <?php foreach ($escalation_users as $user): ?>
+                                <option value="<?php echo $user['id']; ?>">
+                                    <?php echo htmlspecialchars($user['first_name'] . ' ' . $user['last_name']); ?>
+                                    (<?php echo ucfirst($user['level']); ?>)
+                                </option>
+                            <?php endforeach; ?>
+                            <?php if (empty($escalation_users)): ?>
+                                <option value="0">No national users available</option>
+                            <?php endif; ?>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Reason for Escalation <span class="required">*</span></label>
+                        <textarea name="escalation_reason" required placeholder="Explain why this incident needs to be escalated..."></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Additional Notes</label>
+                        <textarea name="escalation_notes" placeholder="Any additional information for the national team..."></textarea>
                     </div>
 
                     <div class="btn-group">
                         <a href="incidents.php" class="btn-cancel">
                             <i class="fas fa-times"></i> Cancel
                         </a>
-                        <button type="submit" class="btn-resolve">
-                            <i class="fas fa-check"></i> Resolve Incident
+                        <button type="submit" class="btn-escalate">
+                            <i class="fas fa-arrow-up"></i> Escalate Incident
                         </button>
                     </div>
                 </form>

@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// STATE COORDINATOR - CREATE BROADCAST
+// STATE COORDINATOR - EDIT BROADCAST
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -39,14 +39,29 @@ if (empty($state_id)) {
 }
 
 $db = getDB();
+$broadcast_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
-// Get state name
-$state_name = 'Unknown State';
-if (!empty($state_id)) {
-    $stmt = $db->prepare("SELECT name FROM states WHERE id = ?");
-    $stmt->execute([$state_id]);
-    $state = $stmt->fetch(PDO::FETCH_ASSOC);
-    $state_name = $state['name'] ?? 'Unknown State';
+if ($broadcast_id <= 0) {
+    header('Location: broadcasts.php');
+    exit();
+}
+
+// Get broadcast details
+$broadcast = null;
+try {
+    $stmt = $db->prepare("
+        SELECT * FROM broadcasts 
+        WHERE id = ? AND tenant_id = ? AND status IN ('draft', 'scheduled')
+    ");
+    $stmt->execute([$broadcast_id, $tenant_id]);
+    $broadcast = $stmt->fetch(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    error_log("Error fetching broadcast: " . $e->getMessage());
+}
+
+if (!$broadcast) {
+    header('Location: broadcasts.php');
+    exit();
 }
 
 // Get LGAs for target selection
@@ -59,139 +74,57 @@ try {
     error_log("Error fetching LGAs: " . $e->getMessage());
 }
 
-// Get ward coordinators count
-$ward_coordinators_count = 0;
-$pu_agents_count = 0;
-$lga_coordinators_count = 0;
-
-try {
-    // LGA Coordinators
-    $stmt = $db->prepare("
-        SELECT COUNT(*) as count 
-        FROM users u 
-        JOIN roles r ON u.role_id = r.id 
-        WHERE r.level = 'lga' AND u.state_id = ? AND u.status = 'active' AND u.deleted_at IS NULL
-    ");
-    $stmt->execute([$state_id]);
-    $lga_coordinators_count = (int)($stmt->fetch(PDO::FETCH_ASSOC)['count'] ?? 0);
-    
-    // Ward Coordinators
-    $stmt = $db->prepare("
-        SELECT COUNT(*) as count 
-        FROM users u 
-        JOIN roles r ON u.role_id = r.id 
-        WHERE r.level = 'ward' AND u.state_id = ? AND u.status = 'active' AND u.deleted_at IS NULL
-    ");
-    $stmt->execute([$state_id]);
-    $ward_coordinators_count = (int)($stmt->fetch(PDO::FETCH_ASSOC)['count'] ?? 0);
-    
-    // PU Agents
-    $stmt = $db->prepare("
-        SELECT COUNT(*) as count 
-        FROM users u 
-        JOIN roles r ON u.role_id = r.id 
-        WHERE r.level = 'pu_agent' AND u.state_id = ? AND u.status = 'active' AND u.deleted_at IS NULL
-    ");
-    $stmt->execute([$state_id]);
-    $pu_agents_count = (int)($stmt->fetch(PDO::FETCH_ASSOC)['count'] ?? 0);
-} catch (Exception $e) {
-    error_log("Error fetching counts: " . $e->getMessage());
-}
-
 $message = '';
 $error = '';
 
-// Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $title = trim($_POST['title'] ?? '');
     $message_content = trim($_POST['message'] ?? '');
     $target_audience = $_POST['target_audience'] ?? 'all';
     $target_ids = isset($_POST['target_ids']) ? array_map('intval', $_POST['target_ids']) : [];
     $send_via = isset($_POST['send_via']) ? $_POST['send_via'] : ['email'];
-    $schedule = isset($_POST['schedule']) ? $_POST['schedule'] : '';
-    $scheduled_at = !empty($schedule) ? $_POST['scheduled_at'] ?? null : null;
-    $action = $_POST['action'] ?? 'draft';
     
-    if (empty($title)) {
-        $error = 'Please enter a broadcast title.';
-    } elseif (empty($message_content)) {
-        $error = 'Please enter a message.';
-    } elseif (empty($send_via)) {
-        $error = 'Please select at least one delivery channel.';
+    if (empty($title) || empty($message_content)) {
+        $error = 'Please fill in all required fields.';
     } else {
         try {
-            $status = $action === 'send' ? 'sending' : 'draft';
-            if ($scheduled_at && !empty($scheduled_at)) {
-                $status = 'scheduled';
-            }
-            
             $send_via_json = json_encode($send_via);
             $target_ids_json = !empty($target_ids) ? json_encode($target_ids) : null;
             
             $stmt = $db->prepare("
-                INSERT INTO broadcasts (
-                    tenant_id, sender_id, title, message, 
-                    target_audience, target_ids_json, send_via,
-                    scheduled_at, status, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                UPDATE broadcasts 
+                SET title = ?, message = ?, target_audience = ?, 
+                    target_ids_json = ?, send_via = ?
+                WHERE id = ? AND tenant_id = ?
             ");
-            
             $stmt->execute([
-                $tenant_id,
-                $user_id,
                 $title,
                 $message_content,
                 $target_audience,
                 $target_ids_json,
                 $send_via_json,
-                $scheduled_at,
-                $status
+                $broadcast_id,
+                $tenant_id
             ]);
             
-            $broadcast_id = $db->lastInsertId();
-            
-            logActivity($user_id, 'broadcast_created', 
-                "Created broadcast: $title (ID: $broadcast_id)",
+            logActivity($user_id, 'broadcast_updated', 
+                "Updated broadcast: $title (ID: $broadcast_id)",
                 'broadcasts', $broadcast_id
             );
             
-            if ($action === 'send') {
-                // Send broadcast immediately
-                try {
-                    $recipients = getBroadcastRecipients($tenant_id, $target_audience, $target_ids);
-                    $result = sendBroadcastEmails($recipients, $title, $message_content);
-                    
-                    // Update broadcast status
-                    $stmt = $db->prepare("
-                        UPDATE broadcasts 
-                        SET status = ?, sent_at = NOW(), total_recipients = ?
-                        WHERE id = ?
-                    ");
-                    $status = $result['success'] ? 'sent' : 'failed';
-                    $stmt->execute([$status, count($recipients), $broadcast_id]);
-                    
-                    if ($result['success']) {
-                        $message = "Broadcast created and sent successfully! ({$result['sent']} recipients)";
-                    } else {
-                        $message = "Broadcast created but sending failed for some recipients. Check logs for details.";
-                        $error = implode(', ', array_slice($result['errors'], 0, 3));
-                    }
-                } catch (Exception $e) {
-                    $error = "Broadcast created but sending failed: " . $e->getMessage();
-                }
-            } elseif ($scheduled_at && !empty($scheduled_at)) {
-                $message = "Broadcast scheduled successfully for " . date('M j, Y g:i A', strtotime($scheduled_at));
-            } else {
-                $message = "Broadcast saved as draft successfully!";
-            }
+            $message = "Broadcast updated successfully!";
+            
+            // Refresh broadcast data
+            $stmt = $db->prepare("SELECT * FROM broadcasts WHERE id = ? AND tenant_id = ?");
+            $stmt->execute([$broadcast_id, $tenant_id]);
+            $broadcast = $stmt->fetch(PDO::FETCH_ASSOC);
         } catch (Exception $e) {
-            $error = 'Failed to create broadcast: ' . $e->getMessage();
-            error_log("Broadcast creation error: " . $e->getMessage());
+            $error = 'Failed to update broadcast: ' . $e->getMessage();
         }
     }
 }
 
-$page_title = 'Create Broadcast';
+$page_title = 'Edit Broadcast';
 include '../includes/base.php';
 include '../includes/sidebar.php';
 ?>
@@ -242,7 +175,6 @@ include '../includes/sidebar.php';
 }
 
 .form-group input[type="text"],
-.form-group input[type="datetime-local"],
 .form-group textarea,
 .form-group select {
     width: 100%;
@@ -256,7 +188,6 @@ include '../includes/sidebar.php';
 }
 
 .form-group input[type="text"]:focus,
-.form-group input[type="datetime-local"]:focus,
 .form-group textarea:focus,
 .form-group select:focus {
     outline: none;
@@ -407,31 +338,13 @@ include '../includes/sidebar.php';
     font-family: 'Inter', sans-serif;
 }
 
-.btn-group .btn-draft {
-    background: var(--gray-100);
-    color: var(--gray-700);
-}
-
-.btn-group .btn-draft:hover {
-    background: var(--gray-200);
-}
-
-.btn-group .btn-schedule {
-    background: #F59E0B;
+.btn-group .btn-save {
+    background: var(--primary);
     color: white;
 }
 
-.btn-group .btn-schedule:hover {
-    background: #D97706;
-}
-
-.btn-group .btn-send {
-    background: #3B82F6;
-    color: white;
-}
-
-.btn-group .btn-send:hover {
-    background: #2563EB;
+.btn-group .btn-save:hover {
+    background: var(--primary-dark);
 }
 
 .btn-group .btn-cancel {
@@ -452,19 +365,27 @@ include '../includes/sidebar.php';
     background: var(--gray-200);
 }
 
-.recipient-count {
-    background: #F0F9FF;
-    border: 1px solid #BAE6FD;
-    border-radius: 10px;
-    padding: 10px 14px;
-    font-size: 0.75rem;
-    color: #0369A1;
-    margin-top: 8px;
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.6rem;
+    padding: 3px 12px;
+    border-radius: 12px;
+    font-weight: 600;
 }
 
-.recipient-count strong {
-    font-weight: 700;
+.status-badge .dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    display: inline-block;
 }
+
+.status-badge.draft { background: #F3F4F6; color: #6B7280; }
+.status-badge.draft .dot { background: #9CA3AF; }
+.status-badge.scheduled { background: #FFFBEB; color: #92400E; }
+.status-badge.scheduled .dot { background: #F59E0B; }
 
 @media (max-width: 768px) {
     .form-card {
@@ -498,10 +419,14 @@ include '../includes/sidebar.php';
             <!-- Page Header -->
             <div class="welcome-section">
                 <div>
-                    <h1><i class="fas fa-plus"></i> Create Broadcast</h1>
+                    <h1><i class="fas fa-edit"></i> Edit Broadcast</h1>
                     <p class="subtitle">
-                        <i class="fas fa-flag"></i> 
-                        <?php echo htmlspecialchars($state_name); ?> State - Send Messages to Coordinators & Agents
+                        <i class="fas fa-bullhorn"></i> 
+                        <?php echo htmlspecialchars($broadcast['title']); ?>
+                        <span class="status-badge <?php echo $broadcast['status']; ?>" style="margin-left:8px;">
+                            <span class="dot"></span>
+                            <?php echo ucfirst($broadcast['status']); ?>
+                        </span>
                     </p>
                 </div>
                 <div class="actions">
@@ -523,21 +448,20 @@ include '../includes/sidebar.php';
                 </div>
             <?php endif; ?>
 
-            <?php if (!$message || strpos($message, 'failed') !== false): ?>
-            <form method="POST" action="" id="broadcastForm">
+            <form method="POST" action="">
                 <!-- Basic Information -->
                 <div class="form-card">
                     <div class="card-title"><i class="fas fa-info-circle"></i> Broadcast Details</div>
                     
                     <div class="form-group">
                         <label>Title <span class="required">*</span></label>
-                        <input type="text" name="title" required placeholder="Enter broadcast title..." value="<?php echo htmlspecialchars($_POST['title'] ?? ''); ?>" />
+                        <input type="text" name="title" required placeholder="Enter broadcast title..." value="<?php echo htmlspecialchars($broadcast['title']); ?>" />
                     </div>
 
                     <div class="form-group">
                         <label>Message <span class="required">*</span></label>
-                        <textarea name="message" id="messageInput" required placeholder="Type your message here..."><?php echo htmlspecialchars($_POST['message'] ?? ''); ?></textarea>
-                        <div class="char-count"><span id="charCount">0</span> characters</div>
+                        <textarea name="message" id="messageInput" required placeholder="Type your message here..."><?php echo htmlspecialchars($broadcast['message']); ?></textarea>
+                        <div class="char-count"><span id="charCount"><?php echo strlen($broadcast['message']); ?></span> characters</div>
                     </div>
                 </div>
 
@@ -548,60 +472,54 @@ include '../includes/sidebar.php';
                     <div class="form-group">
                         <label>Select Audience <span class="required">*</span></label>
                         <div class="target-options" id="targetOptions">
-                            <label class="selected">
-                                <input type="radio" name="target_audience" value="all" checked onchange="toggleTargetIds()" />
+                            <label <?php echo $broadcast['target_audience'] === 'all' ? 'class="selected"' : ''; ?>>
+                                <input type="radio" name="target_audience" value="all" <?php echo $broadcast['target_audience'] === 'all' ? 'checked' : ''; ?> onchange="toggleTargetIds()" />
                                 All Users
                             </label>
-                            <label>
-                                <input type="radio" name="target_audience" value="state" onchange="toggleTargetIds()" />
+                            <label <?php echo $broadcast['target_audience'] === 'state' ? 'class="selected"' : ''; ?>>
+                                <input type="radio" name="target_audience" value="state" <?php echo $broadcast['target_audience'] === 'state' ? 'checked' : ''; ?> onchange="toggleTargetIds()" />
                                 State Users
                             </label>
-                            <label>
-                                <input type="radio" name="target_audience" value="lga" onchange="toggleTargetIds()" />
+                            <label <?php echo $broadcast['target_audience'] === 'lga' ? 'class="selected"' : ''; ?>>
+                                <input type="radio" name="target_audience" value="lga" <?php echo $broadcast['target_audience'] === 'lga' ? 'checked' : ''; ?> onchange="toggleTargetIds()" />
                                 LGA Specific
                             </label>
-                            <label>
-                                <input type="radio" name="target_audience" value="role_specific" onchange="toggleTargetIds()" />
+                            <label <?php echo $broadcast['target_audience'] === 'role_specific' ? 'class="selected"' : ''; ?>>
+                                <input type="radio" name="target_audience" value="role_specific" <?php echo $broadcast['target_audience'] === 'role_specific' ? 'checked' : ''; ?> onchange="toggleTargetIds()" />
                                 Role Specific
                             </label>
                         </div>
                     </div>
 
-                    <div class="target-ids-section" id="targetIdsSection">
-                        <div class="form-group" id="lgaTarget">
+                    <div class="target-ids-section <?php echo in_array($broadcast['target_audience'], ['lga', 'role_specific']) ? 'active' : ''; ?>" id="targetIdsSection">
+                        <div class="form-group" id="lgaTarget" style="<?php echo $broadcast['target_audience'] === 'lga' ? 'display:block;' : 'display:none;'; ?>">
                             <label>Select LGAs</label>
                             <select name="target_ids[]" multiple>
-                                <?php foreach ($lgas as $lga): ?>
-                                    <option value="<?php echo $lga['id']; ?>"><?php echo htmlspecialchars($lga['name']); ?></option>
+                                <?php 
+                                    $selected_ids = json_decode($broadcast['target_ids_json'] ?? '[]', true) ?: [];
+                                    foreach ($lgas as $lga): 
+                                ?>
+                                    <option value="<?php echo $lga['id']; ?>" <?php echo in_array($lga['id'], $selected_ids) ? 'selected' : ''; ?>>
+                                        <?php echo htmlspecialchars($lga['name']); ?>
+                                    </option>
                                 <?php endforeach; ?>
                             </select>
                             <div class="help-text">Hold Ctrl/Cmd to select multiple LGAs</div>
                         </div>
-                        <div class="form-group" id="roleTarget" style="display:none;">
+                        <div class="form-group" id="roleTarget" style="<?php echo $broadcast['target_audience'] === 'role_specific' ? 'display:block;' : 'display:none;'; ?>">
                             <label>Select Roles</label>
                             <select name="target_ids[]" multiple>
-                                <option value="lga">LGA Coordinators</option>
-                                <option value="ward">Ward Coordinators</option>
-                                <option value="pu_agent">PU Agents</option>
+                                <?php 
+                                    $role_options = ['lga' => 'LGA Coordinators', 'ward' => 'Ward Coordinators', 'pu_agent' => 'PU Agents'];
+                                    foreach ($role_options as $key => $label): 
+                                ?>
+                                    <option value="<?php echo $key; ?>" <?php echo in_array($key, $selected_ids) ? 'selected' : ''; ?>>
+                                        <?php echo $label; ?>
+                                    </option>
+                                <?php endforeach; ?>
                             </select>
                             <div class="help-text">Hold Ctrl/Cmd to select multiple roles</div>
                         </div>
-                    </div>
-
-                    <div class="recipient-count">
-                        <i class="fas fa-users"></i>
-                        Estimated recipients: 
-                        <strong id="recipientCount">
-                            <?php 
-                                $total_users = $lga_coordinators_count + $ward_coordinators_count + $pu_agents_count;
-                                echo number_format($total_users);
-                            ?>
-                        </strong>
-                        <span style="font-size:0.7rem;display:block;color:var(--gray-500);margin-top:2px;">
-                            LGA Coordinators: <?php echo number_format($lga_coordinators_count); ?> | 
-                            Ward Coordinators: <?php echo number_format($ward_coordinators_count); ?> | 
-                            PU Agents: <?php echo number_format($pu_agents_count); ?>
-                        </span>
                     </div>
                 </div>
 
@@ -612,44 +530,30 @@ include '../includes/sidebar.php';
                     <div class="form-group">
                         <label>Send Via <span class="required">*</span></label>
                         <div class="checkbox-group">
+                            <?php 
+                                $send_via = json_decode($broadcast['send_via'], true) ?: ['email'];
+                            ?>
                             <label>
-                                <input type="checkbox" name="send_via[]" value="email" checked />
+                                <input type="checkbox" name="send_via[]" value="email" <?php echo in_array('email', $send_via) ? 'checked' : ''; ?> />
                                 <i class="fas fa-envelope"></i> Email
                             </label>
                             <label>
-                                <input type="checkbox" name="send_via[]" value="in_app" />
+                                <input type="checkbox" name="send_via[]" value="in_app" <?php echo in_array('in_app', $send_via) ? 'checked' : ''; ?> />
                                 <i class="fas fa-bell"></i> In-App
                             </label>
                             <label>
-                                <input type="checkbox" name="send_via[]" value="sms" />
+                                <input type="checkbox" name="send_via[]" value="sms" <?php echo in_array('sms', $send_via) ? 'checked' : ''; ?> />
                                 <i class="fas fa-sms"></i> SMS
                             </label>
                         </div>
                     </div>
                 </div>
 
-                <!-- Schedule -->
-                <div class="form-card">
-                    <div class="card-title"><i class="fas fa-calendar"></i> Schedule (Optional)</div>
-                    
-                    <div class="form-group">
-                        <label>Schedule for later</label>
-                        <input type="datetime-local" name="scheduled_at" id="scheduledAt" />
-                        <div class="help-text">Leave empty to send immediately</div>
-                    </div>
-                </div>
-
                 <!-- Actions -->
                 <div class="form-card">
                     <div class="btn-group">
-                        <button type="submit" name="action" value="draft" class="btn-draft">
-                            <i class="fas fa-save"></i> Save as Draft
-                        </button>
-                        <button type="submit" name="action" value="schedule" class="btn-schedule" onclick="return validateSchedule()">
-                            <i class="fas fa-calendar-plus"></i> Schedule
-                        </button>
-                        <button type="submit" name="action" value="send" class="btn-send">
-                            <i class="fas fa-paper-plane"></i> Send Now
+                        <button type="submit" class="btn-save">
+                            <i class="fas fa-save"></i> Update Broadcast
                         </button>
                         <a href="broadcasts.php" class="btn-cancel">
                             <i class="fas fa-times"></i> Cancel
@@ -657,7 +561,6 @@ include '../includes/sidebar.php';
                     </div>
                 </div>
             </form>
-            <?php endif; ?>
         </div>
     </div>
 </main>
@@ -700,17 +603,6 @@ document.querySelectorAll('.target-options label').forEach(function(label) {
         this.classList.add('selected');
     });
 });
-
-// Validate schedule
-function validateSchedule() {
-    var scheduledAt = document.getElementById('scheduledAt');
-    if (!scheduledAt.value) {
-        alert('Please select a date and time to schedule the broadcast.');
-        scheduledAt.focus();
-        return false;
-    }
-    return true;
-}
 
 // Same sidebar scripts as index.php
 window.addEventListener('load', function() {

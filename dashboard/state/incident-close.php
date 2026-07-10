@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// STATE COORDINATOR - RESOLVE INCIDENT
+// STATE COORDINATOR - CLOSE INCIDENT
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -54,13 +54,16 @@ try {
                u.first_name as reporter_first_name, u.last_name as reporter_last_name,
                pu.name as pu_name,
                w.name as ward_name, l.name as lga_name,
-               e.name as election_name
+               e.name as election_name,
+               resolved.first_name as resolved_first_name,
+               resolved.last_name as resolved_last_name
         FROM incidents i
         LEFT JOIN users u ON i.reporter_id = u.id
         LEFT JOIN polling_units pu ON i.pu_id = pu.id
         LEFT JOIN wards w ON pu.ward_id = w.id
         LEFT JOIN lgas l ON w.lga_id = l.id
         LEFT JOIN elections e ON i.election_id = e.id
+        LEFT JOIN users resolved ON i.resolved_by = resolved.id
         WHERE i.id = ? AND i.tenant_id = ? AND i.state_id = ?
     ");
     $stmt->execute([$incident_id, $tenant_id, $state_id]);
@@ -74,46 +77,46 @@ if (!$incident) {
     exit();
 }
 
+// Only allow closing if status is 'resolved'
+if ($incident['status'] !== 'resolved') {
+    header('Location: incidents.php?error=not_resolved');
+    exit();
+}
+
 $message = '';
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $resolution_notes = trim($_POST['resolution_notes'] ?? '');
+    $close_notes = trim($_POST['close_notes'] ?? '');
     
-    if (empty($resolution_notes)) {
-        $error = 'Please provide resolution notes.';
-    } else {
-        try {
-            $stmt = $db->prepare("
-                UPDATE incidents 
-                SET status = 'resolved', 
-                    resolved_by = ?,
-                    resolved_at = NOW(),
-                    updated_at = NOW()
-                WHERE id = ? AND tenant_id = ?
-            ");
-            $stmt->execute([$user_id, $incident_id, $tenant_id]);
-            
-            // Add notes
-            $notes = $incident['resolution_notes'] ?? '';
-            $new_notes = $notes . "\n[" . date('Y-m-d H:i:s') . "] RESOLVED: " . $resolution_notes;
-            $stmt = $db->prepare("UPDATE incidents SET resolution_notes = ? WHERE id = ?");
-            $stmt->execute([$new_notes, $incident_id]);
-            
-            logActivity($user_id, 'incident_resolved', 
-                "Resolved incident #$incident_id",
-                'incidents', $incident_id
-            );
-            
-            $message = "Incident resolved successfully!";
-            
-            // Refresh incident data
-            $stmt = $db->prepare("SELECT * FROM incidents WHERE id = ?");
-            $stmt->execute([$incident_id]);
-            $incident = $stmt->fetch(PDO::FETCH_ASSOC);
-        } catch (Exception $e) {
-            $error = 'Failed to resolve incident: ' . $e->getMessage();
-        }
+    try {
+        $stmt = $db->prepare("
+            UPDATE incidents 
+            SET status = 'closed', 
+                updated_at = NOW()
+            WHERE id = ? AND tenant_id = ?
+        ");
+        $stmt->execute([$incident_id, $tenant_id]);
+        
+        // Add notes
+        $notes = $incident['resolution_notes'] ?? '';
+        $new_notes = $notes . "\n[" . date('Y-m-d H:i:s') . "] CLOSED: " . $close_notes;
+        $stmt = $db->prepare("UPDATE incidents SET resolution_notes = ? WHERE id = ?");
+        $stmt->execute([$new_notes, $incident_id]);
+        
+        logActivity($user_id, 'incident_closed', 
+            "Closed incident #$incident_id",
+            'incidents', $incident_id
+        );
+        
+        $message = "Incident closed successfully!";
+        
+        // Refresh incident data
+        $stmt = $db->prepare("SELECT * FROM incidents WHERE id = ?");
+        $stmt->execute([$incident_id]);
+        $incident = $stmt->fetch(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        $error = 'Failed to close incident: ' . $e->getMessage();
     }
 }
 
@@ -130,26 +133,25 @@ $incident_types = [
     'panic_button' => 'Panic Button'
 ];
 
-$page_title = 'Resolve Incident';
+$page_title = 'Close Incident';
 include '../includes/base.php';
 include '../includes/sidebar.php';
 ?>
 
 <style>
-.resolve-container {
-    max-width: 700px;
+.close-container {
+    max-width: 600px;
     margin: 0 auto;
 }
 
-.resolve-card {
+.close-card {
     background: white;
     border-radius: var(--radius);
     border: 1px solid var(--gray-200);
     padding: 24px 28px;
-    margin-bottom: 16px;
 }
 
-.resolve-card .card-title {
+.close-card .card-title {
     font-size: 0.85rem;
     font-weight: 600;
     margin: 0 0 12px;
@@ -158,8 +160,8 @@ include '../includes/sidebar.php';
     color: var(--gray-700);
 }
 
-.resolve-card .card-title i {
-    color: #10B981;
+.close-card .card-title i {
+    color: #6B7280;
     margin-right: 6px;
 }
 
@@ -219,8 +221,8 @@ include '../includes/sidebar.php';
     display: inline-block;
 }
 
-.status-badge.investigating { background: #F5F3FF; color: #5B21B6; }
-.status-badge.investigating .dot { background: #8B5CF6; }
+.status-badge.resolved { background: #ECFDF5; color: #065F46; }
+.status-badge.resolved .dot { background: #10B981; }
 
 .form-group {
     margin-bottom: 16px;
@@ -234,11 +236,6 @@ include '../includes/sidebar.php';
     margin-bottom: 4px;
 }
 
-.form-group label .required {
-    color: #EF4444;
-    margin-left: 2px;
-}
-
 .form-group textarea {
     width: 100%;
     padding: 10px 14px;
@@ -247,14 +244,14 @@ include '../includes/sidebar.php';
     font-size: 0.85rem;
     font-family: 'Inter', sans-serif;
     resize: vertical;
-    min-height: 100px;
+    min-height: 80px;
     transition: var(--transition);
 }
 
 .form-group textarea:focus {
     outline: none;
-    border-color: #10B981;
-    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.06);
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.06);
 }
 
 .alert {
@@ -311,15 +308,15 @@ include '../includes/sidebar.php';
     font-family: 'Inter', sans-serif;
 }
 
-.btn-group .btn-resolve {
-    background: #10B981;
+.btn-group .btn-close {
+    background: #6B7280;
     color: white;
 }
 
-.btn-group .btn-resolve:hover {
-    background: #059669;
+.btn-group .btn-close:hover {
+    background: #4B5563;
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    box-shadow: 0 4px 12px rgba(107, 114, 128, 0.3);
 }
 
 .btn-group .btn-cancel {
@@ -341,7 +338,7 @@ include '../includes/sidebar.php';
 }
 
 @media (max-width: 768px) {
-    .resolve-card {
+    .close-card {
         padding: 16px 18px;
     }
     .detail-grid {
@@ -362,11 +359,11 @@ include '../includes/sidebar.php';
     <?php include '../includes/header.php'; ?>
     
     <div class="main-content-inner">
-        <div class="resolve-container">
+        <div class="close-container">
             <!-- Page Header -->
             <div class="welcome-section">
                 <div>
-                    <h1><i class="fas fa-check-circle" style="color:#10B981;"></i> Resolve Incident</h1>
+                    <h1><i class="fas fa-times-circle" style="color:#6B7280;"></i> Close Incident</h1>
                     <p class="subtitle">
                         <i class="fas fa-exclamation-triangle"></i> 
                         #<?php echo $incident_id; ?> - <?php echo htmlspecialchars($incident['title']); ?>
@@ -392,7 +389,7 @@ include '../includes/sidebar.php';
                 </div>
             <?php endif; ?>
 
-            <div class="resolve-card">
+            <div class="close-card">
                 <div class="card-title"><i class="fas fa-info-circle"></i> Incident Details</div>
                 
                 <div class="incident-info">
@@ -416,8 +413,10 @@ include '../includes/sidebar.php';
                             </span>
                         </div>
                         <div class="detail-item">
-                            <span class="label">Election</span>
-                            <span class="value"><?php echo htmlspecialchars($incident['election_name'] ?? 'N/A'); ?></span>
+                            <span class="label">Resolved By</span>
+                            <span class="value">
+                                <?php echo htmlspecialchars($incident['resolved_first_name'] ?? '') . ' ' . htmlspecialchars($incident['resolved_last_name'] ?? ''); ?>
+                            </span>
                         </div>
                         <div class="detail-item" style="grid-column: span 2;">
                             <span class="label">Description</span>
@@ -428,21 +427,28 @@ include '../includes/sidebar.php';
 
                 <div class="info-box">
                     <i class="fas fa-info-circle"></i>
-                    Resolving this incident will mark it as resolved. It can be closed later.
+                    Closing this incident will mark it as closed. This action can be reversed by reopening.
                 </div>
+
+                <?php if (!empty($incident['resolution_notes'])): ?>
+                    <div style="background:#F3F4F6;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:0.78rem;">
+                        <strong style="color:var(--gray-700);">Resolution Notes:</strong>
+                        <p style="margin:4px 0 0;color:var(--gray-600);white-space:pre-wrap;"><?php echo htmlspecialchars($incident['resolution_notes']); ?></p>
+                    </div>
+                <?php endif; ?>
 
                 <form method="POST" action="">
                     <div class="form-group">
-                        <label>Resolution Notes <span class="required">*</span></label>
-                        <textarea name="resolution_notes" required placeholder="Describe how this incident was resolved..."></textarea>
+                        <label>Closing Notes</label>
+                        <textarea name="close_notes" placeholder="Add any final notes about closing this incident..."></textarea>
                     </div>
 
                     <div class="btn-group">
                         <a href="incidents.php" class="btn-cancel">
                             <i class="fas fa-times"></i> Cancel
                         </a>
-                        <button type="submit" class="btn-resolve">
-                            <i class="fas fa-check"></i> Resolve Incident
+                        <button type="submit" class="btn-close">
+                            <i class="fas fa-check"></i> Close Incident
                         </button>
                     </div>
                 </form>

@@ -1683,3 +1683,16 @@ Stack trace:
 [10-Jul-2026 10:12:08 Africa/Lagos] Password reset link generated: http://10.59.66.251/election/auth/reset-password.php?token=583fe49c29706934a2016df84374248d7e3a07208cfc1e8313e1e060b196894b
 [10-Jul-2026 10:12:59 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: state
 [10-Jul-2026 10:13:44 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: state
+[10-Jul-2026 10:22:09 Africa/Lagos] Error fetching results: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'r.deleted_at' in 'where clause'
+[10-Jul-2026 10:22:14 Africa/Lagos] Error fetching results: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'r.deleted_at' in 'where clause'
+[10-Jul-2026 10:36:04 Africa/Lagos] PHP Deprecated:  number_format(): Passing null to parameter #1 ($num) of type float is deprecated in C:\xampp\htdocs\election\dashboard\state\result-verification.php on line 486
+[10-Jul-2026 10:37:11 Africa/Lagos] PHP Deprecated:  number_format(): Passing null to parameter #1 ($num) of type float is deprecated in C:\xampp\htdocs\election\dashboard\state\result-verification.php on line 486
+[10-Jul-2026 10:51:08 Africa/Lagos] Error fetching broadcasts: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'broadcast_id' in 'where clause'
+[10-Jul-2026 10:53:03 Africa/Lagos] Error fetching broadcasts: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'broadcast_id' in 'where clause'
+[10-Jul-2026 10:54:27 Africa/Lagos] Error fetching broadcasts: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'broadcast_id' in 'where clause'
+[10-Jul-2026 11:08:17 Africa/Lagos] Error fetching broadcasts: SQLSTATE[42S22]: Column not found: 1054 Unknown column 'broadcast_id' in 'where clause'
+[10-Jul-2026 11:48:11 Africa/Lagos] Redirecting to: ../dashboard/client-admin/ for role: client_admin
+[10-Jul-2026 11:50:51 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: state
+[10-Jul-2026 11:50:59 Africa/Lagos] PHP Warning:  Undefined variable $elections in C:\xampp\htdocs\election\dashboard\state\election-progress.php on line 405
+[10-Jul-2026 11:50:59 Africa/Lagos] PHP Warning:  foreach() argument must be of type array|object, null given in C:\xampp\htdocs\election\dashboard\state\election-progress.php on line 405
+[10-Jul-2026 11:52:02 Africa/Lagos] Redirecting to: ../dashboard/Coordinator/ for role: lga

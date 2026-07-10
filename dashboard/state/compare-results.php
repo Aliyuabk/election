@@ -6,7 +6,6 @@ require_once '../../config/config.php';
 require_once '../../includes/session.php';
 require_once '../../includes/functions.php';
 
-// Start session
 SessionManager::start();
 
 if (!SessionManager::isLoggedIn()) {
@@ -14,7 +13,6 @@ if (!SessionManager::isLoggedIn()) {
     exit();
 }
 
-// Only state coordinator can access
 if (SessionManager::get('role_level') !== 'state') {
     header('Location: ../client-admin/');
     exit();
@@ -25,7 +23,6 @@ $user_id = SessionManager::get('user_id');
 $tenant_id = SessionManager::get('tenant_id');
 $state_id = SessionManager::get('state_id');
 
-// If state_id is not set in session, try to get it from user record
 if (empty($state_id)) {
     $db = getDB();
     try {
@@ -42,38 +39,25 @@ if (empty($state_id)) {
 }
 
 $db = getDB();
+$election_id = isset($_GET['election_id']) ? (int)$_GET['election_id'] : 0;
+$lga_id = isset($_GET['lga_id']) ? (int)$_GET['lga_id'] : 0;
 
-// ============================================================
-// GET FILTERS
-// ============================================================
-$election_filter = isset($_GET['election_id']) ? (int)$_GET['election_id'] : 0;
-$lga_filter = isset($_GET['lga_id']) ? (int)$_GET['lga_id'] : 0;
-$ward_filter = isset($_GET['ward_id']) ? (int)$_GET['ward_id'] : 0;
-
-// ============================================================
-// FETCH STATE NAME
-// ============================================================
+// Get state name
 $state_name = 'Unknown State';
-try {
-    if (!empty($state_id)) {
-        $stmt = $db->prepare("SELECT name FROM states WHERE id = ?");
-        $stmt->execute([$state_id]);
-        $state = $stmt->fetch(PDO::FETCH_ASSOC);
-        $state_name = $state['name'] ?? 'Unknown State';
-    }
-} catch (Exception $e) {
-    error_log("Error fetching state: " . $e->getMessage());
+if (!empty($state_id)) {
+    $stmt = $db->prepare("SELECT name FROM states WHERE id = ?");
+    $stmt->execute([$state_id]);
+    $state = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_name = $state['name'] ?? 'Unknown State';
 }
 
-// ============================================================
-// FETCH ELECTIONS FOR FILTER
-// ============================================================
+// Get elections for filter
 $elections = [];
 try {
     $stmt = $db->prepare("
-        SELECT id, name, status 
+        SELECT id, name, type, status 
         FROM elections 
-        WHERE tenant_id = ? AND deleted_at IS NULL 
+        WHERE tenant_id = ? AND deleted_at IS NULL
         AND (states_json LIKE ? OR states_json IS NULL OR states_json = '[]')
         ORDER BY election_date DESC
     ");
@@ -83,359 +67,301 @@ try {
     error_log("Error fetching elections: " . $e->getMessage());
 }
 
-// ============================================================
-// FETCH LGAS FOR FILTER
-// ============================================================
+// Get LGAs for filter
 $lgas = [];
 try {
-    $stmt = $db->prepare("SELECT id, name FROM lgas WHERE state_id = ? AND is_active = 1 ORDER BY name");
+    $stmt = $db->prepare("SELECT id, name FROM lgas WHERE state_id = ? AND is_active = 1 ORDER BY name ASC");
     $stmt->execute([$state_id]);
     $lgas = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {
     error_log("Error fetching LGAs: " . $e->getMessage());
 }
 
-// ============================================================
-// FETCH WARDS FOR FILTER
-// ============================================================
-$wards = [];
-if ($lga_filter > 0) {
-    try {
-        $stmt = $db->prepare("SELECT id, name FROM wards WHERE lga_id = ? AND is_active = 1 ORDER BY name");
-        $stmt->execute([$lga_filter]);
-        $wards = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (Exception $e) {
-        error_log("Error fetching wards: " . $e->getMessage());
-    }
-}
-
-// ============================================================
-// FETCH COMPARISON DATA
-// ============================================================
+// Comparison data
 $comparison_data = [];
 $summary = [
-    'total_pus' => 0,
-    'reported_pus' => 0,
-    'total_votes' => 0,
-    'parties' => [],
-    'discrepancies' => 0
+    'total_compared' => 0,
+    'matches' => 0,
+    'mismatches' => 0,
+    'total_votes_ec8a' => 0,
+    'total_votes_ec8b' => 0,
+    'difference' => 0
 ];
 
-if ($election_filter > 0) {
+if ($election_id > 0) {
     try {
-        // Build query based on filters
+        // Compare EC8A vs EC8B results per LGA
         $sql = "
             SELECT 
-                r.pu_id,
-                pu.name as pu_name,
-                pu.code as pu_code,
-                w.name as ward_name,
+                l.id as lga_id,
                 l.name as lga_name,
-                r.party_votes_json,
-                r.valid_votes,
-                r.rejected_votes,
-                r.total_votes_cast,
-                r.status,
-                r.created_at,
-                u.first_name as agent_first,
-                u.last_name as agent_last
-            FROM results_ec8a r
-            JOIN polling_units pu ON r.pu_id = pu.id
-            JOIN wards w ON pu.ward_id = w.id
-            JOIN lgas l ON w.lga_id = l.id
-            JOIN users u ON r.agent_id = u.id
-            WHERE r.tenant_id = ?
-            AND r.election_id = ?
-            AND l.state_id = ?
-            AND r.status IN ('verified', 'approved')
+                COALESCE(SUM(ec8a.valid_votes), 0) as ec8a_votes,
+                COALESCE(SUM(ec8b.valid_votes), 0) as ec8b_votes,
+                COUNT(DISTINCT ec8a.pu_id) as ec8a_pus,
+                COUNT(DISTINCT ec8b.ward_id) as ec8b_wards,
+                COALESCE(SUM(ec8a.total_votes_cast), 0) as ec8a_total,
+                COALESCE(SUM(ec8b.total_votes), 0) as ec8b_total,
+                CASE 
+                    WHEN COALESCE(SUM(ec8a.valid_votes), 0) = COALESCE(SUM(ec8b.valid_votes), 0) THEN 'match'
+                    WHEN ABS(COALESCE(SUM(ec8a.valid_votes), 0) - COALESCE(SUM(ec8b.valid_votes), 0)) <= 5 THEN 'minor'
+                    ELSE 'mismatch'
+                END as comparison_status,
+                ABS(COALESCE(SUM(ec8a.valid_votes), 0) - COALESCE(SUM(ec8b.valid_votes), 0)) as vote_difference
+            FROM lgas l
+            LEFT JOIN wards w ON w.lga_id = l.id
+            LEFT JOIN polling_units pu ON pu.ward_id = w.id AND pu.is_active = 1
+            LEFT JOIN results_ec8a ec8a ON ec8a.pu_id = pu.id AND ec8a.election_id = ? AND ec8a.tenant_id = ? AND ec8a.status IN ('verified', 'approved')
+            LEFT JOIN results_ec8b ec8b ON ec8b.ward_id = w.id AND ec8b.election_id = ? AND ec8b.tenant_id = ? AND ec8b.status IN ('verified', 'approved')
+            WHERE l.state_id = ? AND l.is_active = 1
         ";
         
-        $params = [$tenant_id, $election_filter, $state_id];
+        $params = [$election_id, $tenant_id, $election_id, $tenant_id, $state_id];
         
-        if ($lga_filter > 0) {
+        if ($lga_id > 0) {
             $sql .= " AND l.id = ?";
-            $params[] = $lga_filter;
+            $params[] = $lga_id;
         }
         
-        if ($ward_filter > 0) {
-            $sql .= " AND w.id = ?";
-            $params[] = $ward_filter;
-        }
-        
-        $sql .= " ORDER BY l.name, w.name, pu.name";
+        $sql .= " GROUP BY l.id, l.name ORDER BY l.name ASC";
         
         $stmt = $db->prepare($sql);
         $stmt->execute($params);
         $comparison_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
         
         // Calculate summary
-        $summary['total_pus'] = count($comparison_data);
-        $summary['reported_pus'] = count($comparison_data);
-        
-        $party_totals = [];
-        foreach ($comparison_data as $row) {
-            $party_votes = json_decode($row['party_votes_json'], true);
-            if (is_array($party_votes)) {
-                foreach ($party_votes as $party => $votes) {
-                    if (!isset($party_totals[$party])) {
-                        $party_totals[$party] = 0;
-                    }
-                    $party_totals[$party] += (int)$votes;
-                }
-                $summary['total_votes'] += array_sum($party_votes);
-            }
-        }
-        
-        arsort($party_totals);
-        $summary['parties'] = $party_totals;
-        
-        // Check for discrepancies (PU level vs ward level)
-        if ($ward_filter > 0) {
-            // Check if ward level results match sum of PU results
-            $stmt = $db->prepare("
-                SELECT party_votes_json, valid_votes, rejected_votes, total_votes
-                FROM results_ec8b
-                WHERE tenant_id = ? AND election_id = ? AND ward_id = ?
-            ");
-            $stmt->execute([$tenant_id, $election_filter, $ward_filter]);
-            $ward_result = $stmt->fetch(PDO::FETCH_ASSOC);
+        foreach ($comparison_data as $data) {
+            $summary['total_compared']++;
+            $summary['total_votes_ec8a'] += $data['ec8a_votes'];
+            $summary['total_votes_ec8b'] += $data['ec8b_votes'];
+            $summary['difference'] += $data['vote_difference'];
             
-            if ($ward_result) {
-                $ward_votes = json_decode($ward_result['party_votes_json'], true);
-                $pu_total = $summary['total_votes'];
-                $ward_total = is_array($ward_votes) ? array_sum($ward_votes) : 0;
-                
-                if ($pu_total != $ward_total) {
-                    $summary['discrepancies'] = abs($pu_total - $ward_total);
-                }
+            if ($data['comparison_status'] === 'match') {
+                $summary['matches']++;
+            } elseif ($data['comparison_status'] === 'minor') {
+                $summary['mismatches']++;
+            } else {
+                $summary['mismatches']++;
             }
         }
-        
     } catch (Exception $e) {
         error_log("Error fetching comparison data: " . $e->getMessage());
     }
 }
 
+$page_title = 'Compare Results';
 include '../includes/base.php';
 include '../includes/sidebar.php';
 ?>
 
 <style>
-.page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 12px;
-    margin-bottom: 20px;
-}
-.page-header h2 {
-    font-size: 1.3rem;
-    font-weight: 700;
-    margin: 0;
-}
-.page-header h2 small {
-    font-size: 0.8rem;
-    font-weight: 400;
-    color: var(--gray-500);
-    display: block;
-    margin-top: 2px;
-}
-
-.btn-secondary-sm {
-    padding: 8px 20px;
-    background: var(--gray-100);
-    color: var(--gray-700);
-    border: 1px solid var(--gray-200);
-    border-radius: 10px;
-    text-decoration: none;
-    font-weight: 500;
-    font-size: 0.8rem;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    transition: var(--transition);
-    font-family: 'Inter', sans-serif;
-}
-.btn-secondary-sm:hover {
-    background: var(--gray-200);
-}
-
 .filter-bar {
     display: flex;
-    gap: 10px;
+    gap: 12px;
     flex-wrap: wrap;
-    align-items: center;
     margin-bottom: 20px;
+    align-items: center;
     background: white;
     padding: 16px 20px;
     border-radius: var(--radius);
     border: 1px solid var(--gray-200);
 }
+
 .filter-bar select {
     padding: 8px 14px;
     border: 1px solid var(--gray-200);
     border-radius: 10px;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     font-family: 'Inter', sans-serif;
     background: white;
-    min-width: 150px;
+    min-width: 180px;
 }
+
 .filter-bar select:focus {
     outline: none;
     border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.06);
 }
-.filter-bar .btn-filter {
+
+.filter-bar .btn-compare {
     padding: 8px 24px;
     background: var(--primary);
     color: white;
     border: none;
     border-radius: 10px;
     font-weight: 600;
+    font-size: 0.8rem;
     cursor: pointer;
+    transition: var(--transition);
     font-family: 'Inter', sans-serif;
-}
-.filter-bar .btn-filter:hover {
-    background: var(--primary-dark);
-}
-.filter-bar .btn-reset {
-    padding: 8px 20px;
-    background: var(--gray-100);
-    color: var(--gray-600);
-    border: 1px solid var(--gray-200);
-    border-radius: 10px;
-    font-weight: 500;
-    cursor: pointer;
-    text-decoration: none;
-    font-family: 'Inter', sans-serif;
-}
-.filter-bar .btn-reset:hover {
-    background: var(--gray-200);
 }
 
-.summary-grid {
+.filter-bar .btn-compare:hover {
+    background: var(--primary-dark);
+    transform: translateY(-1px);
+}
+
+.summary-stats {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     gap: 12px;
     margin-bottom: 20px;
 }
-.summary-card {
+
+.summary-stat {
     background: white;
-    border-radius: 12px;
-    padding: 16px 20px;
+    border-radius: var(--radius);
+    padding: 14px 16px;
     border: 1px solid var(--gray-200);
     text-align: center;
 }
-.summary-card .number {
-    font-size: 1.6rem;
+
+.summary-stat .number {
+    font-size: 1.3rem;
     font-weight: 700;
 }
-.summary-card .label {
-    font-size: 0.7rem;
-    color: var(--gray-500);
-    margin-top: 2px;
-}
-.summary-card .number.primary { color: #3B82F6; }
-.summary-card .number.success { color: #10B981; }
-.summary-card .number.danger { color: #EF4444; }
-.summary-card .number.warning { color: #F59E0B; }
 
-.table-wrapper {
+.summary-stat .number.match { color: #10B981; }
+.summary-stat .number.mismatch { color: #EF4444; }
+.summary-stat .number.total { color: #3B82F6; }
+.summary-stat .number.diff { color: #F59E0B; }
+
+.summary-stat .label {
+    font-size: 0.65rem;
+    color: var(--gray-500);
+}
+
+.comparison-table-container {
     background: white;
     border-radius: var(--radius);
     border: 1px solid var(--gray-200);
     overflow: hidden;
-    box-shadow: var(--shadow-sm);
 }
-.table-wrapper table {
+
+.comparison-table {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.85rem;
+    font-size: 0.82rem;
 }
-.table-wrapper table th {
+
+.comparison-table th {
     background: var(--gray-50);
-    padding: 12px 16px;
+    padding: 10px 14px;
     text-align: left;
     font-weight: 600;
-    font-size: 0.75rem;
-    color: var(--gray-600);
+    color: var(--gray-700);
     border-bottom: 1px solid var(--gray-200);
-    white-space: nowrap;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
 }
-.table-wrapper table td {
-    padding: 12px 16px;
+
+.comparison-table td {
+    padding: 10px 14px;
     border-bottom: 1px solid var(--gray-100);
     vertical-align: middle;
 }
-.table-wrapper table tr:hover td {
+
+.comparison-table tr:hover td {
     background: var(--gray-50);
 }
-.table-wrapper table tr:last-child td {
-    border-bottom: none;
-}
 
-.party-votes-cell {
-    font-size: 0.8rem;
-}
-.party-votes-cell .party-row {
-    display: flex;
-    justify-content: space-between;
-    padding: 2px 0;
-}
-.party-votes-cell .party-row .party-name {
-    font-weight: 500;
-}
-.party-votes-cell .party-row .votes {
-    font-weight: 600;
-}
-
-.discrepancy-badge {
+.comparison-table .status-badge {
     display: inline-flex;
     align-items: center;
     gap: 4px;
+    font-size: 0.55rem;
     padding: 2px 10px;
     border-radius: 12px;
-    font-size: 0.65rem;
     font-weight: 600;
 }
-.discrepancy-badge.danger {
-    background: #FEF2F2;
-    color: #DC2626;
+
+.comparison-table .status-badge .dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    display: inline-block;
 }
-.discrepancy-badge.success {
-    background: #ECFDF5;
-    color: #10B981;
+
+.comparison-table .status-badge.match { background: #ECFDF5; color: #065F46; }
+.comparison-table .status-badge.match .dot { background: #10B981; }
+.comparison-table .status-badge.minor { background: #FFFBEB; color: #92400E; }
+.comparison-table .status-badge.minor .dot { background: #F59E0B; }
+.comparison-table .status-badge.mismatch { background: #FEF2F2; color: #991B1B; }
+.comparison-table .status-badge.mismatch .dot { background: #EF4444; }
+
+.comparison-table .match-indicator {
+    font-size: 1.1rem;
 }
+
+.comparison-table .match-indicator.match { color: #10B981; }
+.comparison-table .match-indicator.minor { color: #F59E0B; }
+.comparison-table .match-indicator.mismatch { color: #EF4444; }
+
+.comparison-table .vote-diff {
+    font-weight: 600;
+}
+
+.comparison-table .vote-diff.match { color: #10B981; }
+.comparison-table .vote-diff.minor { color: #F59E0B; }
+.comparison-table .vote-diff.mismatch { color: #EF4444; }
 
 .empty-state {
     text-align: center;
     padding: 60px 20px;
-    color: var(--gray-400);
 }
+
 .empty-state i {
     font-size: 3rem;
+    color: var(--gray-300);
     display: block;
     margin-bottom: 12px;
+}
+
+.empty-state h4 {
+    color: var(--gray-600);
+    margin: 0;
+}
+
+.empty-state p {
+    color: var(--gray-400);
+    font-size: 0.85rem;
+    margin-top: 4px;
+}
+
+.no-data {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--gray-500);
+}
+
+.no-data i {
+    font-size: 2rem;
     color: var(--gray-300);
+    display: block;
+    margin-bottom: 8px;
 }
 
 @media (max-width: 768px) {
-    .page-header {
-        flex-direction: column;
-        align-items: flex-start;
-    }
     .filter-bar {
         flex-direction: column;
         align-items: stretch;
     }
     .filter-bar select {
         width: 100%;
+        min-width: unset;
     }
-    .table-wrapper {
+    .summary-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    .comparison-table-container {
         overflow-x: auto;
     }
-    .summary-grid {
-        grid-template-columns: repeat(2, 1fr);
+    .comparison-table {
+        font-size: 0.7rem;
+    }
+    .comparison-table th,
+    .comparison-table td {
+        padding: 6px 10px;
     }
 }
 </style>
@@ -445,188 +371,161 @@ include '../includes/sidebar.php';
     
     <div class="main-content-inner">
         <!-- Page Header -->
-        <div class="page-header">
+        <div class="welcome-section">
             <div>
-                <h2>
-                    <i class="fas fa-balance-scale" style="color:var(--primary);margin-right:8px;"></i>
-                    Compare Results
-                    <small><?php echo htmlspecialchars($state_name); ?> - Compare election results across levels</small>
-                </h2>
-            </div>
-            <div>
-                <a href="result-verification.php" class="btn-secondary-sm">
-                    <i class="fas fa-arrow-left"></i> Back to Verification
-                </a>
+                <h1><i class="fas fa-balance-scale"></i> Compare Results</h1>
+                <p class="subtitle">
+                    <i class="fas fa-flag"></i> 
+                    <?php echo htmlspecialchars($state_name); ?> State - Compare EC8A vs EC8B Results
+                </p>
             </div>
         </div>
 
         <!-- Filter Bar -->
-        <form method="GET" action="" class="filter-bar">
-            <select name="election_id" required>
-                <option value="">Select Election</option>
+        <div class="filter-bar">
+            <select id="electionSelect">
+                <option value="">Select Election...</option>
                 <?php foreach ($elections as $e): ?>
-                    <option value="<?php echo $e['id']; ?>" <?php echo $election_filter == $e['id'] ? 'selected' : ''; ?>>
-                        <?php echo htmlspecialchars($e['name']); ?>
+                    <option value="<?php echo $e['id']; ?>" <?php echo $election_id == $e['id'] ? 'selected' : ''; ?>>
+                        <?php echo htmlspecialchars($e['name']); ?> (<?php echo ucfirst($e['status']); ?>)
                     </option>
                 <?php endforeach; ?>
             </select>
-            <select name="lga_id" id="lgaSelect">
-                <option value="">All LGAs</option>
+
+            <select id="lgaSelect">
+                <option value="0">All LGAs</option>
                 <?php foreach ($lgas as $l): ?>
-                    <option value="<?php echo $l['id']; ?>" <?php echo $lga_filter == $l['id'] ? 'selected' : ''; ?>>
+                    <option value="<?php echo $l['id']; ?>" <?php echo $lga_id == $l['id'] ? 'selected' : ''; ?>>
                         <?php echo htmlspecialchars($l['name']); ?>
                     </option>
                 <?php endforeach; ?>
             </select>
-            <select name="ward_id" id="wardSelect">
-                <option value="">All Wards</option>
-                <?php foreach ($wards as $w): ?>
-                    <option value="<?php echo $w['id']; ?>" <?php echo $ward_filter == $w['id'] ? 'selected' : ''; ?>>
-                        <?php echo htmlspecialchars($w['name']); ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-            <button type="submit" class="btn-filter"><i class="fas fa-chart-bar"></i> Compare</button>
-            <a href="compare-results.php" class="btn-reset"><i class="fas fa-times"></i> Reset</a>
-        </form>
 
-        <?php if ($election_filter > 0 && count($comparison_data) > 0): ?>
-            <!-- Summary -->
-            <div class="summary-grid">
-                <div class="summary-card">
-                    <div class="number primary"><?php echo number_format($summary['total_pus']); ?></div>
-                    <div class="label">Total Polling Units</div>
+            <button class="btn-compare" onclick="applyFilters()">
+                <i class="fas fa-balance-scale"></i> Compare
+            </button>
+        </div>
+
+        <?php if ($election_id > 0 && !empty($comparison_data)): ?>
+            <!-- Summary Stats -->
+            <div class="summary-stats">
+                <div class="summary-stat">
+                    <div class="number total"><?php echo number_format($summary['total_compared']); ?></div>
+                    <div class="label">LGAs Compared</div>
                 </div>
-                <div class="summary-card">
-                    <div class="number success"><?php echo number_format($summary['reported_pus']); ?></div>
-                    <div class="label">Reported PUs</div>
+                <div class="summary-stat">
+                    <div class="number match"><?php echo number_format($summary['matches']); ?></div>
+                    <div class="label">Matching</div>
                 </div>
-                <div class="summary-card">
-                    <div class="number primary"><?php echo number_format($summary['total_votes']); ?></div>
-                    <div class="label">Total Votes Cast</div>
+                <div class="summary-stat">
+                    <div class="number mismatch"><?php echo number_format($summary['mismatches']); ?></div>
+                    <div class="label">Mismatches</div>
                 </div>
-                <?php if ($summary['discrepancies'] > 0): ?>
-                    <div class="summary-card">
-                        <div class="number danger"><?php echo number_format($summary['discrepancies']); ?></div>
-                        <div class="label">Discrepancy</div>
-                    </div>
-                <?php endif; ?>
+                <div class="summary-stat">
+                    <div class="number diff"><?php echo number_format($summary['difference']); ?></div>
+                    <div class="label">Total Difference</div>
+                </div>
+                <div class="summary-stat">
+                    <div class="number"><?php echo number_format($summary['total_votes_ec8a']); ?></div>
+                    <div class="label">EC8A Total Votes</div>
+                </div>
+                <div class="summary-stat">
+                    <div class="number"><?php echo number_format($summary['total_votes_ec8b']); ?></div>
+                    <div class="label">EC8B Total Votes</div>
+                </div>
             </div>
 
-            <!-- Party Summary -->
-            <?php if (!empty($summary['parties'])): ?>
-                <div style="background:white;border-radius:var(--radius);border:1px solid var(--gray-200);padding:16px 20px;margin-bottom:20px;">
-                    <h4 style="font-size:0.9rem;font-weight:600;margin:0 0 12px 0;">
-                        <i class="fas fa-vote-yea" style="color:var(--primary);"></i> Party-wise Summary
-                    </h4>
-                    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;">
-                        <?php foreach ($summary['parties'] as $party => $votes): ?>
-                            <div style="display:flex;justify-content:space-between;padding:6px 12px;background:var(--gray-50);border-radius:6px;">
-                                <span style="font-weight:500;"><?php echo htmlspecialchars($party); ?></span>
-                                <span style="font-weight:700;color:var(--gray-800);"><?php echo number_format($votes); ?></span>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
-                </div>
-            <?php endif; ?>
-
-            <!-- Detailed Table -->
-            <div class="table-wrapper">
-                <table>
+            <!-- Comparison Table -->
+            <div class="comparison-table-container">
+                <table class="comparison-table">
                     <thead>
                         <tr>
-                            <th>S/N</th>
-                            <th>Polling Unit</th>
-                            <th>Ward / LGA</th>
-                            <th>Agent</th>
-                            <th>Party Votes</th>
-                            <th>Valid</th>
-                            <th>Rejected</th>
-                            <th>Total</th>
+                            <th>LGA</th>
+                            <th>EC8A Votes</th>
+                            <th>EC8B Votes</th>
+                            <th>Difference</th>
                             <th>Status</th>
+                            <th>PUs</th>
+                            <th>Wards</th>
+                            <th>Action</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php $sn = 1; ?>
-                        <?php foreach ($comparison_data as $row): 
-                            $party_votes = json_decode($row['party_votes_json'], true);
-                            $total = array_sum($party_votes);
+                        <?php foreach ($comparison_data as $data): 
+                            $status_class = $data['comparison_status'];
+                            $status_icon = $data['comparison_status'] === 'match' ? '✓' : ($data['comparison_status'] === 'minor' ? '~' : '✗');
                         ?>
                             <tr>
-                                <td><?php echo $sn++; ?></td>
+                                <td><strong><?php echo htmlspecialchars($data['lga_name']); ?></strong></td>
+                                <td><?php echo number_format($data['ec8a_votes']); ?></td>
+                                <td><?php echo number_format($data['ec8b_votes']); ?></td>
                                 <td>
-                                    <div style="font-weight:600;"><?php echo htmlspecialchars($row['pu_name']); ?></div>
-                                    <div style="font-size:0.65rem;color:var(--gray-400);">Code: <?php echo htmlspecialchars($row['pu_code']); ?></div>
-                                </td>
-                                <td>
-                                    <div style="font-size:0.8rem;"><?php echo htmlspecialchars($row['ward_name']); ?></div>
-                                    <div style="font-size:0.65rem;color:var(--gray-400);"><?php echo htmlspecialchars($row['lga_name']); ?></div>
-                                </td>
-                                <td>
-                                    <div style="font-size:0.8rem;"><?php echo htmlspecialchars($row['agent_first'] . ' ' . $row['agent_last']); ?></div>
-                                </td>
-                                <td>
-                                    <div class="party-votes-cell">
-                                        <?php if (is_array($party_votes) && count($party_votes) > 0): ?>
-                                            <?php foreach ($party_votes as $party => $votes): ?>
-                                                <div class="party-row">
-                                                    <span class="party-name"><?php echo htmlspecialchars($party); ?></span>
-                                                    <span class="votes"><?php echo number_format($votes); ?></span>
-                                                </div>
-                                            <?php endforeach; ?>
-                                        <?php else: ?>
-                                            <span style="color:var(--gray-400);">No data</span>
-                                        <?php endif; ?>
-                                    </div>
-                                </td>
-                                <td style="font-weight:600;color:#10B981;"><?php echo number_format($row['valid_votes'] ?? 0); ?></td>
-                                <td style="font-weight:600;color:#EF4444;"><?php echo number_format($row['rejected_votes'] ?? 0); ?></td>
-                                <td style="font-weight:700;"><?php echo number_format($row['total_votes_cast'] ?? $total); ?></td>
-                                <td>
-                                    <span class="badge-status <?php echo $row['status']; ?>">
-                                        <span class="dot"></span>
-                                        <?php echo ucfirst($row['status']); ?>
+                                    <span class="vote-diff <?php echo $status_class; ?>">
+                                        <?php echo $data['vote_difference'] > 0 ? '+' : ''; ?>
+                                        <?php echo number_format($data['vote_difference']); ?>
                                     </span>
+                                </td>
+                                <td>
+                                    <span class="status-badge <?php echo $status_class; ?>">
+                                        <span class="dot"></span>
+                                        <?php echo ucfirst($data['comparison_status']); ?>
+                                    </span>
+                                </td>
+                                <td><?php echo number_format($data['ec8a_pus']); ?></td>
+                                <td><?php echo number_format($data['ec8b_wards']); ?></td>
+                                <td>
+                                    <a href="view-lga-comparison.php?lga_id=<?php echo $data['lga_id']; ?>&election_id=<?php echo $election_id; ?>" 
+                                       class="btn-view" style="padding:2px 12px;border-radius:4px;font-size:0.6rem;font-weight:500;text-decoration:none;background:var(--primary);color:white;transition:var(--transition);">
+                                        <i class="fas fa-eye"></i> Details
+                                    </a>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
                     </tbody>
                 </table>
             </div>
-
-        <?php elseif ($election_filter > 0): ?>
+        <?php elseif ($election_id > 0 && empty($comparison_data)): ?>
             <div class="empty-state">
                 <i class="fas fa-balance-scale"></i>
-                <p>No verified results found for comparison.</p>
-                <p style="font-size:0.8rem;">Make sure results have been verified and approved.</p>
+                <h4>No Data Available</h4>
+                <p>No results available for comparison in the selected election.</p>
+                <p style="font-size:0.75rem;color:var(--gray-400);">Make sure EC8A and EC8B results have been submitted and verified.</p>
             </div>
         <?php else: ?>
             <div class="empty-state">
                 <i class="fas fa-balance-scale"></i>
-                <p>Select an election to compare results.</p>
-                <p style="font-size:0.8rem;">You can compare results across LGAs and Wards.</p>
+                <h4>Select an Election</h4>
+                <p>Please select an election and click Compare to view result comparisons.</p>
+                <p style="font-size:0.75rem;color:var(--gray-400);">This tool compares EC8A (Polling Unit) results with EC8B (Ward) results.</p>
             </div>
         <?php endif; ?>
     </div>
 </main>
 
 <script>
-// ============================================================
-// PRELOADER
-// ============================================================
+function applyFilters() {
+    var election = document.getElementById('electionSelect').value;
+    var lga = document.getElementById('lgaSelect').value;
+    
+    if (!election) {
+        alert('Please select an election to compare.');
+        return;
+    }
+    
+    var url = window.location.pathname + '?election_id=' + election;
+    if (lga) url += '&lga_id=' + lga;
+    window.location.href = url;
+}
+
+// Same sidebar scripts as index.php
 window.addEventListener('load', function() {
     var preloader = document.getElementById('preloader');
     if (preloader) {
         preloader.classList.add('hidden');
-        setTimeout(function() {
-            preloader.style.display = 'none';
-        }, 600);
+        setTimeout(function() { preloader.style.display = 'none'; }, 600);
     }
 });
 
-// ============================================================
-// SIDEBAR TOGGLE
-// ============================================================
 var sidebar = document.getElementById('sidebar');
 var sidebarToggle = document.getElementById('sidebarToggle');
 var sidebarOverlay = document.getElementById('sidebarOverlay');
@@ -665,9 +564,6 @@ window.addEventListener('resize', function() {
     }
 });
 
-// ============================================================
-// SIDEBAR DROPDOWNS
-// ============================================================
 document.querySelectorAll('.dropdown-toggle').forEach(function(toggle) {
     toggle.addEventListener('click', function(e) {
         e.preventDefault();
@@ -681,9 +577,6 @@ document.querySelectorAll('.dropdown-toggle').forEach(function(toggle) {
     });
 });
 
-// ============================================================
-// PROFILE DROPDOWN
-// ============================================================
 var profileBtn = document.getElementById('profileBtn');
 var profileMenu = document.getElementById('profileMenu');
 
@@ -698,34 +591,6 @@ if (profileBtn && profileMenu) {
         }
     });
 }
-
-// ============================================================
-// DYNAMIC WARD LOADING
-// ============================================================
-document.getElementById('lgaSelect').addEventListener('change', function() {
-    var lgaId = this.value;
-    var wardSelect = document.getElementById('wardSelect');
-    
-    if (lgaId) {
-        wardSelect.innerHTML = '<option value="">Loading...</option>';
-        fetch('ajax/get-wards.php?lga_id=' + lgaId)
-            .then(function(response) { return response.json(); })
-            .then(function(data) {
-                wardSelect.innerHTML = '<option value="">All Wards</option>';
-                data.forEach(function(ward) {
-                    var option = document.createElement('option');
-                    option.value = ward.id;
-                    option.textContent = ward.name;
-                    wardSelect.appendChild(option);
-                });
-            })
-            .catch(function() {
-                wardSelect.innerHTML = '<option value="">Error loading wards</option>';
-            });
-    } else {
-        wardSelect.innerHTML = '<option value="">All Wards</option>';
-    }
-});
 </script>
 </body>
 </html>

@@ -158,6 +158,9 @@ $role_menus['national'] = [
 // ============================================================
 // 2. STATE COORDINATOR MENU
 // ============================================================
+// ============================================================
+// 2. STATE COORDINATOR MENU - Enhanced with Full Features
+// ============================================================
 $role_menus['state'] = [
     'main' => [
         ['label' => 'Dashboard', 'icon' => 'fa-th-large', 'url' => 'index.php', 'active' => 'dashboard'],
@@ -168,7 +171,10 @@ $role_menus['state'] = [
             'items' => [
                 ['label' => 'All Coordinators', 'icon' => 'fa-list', 'url' => 'lga-coordinators.php'],
                 ['label' => 'Assign Coordinator', 'icon' => 'fa-user-plus', 'url' => 'lga-coordinators-assign.php'],
+                ['label' => 'Reassign Coordinator', 'icon' => 'fa-exchange-alt', 'url' => 'lga-coordinators-reassign.php'],
                 ['label' => 'View Profiles', 'icon' => 'fa-id-card', 'url' => 'lga-coordinators-profiles.php'],
+                ['label' => 'Suspend Coordinator', 'icon' => 'fa-pause', 'url' => 'lga-coordinators-suspend.php'],
+                ['label' => 'Reset Password', 'icon' => 'fa-key', 'url' => 'lga-coordinators-reset-password.php'],
                 ['label' => 'View Activity', 'icon' => 'fa-clock', 'url' => 'lga-coordinators-activity.php'],
             ]
         ]
@@ -182,14 +188,42 @@ $role_menus['state'] = [
         ]
     ],
     'results' => [
-        ['label' => 'Result Verification', 'icon' => 'fa-check-double', 'url' => 'result-verification.php'],
-        ['label' => 'Verify EC8A', 'icon' => 'fa-file-alt', 'url' => 'verify-ec8a.php'],
-        ['label' => 'Verify EC8B', 'icon' => 'fa-file-alt', 'url' => 'verify-ec8b.php'],
-        ['label' => 'Compare Results', 'icon' => 'fa-balance-scale', 'url' => 'compare-results.php'],
+        ['label' => 'Result Verification', 'icon' => 'fa-check-double', 'dropdown' => true, 'id' => 'result-verification-dropdown',
+            'items' => [
+                ['label' => 'Result Verification Dashboard', 'icon' => 'fa-dashboard', 'url' => 'result-verification.php'],
+                ['label' => 'Verify EC8A', 'icon' => 'fa-file-alt', 'url' => 'verify-ec8a.php'],
+                ['label' => 'Verify EC8B', 'icon' => 'fa-file-alt', 'url' => 'verify-ec8b.php'],
+                ['label' => 'Compare Results', 'icon' => 'fa-balance-scale', 'url' => 'compare-results.php'],
+                ['label' => 'Approve Results', 'icon' => 'fa-check-circle', 'url' => 'approve-results.php'],
+                ['label' => 'Reject Results', 'icon' => 'fa-times-circle', 'url' => 'reject-results.php'],
+                ['label' => 'Request Correction', 'icon' => 'fa-edit', 'url' => 'request-correction.php'],
+            ]
+        ]
     ],
     'communications' => [
-        ['label' => 'Broadcast', 'icon' => 'fa-bullhorn', 'url' => 'broadcasts.php'],
-        ['label' => 'Incident Management', 'icon' => 'fa-exclamation-triangle', 'url' => 'incidents.php', 'badge' => '⚠'],
+        ['label' => 'Broadcast', 'icon' => 'fa-bullhorn', 'dropdown' => true, 'id' => 'broadcast-dropdown',
+            'items' => [
+                ['label' => 'Send to LGA Coordinators', 'icon' => 'fa-user-tie', 'url' => 'broadcast-lga-coordinators.php'],
+                ['label' => 'Send to Ward Coordinators', 'icon' => 'fa-user', 'url' => 'broadcast-ward-coordinators.php'],
+                ['label' => 'Send to PU Agents', 'icon' => 'fa-user-check', 'url' => 'broadcast-pu-agents.php'],
+                ['label' => 'Create Broadcast', 'icon' => 'fa-plus', 'url' => 'broadcasts-create.php'],
+                ['label' => 'Schedule Broadcast', 'icon' => 'fa-calendar-plus', 'url' => 'broadcasts-schedule.php'],
+                ['label' => 'Edit Broadcast', 'icon' => 'fa-edit', 'url' => 'broadcasts-edit.php'],
+                ['label' => 'Delete Broadcast', 'icon' => 'fa-trash', 'url' => 'broadcasts-delete.php'],
+                ['label' => 'Send Broadcast', 'icon' => 'fa-paper-plane', 'url' => 'broadcasts-send.php'],
+                ['label' => 'View Broadcasts', 'icon' => 'fa-list', 'url' => 'broadcasts.php'],
+            ]
+        ],
+        ['label' => 'Incident Management', 'icon' => 'fa-exclamation-triangle', 'dropdown' => true, 'id' => 'incident-dropdown',
+            'items' => [
+                ['label' => 'View Incidents', 'icon' => 'fa-list', 'url' => 'incidents.php'],
+                ['label' => 'Update Status', 'icon' => 'fa-edit', 'url' => 'incident-update.php'],
+                ['label' => 'Escalate Incident', 'icon' => 'fa-arrow-up', 'url' => 'incident-escalate.php'],
+                ['label' => 'Resolve Incident', 'icon' => 'fa-check-circle', 'url' => 'incident-resolve.php'],
+                ['label' => 'Close Incident', 'icon' => 'fa-times-circle', 'url' => 'incident-close.php'],
+                ['label' => 'Add Notes', 'icon' => 'fa-sticky-note', 'url' => 'incident-add-notes.php'],
+            ]
+        ]
     ],
     'reports' => [
         ['label' => 'Reports', 'icon' => 'fa-file-alt', 'dropdown' => true, 'id' => 'reports-dropdown',
@@ -197,7 +231,17 @@ $role_menus['state'] = [
                 ['label' => 'State Report', 'icon' => 'fa-file-pdf', 'url' => 'reports-state.php'],
                 ['label' => 'LGA Performance', 'icon' => 'fa-chart-bar', 'url' => 'reports-lga-performance.php'],
                 ['label' => 'Election Report', 'icon' => 'fa-file-alt', 'url' => 'reports-election.php'],
-                ['label' => 'Incident Report', 'icon' => 'fa-file-alt', 'url' => 'reports-incident.php'],
+                ['label' => 'Incident Report', 'icon' => 'fa-exclamation-triangle', 'url' => 'reports-incident.php'],
+                ['label' => 'Coordinator Report', 'icon' => 'fa-user-tie', 'url' => 'reports-coordinators.php'],
+            ]
+        ]
+    ],
+    'exports' => [
+        ['label' => 'Export', 'icon' => 'fa-download', 'dropdown' => true, 'id' => 'export-dropdown',
+            'items' => [
+                ['label' => 'Export as PDF', 'icon' => 'fa-file-pdf', 'url' => 'export-pdf.php'],
+                ['label' => 'Export as Excel', 'icon' => 'fa-file-excel', 'url' => 'export-excel.php'],
+                ['label' => 'Export as CSV', 'icon' => 'fa-file-csv', 'url' => 'export-csv.php'],
             ]
         ]
     ],
@@ -205,7 +249,6 @@ $role_menus['state'] = [
         ['label' => 'Settings', 'icon' => 'fa-cog', 'url' => 'settings.php'],
     ]
 ];
-
 // ============================================================
 // 3. SENATORIAL COORDINATOR MENU
 // ============================================================

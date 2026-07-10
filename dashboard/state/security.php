@@ -1,12 +1,11 @@
 <?php
 // ============================================================
-// STATE COORDINATOR - SECURITY
+// STATE COORDINATOR - SECURITY SETTINGS
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
 require_once '../../includes/functions.php';
 
-// Start session
 SessionManager::start();
 
 if (!SessionManager::isLoggedIn()) {
@@ -14,7 +13,6 @@ if (!SessionManager::isLoggedIn()) {
     exit();
 }
 
-// Only state coordinator can access
 if (SessionManager::get('role_level') !== 'state') {
     header('Location: ../client-admin/');
     exit();
@@ -25,7 +23,6 @@ $user_id = SessionManager::get('user_id');
 $tenant_id = SessionManager::get('tenant_id');
 $state_id = SessionManager::get('state_id');
 
-// If state_id is not set in session, try to get it from user record
 if (empty($state_id)) {
     $db = getDB();
     try {
@@ -43,68 +40,58 @@ if (empty($state_id)) {
 
 $db = getDB();
 
-// ============================================================
-// GENERATE CSRF TOKEN
-// ============================================================
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
-$csrf_token = $_SESSION['csrf_token'];
-
-// ============================================================
-// FETCH STATE NAME
-// ============================================================
+// Get state name
 $state_name = 'Unknown State';
-try {
-    if (!empty($state_id)) {
-        $stmt = $db->prepare("SELECT name FROM states WHERE id = ?");
-        $stmt->execute([$state_id]);
-        $state = $stmt->fetch(PDO::FETCH_ASSOC);
-        $state_name = $state['name'] ?? 'Unknown State';
-    }
-} catch (Exception $e) {
-    error_log("Error fetching state: " . $e->getMessage());
+if (!empty($state_id)) {
+    $stmt = $db->prepare("SELECT name FROM states WHERE id = ?");
+    $stmt->execute([$state_id]);
+    $state = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_name = $state['name'] ?? 'Unknown State';
 }
 
-// ============================================================
-// FETCH SECURITY EVENTS
-// ============================================================
-$security_events = [];
-$total_events = 0;
-$stats = [
-    'total' => 0,
-    'login' => 0,
-    'logout' => 0,
-    'failed_login' => 0,
-    'password_change' => 0,
-    'password_reset' => 0,
-    'suspicious' => 0
-];
-
+// Get user data
+$user_data = null;
 try {
-    // Get security events for this user
+    $stmt = $db->prepare("SELECT * FROM users WHERE id = ? AND tenant_id = ?");
+    $stmt->execute([$user_id, $tenant_id]);
+    $user_data = $stmt->fetch(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    error_log("Error fetching user data: " . $e->getMessage());
+}
+
+// Get security events
+$security_events = [];
+try {
     $stmt = $db->prepare("
         SELECT * FROM security_events 
         WHERE user_id = ? 
         ORDER BY created_at DESC 
-        LIMIT 50
+        LIMIT 20
     ");
     $stmt->execute([$user_id]);
     $security_events = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    $total_events = count($security_events);
-    
-    // Calculate stats
-    $stats['total'] = $total_events;
-    foreach ($security_events as $event) {
-        if (strpos($event['event_type'], 'login') !== false) $stats['login']++;
-        if (strpos($event['event_type'], 'logout') !== false) $stats['logout']++;
-        if (strpos($event['event_type'], 'failed') !== false) $stats['failed_login']++;
-        if (strpos($event['event_type'], 'password_change') !== false) $stats['password_change']++;
-        if (strpos($event['event_type'], 'password_reset') !== false) $stats['password_reset']++;
-        if (($event['risk_score'] ?? 0) > 50) $stats['suspicious']++;
-    }
-    
-    // Get active sessions
+} catch (Exception $e) {
+    error_log("Error fetching security events: " . $e->getMessage());
+}
+
+// Get login history
+$login_history = [];
+try {
+    $stmt = $db->prepare("
+        SELECT * FROM login_attempts 
+        WHERE user_id = ? 
+        ORDER BY created_at DESC 
+        LIMIT 20
+    ");
+    $stmt->execute([$user_id]);
+    $login_history = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    error_log("Error fetching login history: " . $e->getMessage());
+}
+
+// Get active sessions
+$active_sessions = [];
+try {
     $stmt = $db->prepare("
         SELECT * FROM user_sessions 
         WHERE user_id = ? AND is_active = 1 
@@ -112,187 +99,305 @@ try {
     ");
     $stmt->execute([$user_id]);
     $active_sessions = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    // Get login attempts
-    $stmt = $db->prepare("
-        SELECT * FROM login_attempts 
-        WHERE user_id = ? OR email = (SELECT email FROM users WHERE id = ?)
-        ORDER BY created_at DESC 
-        LIMIT 20
-    ");
-    $stmt->execute([$user_id, $user_id]);
-    $login_attempts = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
 } catch (Exception $e) {
-    error_log("Error fetching security data: " . $e->getMessage());
+    error_log("Error fetching active sessions: " . $e->getMessage());
 }
 
+// Handle security actions
+$message = '';
+$error = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $action = $_POST['action'] ?? '';
+    
+    if ($action === 'toggle_2fa') {
+        $enabled = isset($_POST['two_factor_enabled']) ? 1 : 0;
+        
+        try {
+            $stmt = $db->prepare("UPDATE users SET two_factor_enabled = ? WHERE id = ?");
+            $stmt->execute([$enabled, $user_id]);
+            
+            logActivity($user_id, $enabled ? '2fa_enabled' : '2fa_disabled', 
+                $enabled ? 'Two-factor authentication enabled' : 'Two-factor authentication disabled');
+            
+            $message = $enabled ? '2FA enabled successfully!' : '2FA disabled successfully!';
+            
+            // Refresh user data
+            $stmt = $db->prepare("SELECT * FROM users WHERE id = ?");
+            $stmt->execute([$user_id]);
+            $user_data = $stmt->fetch(PDO::FETCH_ASSOC);
+        } catch (Exception $e) {
+            $error = 'Failed to update 2FA settings: ' . $e->getMessage();
+        }
+    } elseif ($action === 'revoke_session') {
+        $session_id = isset($_POST['session_id']) ? (int)$_POST['session_id'] : 0;
+        
+        if ($session_id > 0) {
+            try {
+                $stmt = $db->prepare("UPDATE user_sessions SET is_active = 0 WHERE id = ? AND user_id = ?");
+                $stmt->execute([$session_id, $user_id]);
+                
+                logActivity($user_id, 'session_revoked', "Revoked session ID: $session_id");
+                $message = 'Session revoked successfully!';
+                
+                // Refresh sessions
+                $stmt = $db->prepare("SELECT * FROM user_sessions WHERE user_id = ? AND is_active = 1 ORDER BY last_activity_at DESC");
+                $stmt->execute([$user_id]);
+                $active_sessions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            } catch (Exception $e) {
+                $error = 'Failed to revoke session: ' . $e->getMessage();
+            }
+        }
+    } elseif ($action === 'revoke_all') {
+        try {
+            $stmt = $db->prepare("UPDATE user_sessions SET is_active = 0 WHERE user_id = ? AND id != (SELECT MAX(id) FROM user_sessions WHERE user_id = ?)");
+            $stmt->execute([$user_id, $user_id]);
+            
+            logActivity($user_id, 'all_sessions_revoked', 'All other sessions revoked');
+            $message = 'All other sessions revoked successfully!';
+            
+            // Refresh sessions
+            $stmt = $db->prepare("SELECT * FROM user_sessions WHERE user_id = ? AND is_active = 1 ORDER BY last_activity_at DESC");
+            $stmt->execute([$user_id]);
+            $active_sessions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (Exception $e) {
+            $error = 'Failed to revoke sessions: ' . $e->getMessage();
+        }
+    }
+}
+
+$page_title = 'Security';
 include '../includes/base.php';
 include '../includes/sidebar.php';
 ?>
 
 <style>
-.page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 12px;
-    margin-bottom: 20px;
-}
-.page-header h2 {
-    font-size: 1.3rem;
-    font-weight: 700;
-    margin: 0;
-}
-.page-header h2 small {
-    font-size: 0.8rem;
-    font-weight: 400;
-    color: var(--gray-500);
-    display: block;
-    margin-top: 2px;
+.security-container {
+    max-width: 900px;
+    margin: 0 auto;
 }
 
-.btn-secondary-sm {
-    padding: 8px 20px;
-    background: var(--gray-100);
-    color: var(--gray-700);
-    border: 1px solid var(--gray-200);
-    border-radius: 10px;
-    text-decoration: none;
-    font-weight: 500;
-    font-size: 0.8rem;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    transition: var(--transition);
-    font-family: 'Inter', sans-serif;
-}
-.btn-secondary-sm:hover {
-    background: var(--gray-200);
-}
-
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 12px;
-    margin-bottom: 20px;
-}
-.stat-card {
-    background: white;
-    border-radius: 12px;
-    padding: 14px 16px;
-    border: 1px solid var(--gray-200);
-    text-align: center;
-}
-.stat-card .number {
-    font-size: 1.4rem;
-    font-weight: 700;
-}
-.stat-card .label {
-    font-size: 0.65rem;
-    color: var(--gray-500);
-    margin-top: 2px;
-}
-.stat-card .number.primary { color: #3B82F6; }
-.stat-card .number.success { color: #10B981; }
-.stat-card .number.danger { color: #EF4444; }
-.stat-card .number.warning { color: #F59E0B; }
-
-.table-wrapper {
+.settings-card {
     background: white;
     border-radius: var(--radius);
     border: 1px solid var(--gray-200);
-    overflow: hidden;
-    box-shadow: var(--shadow-sm);
-    margin-bottom: 20px;
+    padding: 24px 28px;
+    margin-bottom: 16px;
 }
-.table-wrapper table {
-    width: 100%;
-    border-collapse: collapse;
+
+.settings-card .card-title {
     font-size: 0.85rem;
-}
-.table-wrapper table th {
-    background: var(--gray-50);
-    padding: 10px 14px;
-    text-align: left;
     font-weight: 600;
-    font-size: 0.75rem;
-    color: var(--gray-600);
+    margin: 0 0 12px;
+    padding-bottom: 8px;
     border-bottom: 1px solid var(--gray-200);
-    white-space: nowrap;
+    color: var(--gray-700);
 }
-.table-wrapper table td {
-    padding: 10px 14px;
+
+.settings-card .card-title i {
+    color: var(--primary);
+    margin-right: 6px;
+}
+
+.form-group {
+    margin-bottom: 16px;
+}
+
+.form-group label {
+    display: block;
+    font-weight: 600;
+    font-size: 0.8rem;
+    color: var(--gray-700);
+    margin-bottom: 4px;
+}
+
+.form-group .checkbox-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.form-group .checkbox-group input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--primary);
+}
+
+.form-group .checkbox-group label {
+    font-weight: 400;
+    font-size: 0.82rem;
+    color: var(--gray-700);
+    cursor: pointer;
+}
+
+.form-group .help-text {
+    font-size: 0.65rem;
+    color: var(--gray-400);
+    margin-top: 4px;
+    margin-left: 26px;
+}
+
+.alert {
+    padding: 12px 16px;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    margin-bottom: 16px;
+}
+
+.alert-success {
+    background: #ECFDF5;
+    color: #065F46;
+    border: 1px solid #A7F3D0;
+}
+
+.alert-error {
+    background: #FEF2F2;
+    color: #991B1B;
+    border: 1px solid #FECACA;
+}
+
+.alert i {
+    margin-right: 6px;
+}
+
+.btn-group {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.btn-group button {
+    padding: 10px 28px;
+    border: none;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: var(--transition);
+    font-family: 'Inter', sans-serif;
+}
+
+.btn-group .btn-save {
+    background: var(--primary);
+    color: white;
+}
+
+.btn-group .btn-save:hover {
+    background: var(--primary-dark);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.3);
+}
+
+.btn-group .btn-danger {
+    background: #EF4444;
+    color: white;
+}
+
+.btn-group .btn-danger:hover {
+    background: #DC2626;
+}
+
+.btn-group .btn-secondary {
+    background: var(--gray-100);
+    color: var(--gray-700);
+}
+
+.btn-group .btn-secondary:hover {
+    background: var(--gray-200);
+}
+
+.session-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
     border-bottom: 1px solid var(--gray-100);
-    vertical-align: middle;
 }
-.table-wrapper table tr:hover td {
-    background: var(--gray-50);
-}
-.table-wrapper table tr:last-child td {
+
+.session-item:last-child {
     border-bottom: none;
 }
 
-.badge-status {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
+.session-item .session-info .device {
+    font-weight: 500;
+    font-size: 0.85rem;
+}
+
+.session-item .session-info .details {
+    font-size: 0.7rem;
+    color: var(--gray-500);
+}
+
+.session-item .session-status {
+    font-size: 0.6rem;
     padding: 2px 10px;
-    border-radius: 20px;
-    font-size: 0.65rem;
-    font-weight: 600;
+    border-radius: 10px;
 }
-.badge-status .dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    display: inline-block;
-}
-.badge-status.success { background: #ECFDF5; color: #065F46; }
-.badge-status.success .dot { background: #10B981; }
-.badge-status.danger { background: #FEF2F2; color: #991B1B; }
-.badge-status.danger .dot { background: #EF4444; }
-.badge-status.warning { background: #FFFBEB; color: #92400E; }
-.badge-status.warning .dot { background: #F59E0B; }
-.badge-status.primary { background: #EFF6FF; color: #1E40AF; }
-.badge-status.primary .dot { background: #3B82F6; }
 
-.risk-indicator {
-    display: inline-flex;
+.session-item .session-status.active {
+    background: #ECFDF5;
+    color: #065F46;
+}
+
+.session-item .session-status.current {
+    background: #EFF6FF;
+    color: #1E40AF;
+}
+
+.event-item {
+    display: flex;
     align-items: center;
-    gap: 4px;
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-size: 0.65rem;
-    font-weight: 600;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--gray-100);
+    font-size: 0.8rem;
 }
-.risk-indicator.low { background: #ECFDF5; color: #065F46; }
-.risk-indicator.medium { background: #FFFBEB; color: #92400E; }
-.risk-indicator.high { background: #FEF2F2; color: #991B1B; }
 
-.empty-state {
-    text-align: center;
-    padding: 30px 20px;
-    color: var(--gray-400);
+.event-item:last-child {
+    border-bottom: none;
 }
-.empty-state i {
-    font-size: 2rem;
-    display: block;
-    margin-bottom: 8px;
-    color: var(--gray-300);
+
+.event-item .event-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.65rem;
+    flex-shrink: 0;
+}
+
+.event-item .event-icon.login { background: #EFF6FF; color: #3B82F6; }
+.event-item .event-icon.logout { background: #FEF2F2; color: #EF4444; }
+.event-item .event-icon.security { background: #F5F3FF; color: #8B5CF6; }
+.event-item .event-icon.warning { background: #FFFBEB; color: #F59E0B; }
+.event-item .event-icon.danger { background: #FEF2F2; color: #DC2626; }
+
+.event-item .event-content {
+    flex: 1;
+}
+
+.event-item .event-content .description {
+    color: var(--gray-700);
+}
+
+.event-item .event-content .time {
+    font-size: 0.6rem;
+    color: var(--gray-400);
 }
 
 @media (max-width: 768px) {
-    .page-header {
+    .settings-card {
+        padding: 16px 18px;
+    }
+    .session-item {
         flex-direction: column;
         align-items: flex-start;
+        gap: 6px;
     }
-    .stats-grid {
-        grid-template-columns: repeat(3, 1fr);
-    }
-    .table-wrapper {
-        overflow-x: auto;
+    .session-item .session-status {
+        align-self: flex-start;
     }
 }
 </style>
@@ -301,157 +406,201 @@ include '../includes/sidebar.php';
     <?php include '../includes/header.php'; ?>
     
     <div class="main-content-inner">
-        <!-- Page Header -->
-        <div class="page-header">
-            <div>
-                <h2>
-                    <i class="fas fa-shield-alt" style="color:var(--primary);margin-right:8px;"></i>
-                    Security
-                    <small>Monitor your account security</small>
-                </h2>
+        <div class="security-container">
+            <!-- Page Header -->
+            <div class="welcome-section">
+                <div>
+                    <h1><i class="fas fa-shield-alt"></i> Security</h1>
+                    <p class="subtitle">
+                        <i class="fas fa-flag"></i> 
+                        <?php echo htmlspecialchars($state_name); ?> State - Security Settings
+                    </p>
+                </div>
             </div>
-            <div>
-                <a href="settings.php" class="btn-secondary-sm">
-                    <i class="fas fa-arrow-left"></i> Back to Settings
-                </a>
-            </div>
-        </div>
 
-        <!-- Stats -->
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="number primary"><?php echo number_format($stats['total']); ?></div>
-                <div class="label">Total Events</div>
-            </div>
-            <div class="stat-card">
-                <div class="number success"><?php echo number_format($stats['login']); ?></div>
-                <div class="label">Logins</div>
-            </div>
-            <div class="stat-card">
-                <div class="number warning"><?php echo number_format($stats['failed_login']); ?></div>
-                <div class="label">Failed Logins</div>
-            </div>
-            <div class="stat-card">
-                <div class="number danger"><?php echo number_format($stats['suspicious']); ?></div>
-                <div class="label">Suspicious</div>
-            </div>
-            <div class="stat-card">
-                <div class="number primary"><?php echo number_format(count($active_sessions ?? [])); ?></div>
-                <div class="label">Active Sessions</div>
-            </div>
-        </div>
+            <?php if ($message): ?>
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle"></i> <?php echo htmlspecialchars($message); ?>
+                </div>
+            <?php endif; ?>
+            
+            <?php if ($error): ?>
+                <div class="alert alert-error">
+                    <i class="fas fa-exclamation-circle"></i> <?php echo htmlspecialchars($error); ?>
+                </div>
+            <?php endif; ?>
 
-        <!-- Security Events -->
-        <div class="table-wrapper">
-            <table>
-                <thead>
-                    <tr>
-                        <th>S/N</th>
-                        <th>Event Type</th>
-                        <th>Description</th>
-                        <th>IP Address</th>
-                        <th>Risk Score</th>
-                        <th>Date/Time</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php if (count($security_events) > 0): ?>
-                        <?php $sn = 1; ?>
-                        <?php foreach ($security_events as $event): ?>
-                            <?php 
-                            $risk = (int)($event['risk_score'] ?? 0);
-                            $risk_class = $risk > 70 ? 'high' : ($risk > 40 ? 'medium' : 'low');
-                            ?>
-                            <tr>
-                                <td><?php echo $sn++; ?></td>
-                                <td>
-                                    <span class="badge-status <?php 
-                                        if (strpos($event['event_type'], 'login') !== false) echo 'success';
-                                        elseif (strpos($event['event_type'], 'logout') !== false) echo 'primary';
-                                        elseif (strpos($event['event_type'], 'failed') !== false) echo 'danger';
-                                        else echo 'warning';
-                                    ?>">
-                                        <span class="dot"></span>
-                                        <?php echo ucfirst(str_replace('_', ' ', $event['event_type'])); ?>
-                                    </span>
-                                </td>
-                                <td><?php echo htmlspecialchars($event['description'] ?? 'N/A'); ?></td>
-                                <td><?php echo htmlspecialchars($event['ip_address'] ?? 'N/A'); ?></td>
-                                <td>
-                                    <span class="risk-indicator <?php echo $risk_class; ?>">
-                                        <?php echo $risk; ?>%
-                                    </span>
-                                </td>
-                                <td>
-                                    <div style="font-size:0.75rem;"><?php echo date('M j, Y', strtotime($event['created_at'])); ?></div>
-                                    <div style="font-size:0.65rem;color:var(--gray-400);"><?php echo date('g:i A', strtotime($event['created_at'])); ?></div>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    <?php else: ?>
-                        <tr>
-                            <td colspan="6">
-                                <div class="empty-state">
-                                    <i class="fas fa-shield-alt"></i>
-                                    <p>No security events found.</p>
-                                </div>
-                            </td>
-                        </tr>
-                    <?php endif; ?>
-                </tbody>
-            </table>
-        </div>
-
-        <!-- Active Sessions -->
-        <?php if (!empty($active_sessions)): ?>
-            <div style="background:white;border-radius:var(--radius);border:1px solid var(--gray-200);padding:16px 20px;">
-                <h4 style="font-size:0.9rem;font-weight:600;margin:0 0 12px 0;">
-                    <i class="fas fa-desktop" style="color:var(--primary);margin-right:6px;"></i>
-                    Active Sessions
-                </h4>
-                <?php foreach ($active_sessions as $session): ?>
-                    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--gray-100);">
-                        <div>
-                            <div style="font-weight:500;font-size:0.85rem;">
-                                <?php echo htmlspecialchars($session['device_name'] ?? 'Unknown Device'); ?>
-                            </div>
-                            <div style="font-size:0.7rem;color:var(--gray-400);">
-                                IP: <?php echo htmlspecialchars($session['ip_address'] ?? 'N/A'); ?>
-                            </div>
+            <!-- Two-Factor Authentication -->
+            <div class="settings-card">
+                <div class="card-title"><i class="fas fa-lock"></i> Two-Factor Authentication</div>
+                
+                <form method="POST" action="">
+                    <input type="hidden" name="action" value="toggle_2fa" />
+                    
+                    <div class="form-group">
+                        <div class="checkbox-group">
+                            <input type="checkbox" name="two_factor_enabled" id="two_factor" 
+                                   <?php echo ($user_data['two_factor_enabled'] ?? 0) == 1 ? 'checked' : ''; ?> />
+                            <label for="two_factor">Enable Two-Factor Authentication (2FA)</label>
                         </div>
-                        <div style="text-align:right;">
-                            <div style="font-size:0.7rem;color:var(--gray-500);">
-                                Last active: <?php echo date('M j, Y g:i A', strtotime($session['last_activity_at'] ?? 'now')); ?>
-                            </div>
-                            <span class="badge-status success">
-                                <span class="dot"></span>
-                                Active
-                            </span>
+                        <div class="help-text">
+                            Adds an extra layer of security by requiring a verification code in addition to your password.
                         </div>
                     </div>
-                <?php endforeach; ?>
+
+                    <div class="btn-group">
+                        <button type="submit" class="btn-save">
+                            <i class="fas fa-save"></i> Update 2FA Settings
+                        </button>
+                    </div>
+                </form>
             </div>
-        <?php endif; ?>
+
+            <!-- Active Sessions -->
+            <div class="settings-card">
+                <div class="card-title"><i class="fas fa-desktop"></i> Active Sessions</div>
+                
+                <?php if (!empty($active_sessions)): ?>
+                    <?php foreach ($active_sessions as $session): 
+                        $is_current = $session['id'] == SessionManager::get('session_id');
+                    ?>
+                        <div class="session-item">
+                            <div class="session-info">
+                                <div class="device">
+                                    <i class="fas fa-<?php echo $session['device_type'] === 'web' ? 'desktop' : ($session['device_type'] === 'android' ? 'android' : 'apple'); ?>"></i>
+                                    <?php echo htmlspecialchars($session['device_name'] ?? 'Unknown Device'); ?>
+                                </div>
+                                <div class="details">
+                                    IP: <?php echo htmlspecialchars($session['ip_address'] ?? 'N/A'); ?>
+                                    • Last active: <?php echo date('M j, Y g:i A', strtotime($session['last_activity_at'])); ?>
+                                </div>
+                            </div>
+                            <div>
+                                <?php if ($is_current): ?>
+                                    <span class="session-status current">Current Session</span>
+                                <?php else: ?>
+                                    <form method="POST" action="" style="display:inline;">
+                                        <input type="hidden" name="action" value="revoke_session" />
+                                        <input type="hidden" name="session_id" value="<?php echo $session['id']; ?>" />
+                                        <button type="submit" class="btn-danger" style="padding:3px 12px;font-size:0.65rem;border-radius:6px;">
+                                            <i class="fas fa-times"></i> Revoke
+                                        </button>
+                                    </form>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                    
+                    <div style="margin-top:12px;">
+                        <form method="POST" action="">
+                            <input type="hidden" name="action" value="revoke_all" />
+                            <button type="submit" class="btn-danger" onclick="return confirm('Are you sure you want to revoke all other sessions?')">
+                                <i class="fas fa-sign-out-alt"></i> Revoke All Other Sessions
+                            </button>
+                        </form>
+                    </div>
+                <?php else: ?>
+                    <div style="text-align:center;padding:20px;color:var(--gray-400);">
+                        <i class="fas fa-desktop" style="font-size:2rem;display:block;margin-bottom:8px;"></i>
+                        <p>No active sessions found.</p>
+                    </div>
+                <?php endif; ?>
+            </div>
+
+            <!-- Login History -->
+            <div class="settings-card">
+                <div class="card-title"><i class="fas fa-history"></i> Login History</div>
+                
+                <?php if (!empty($login_history)): ?>
+                    <?php foreach ($login_history as $login): ?>
+                        <div class="event-item">
+                            <div class="event-icon <?php echo $login['success'] ? 'login' : 'danger'; ?>">
+                                <i class="fas fa-<?php echo $login['success'] ? 'sign-in-alt' : 'times'; ?>"></i>
+                            </div>
+                            <div class="event-content">
+                                <div class="description">
+                                    <?php echo $login['success'] ? 'Successful login' : 'Failed login attempt'; ?>
+                                    <?php if (!empty($login['ip_address'])): ?>
+                                        from <strong><?php echo htmlspecialchars($login['ip_address']); ?></strong>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="time">
+                                    <?php echo date('M j, Y g:i A', strtotime($login['created_at'])); ?>
+                                    <?php if (!empty($login['user_agent'])): ?>
+                                        • <?php echo htmlspecialchars(substr($login['user_agent'], 0, 50)) . (strlen($login['user_agent']) > 50 ? '...' : ''); ?>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                            <?php if ($login['success']): ?>
+                                <span style="font-size:0.6rem;color:#10B981;"><i class="fas fa-check-circle"></i></span>
+                            <?php else: ?>
+                                <span style="font-size:0.6rem;color:#EF4444;"><i class="fas fa-times-circle"></i></span>
+                            <?php endif; ?>
+                        </div>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <div style="text-align:center;padding:20px;color:var(--gray-400);">
+                        <i class="fas fa-history" style="font-size:2rem;display:block;margin-bottom:8px;"></i>
+                        <p>No login history found.</p>
+                    </div>
+                <?php endif; ?>
+            </div>
+
+            <!-- Security Events -->
+            <div class="settings-card">
+                <div class="card-title"><i class="fas fa-shield-alt"></i> Security Events</div>
+                
+                <?php if (!empty($security_events)): ?>
+                    <?php foreach ($security_events as $event): 
+                        $icon_class = 'security';
+                        if (strpos($event['event_type'], 'login') !== false) $icon_class = 'login';
+                        elseif (strpos($event['event_type'], 'logout') !== false) $icon_class = 'logout';
+                        elseif (strpos($event['event_type'], 'warning') !== false) $icon_class = 'warning';
+                        elseif (strpos($event['event_type'], 'danger') !== false || strpos($event['event_type'], 'critical') !== false) $icon_class = 'danger';
+                    ?>
+                        <div class="event-item">
+                            <div class="event-icon <?php echo $icon_class; ?>">
+                                <i class="fas fa-<?php echo $icon_class === 'security' ? 'shield-alt' : ($icon_class === 'login' ? 'sign-in-alt' : ($icon_class === 'logout' ? 'sign-out-alt' : ($icon_class === 'warning' ? 'exclamation-triangle' : 'times'))); ?>"></i>
+                            </div>
+                            <div class="event-content">
+                                <div class="description">
+                                    <?php echo htmlspecialchars($event['description'] ?? $event['event_type']); ?>
+                                    <?php if (!empty($event['risk_score'])): ?>
+                                        <span style="font-size:0.6rem;color:#EF4444;background:#FEF2F2;padding:1px 6px;border-radius:4px;">
+                                            Risk: <?php echo $event['risk_score']; ?>
+                                        </span>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="time">
+                                    <?php echo date('M j, Y g:i A', strtotime($event['created_at'])); ?>
+                                    <?php if (!empty($event['ip_address'])): ?>
+                                        • IP: <?php echo htmlspecialchars($event['ip_address']); ?>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <div style="text-align:center;padding:20px;color:var(--gray-400);">
+                        <i class="fas fa-shield-alt" style="font-size:2rem;display:block;margin-bottom:8px;"></i>
+                        <p>No security events recorded.</p>
+                    </div>
+                <?php endif; ?>
+            </div>
+        </div>
     </div>
 </main>
 
 <script>
-// ============================================================
-// PRELOADER
-// ============================================================
+// Same sidebar scripts as index.php
 window.addEventListener('load', function() {
     var preloader = document.getElementById('preloader');
     if (preloader) {
         preloader.classList.add('hidden');
-        setTimeout(function() {
-            preloader.style.display = 'none';
-        }, 600);
+        setTimeout(function() { preloader.style.display = 'none'; }, 600);
     }
 });
 
-// ============================================================
-// SIDEBAR TOGGLE
-// ============================================================
 var sidebar = document.getElementById('sidebar');
 var sidebarToggle = document.getElementById('sidebarToggle');
 var sidebarOverlay = document.getElementById('sidebarOverlay');
@@ -490,9 +639,6 @@ window.addEventListener('resize', function() {
     }
 });
 
-// ============================================================
-// SIDEBAR DROPDOWNS
-// ============================================================
 document.querySelectorAll('.dropdown-toggle').forEach(function(toggle) {
     toggle.addEventListener('click', function(e) {
         e.preventDefault();
@@ -506,9 +652,6 @@ document.querySelectorAll('.dropdown-toggle').forEach(function(toggle) {
     });
 });
 
-// ============================================================
-// PROFILE DROPDOWN
-// ============================================================
 var profileBtn = document.getElementById('profileBtn');
 var profileMenu = document.getElementById('profileMenu');
 

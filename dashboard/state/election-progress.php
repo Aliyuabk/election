@@ -6,7 +6,6 @@ require_once '../../config/config.php';
 require_once '../../includes/session.php';
 require_once '../../includes/functions.php';
 
-// Start session
 SessionManager::start();
 
 if (!SessionManager::isLoggedIn()) {
@@ -14,7 +13,6 @@ if (!SessionManager::isLoggedIn()) {
     exit();
 }
 
-// Only state coordinator can access
 if (SessionManager::get('role_level') !== 'state') {
     header('Location: ../client-admin/');
     exit();
@@ -25,7 +23,6 @@ $user_id = SessionManager::get('user_id');
 $tenant_id = SessionManager::get('tenant_id');
 $state_id = SessionManager::get('state_id');
 
-// If state_id is not set in session, try to get it from user record
 if (empty($state_id)) {
     $db = getDB();
     try {
@@ -42,470 +39,341 @@ if (empty($state_id)) {
 }
 
 $db = getDB();
-
-// ============================================================
-// GET ELECTION ID
-// ============================================================
 $election_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
-if ($election_id <= 0) {
-    header('Location: elections.php');
-    exit();
+// Get state name
+$state_name = 'Unknown State';
+if (!empty($state_id)) {
+    $stmt = $db->prepare("SELECT name FROM states WHERE id = ?");
+    $stmt->execute([$state_id]);
+    $state = $stmt->fetch(PDO::FETCH_ASSOC);
+    $state_name = $state['name'] ?? 'Unknown State';
 }
 
-// ============================================================
-// FETCH ELECTION DETAILS
-// ============================================================
+// Get election details
 $election = null;
-$state_name = '';
-
-try {
-    $stmt = $db->prepare("
-        SELECT e.*, u.first_name as created_by_first, u.last_name as created_by_last
-        FROM elections e
-        LEFT JOIN users u ON e.created_by = u.id
-        WHERE e.id = ? AND e.tenant_id = ? AND e.deleted_at IS NULL
-    ");
-    $stmt->execute([$election_id, $tenant_id]);
-    $election = $stmt->fetch(PDO::FETCH_ASSOC);
-    
-    if ($election) {
-        // Get state name
-        if (!empty($state_id)) {
-            $stmt = $db->prepare("SELECT name FROM states WHERE id = ?");
-            $stmt->execute([$state_id]);
-            $state = $stmt->fetch(PDO::FETCH_ASSOC);
-            $state_name = $state['name'] ?? 'Unknown State';
-        }
+if ($election_id > 0) {
+    try {
+        $stmt = $db->prepare("
+            SELECT e.*, u.full_name as created_by_name
+            FROM elections e
+            LEFT JOIN users u ON e.created_by = u.id
+            WHERE e.id = ? AND e.tenant_id = ? AND e.deleted_at IS NULL
+        ");
+        $stmt->execute([$election_id, $tenant_id]);
+        $election = $stmt->fetch(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        error_log("Error fetching election: " . $e->getMessage());
     }
-} catch (Exception $e) {
-    error_log("Error fetching election: " . $e->getMessage());
 }
 
+// If no election selected, show list of elections
 if (!$election) {
-    header('Location: elections.php');
-    exit();
+    // Fetch recent elections for progress tracking
+    $elections = [];
+    try {
+        $stmt = $db->prepare("
+            SELECT id, name, type, status, election_date
+            FROM elections
+            WHERE tenant_id = ? AND deleted_at IS NULL
+            AND (states_json LIKE ? OR states_json IS NULL OR states_json = '[]')
+            ORDER BY election_date DESC
+            LIMIT 10
+        ");
+        $stmt->execute([$tenant_id, '%"' . $state_id . '"%']);
+        $elections = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) {
+        error_log("Error fetching elections list: " . $e->getMessage());
+    }
+    
+    // If only one election, select it
+    if (count($elections) === 1) {
+        header('Location: election-progress.php?id=' . $elections[0]['id']);
+        exit();
+    }
 }
 
-// ============================================================
-// FETCH PROGRESS STATISTICS
-// ============================================================
-$progress = [
-    'total_pus' => 0,
-    'reported_pus' => 0,
-    'verified_pus' => 0,
-    'pending_pus' => 0,
-    'completion_percentage' => 0,
-    'verification_percentage' => 0,
-    'total_agents' => 0,
-    'active_agents' => 0,
-    'total_incidents' => 0,
-    'resolved_incidents' => 0,
+// If election is selected, get progress data
+$progress_data = [];
+$lga_progress = [];
+$total_pus = 0;
+$reported_pus = 0;
+$verified_pus = 0;
+
+if ($election) {
+    try {
+        // Get total PUs and progress per LGA
+        $stmt = $db->prepare("
+            SELECT 
+                l.id as lga_id,
+                l.name as lga_name,
+                COUNT(DISTINCT pu.id) as total_pus,
+                COUNT(DISTINCT r.pu_id) as reported_pus,
+                COUNT(DISTINCT CASE WHEN r.status IN ('verified', 'approved') THEN r.pu_id END) as verified_pus,
+                COUNT(DISTINCT CASE WHEN r.status = 'pending' THEN r.pu_id END) as pending_pus,
+                (SELECT COUNT(*) FROM incidents i WHERE i.lga_id = l.id AND i.election_id = ? AND i.status IN ('reported', 'acknowledged', 'investigating')) as active_incidents
+            FROM lgas l
+            LEFT JOIN wards w ON w.lga_id = l.id
+            LEFT JOIN polling_units pu ON pu.ward_id = w.id AND pu.is_active = 1
+            LEFT JOIN results_ec8a r ON r.pu_id = pu.id AND r.election_id = ? AND r.tenant_id = ?
+            WHERE l.state_id = ? AND l.is_active = 1
+            GROUP BY l.id, l.name
+            ORDER BY l.name ASC
+        ");
+        $stmt->execute([$election_id, $election_id, $tenant_id, $state_id]);
+        $lga_progress = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Calculate totals
+        foreach ($lga_progress as $lga) {
+            $total_pus += $lga['total_pus'];
+            $reported_pus += $lga['reported_pus'];
+            $verified_pus += $lga['verified_pus'];
+        }
+        
+        // Get result submission timeline
+        $stmt = $db->prepare("
+            SELECT 
+                DATE(created_at) as date,
+                COUNT(*) as submissions,
+                COUNT(DISTINCT pu_id) as unique_pus
+            FROM results_ec8a
+            WHERE election_id = ? AND tenant_id = ?
+            GROUP BY DATE(created_at)
+            ORDER BY date ASC
+            LIMIT 30
+        ");
+        $stmt->execute([$election_id, $tenant_id]);
+        $timeline_data = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Get incident statistics
+        $stmt = $db->prepare("
+            SELECT 
+                incident_type,
+                severity,
+                COUNT(*) as count
+            FROM incidents
+            WHERE election_id = ? AND state_id = ?
+            GROUP BY incident_type, severity
+        ");
+        $stmt->execute([$election_id, $state_id]);
+        $incident_stats = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        // Format timeline for chart
+        $timeline_labels = [];
+        $timeline_values = [];
+        foreach ($timeline_data as $item) {
+            $timeline_labels[] = date('M j', strtotime($item['date']));
+            $timeline_values[] = $item['submissions'];
+        }
+        
+    } catch (Exception $e) {
+        error_log("Error fetching progress data: " . $e->getMessage());
+    }
+}
+
+$election_types = [
+    'presidential' => 'Presidential',
+    'governorship' => 'Governorship',
+    'senatorial' => 'Senatorial',
+    'house_of_reps' => 'House of Reps',
+    'house_of_assembly' => 'House of Assembly',
+    'lga_chairman' => 'LGA Chairman',
+    'councillorship' => 'Councillorship',
+    'party_primary' => 'Party Primary',
+    'internal_party' => 'Internal Party'
 ];
 
-try {
-    // Get state LGAs
-    $stmt = $db->prepare("SELECT id FROM lgas WHERE state_id = ? AND is_active = 1");
-    $stmt->execute([$state_id]);
-    $lga_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
-    $lga_ids_imploded = implode(',', $lga_ids);
-    
-    if (!empty($lga_ids_imploded)) {
-        // Total PUs in state
-        $stmt = $db->prepare("
-            SELECT COUNT(*) as count 
-            FROM polling_units pu
-            JOIN wards w ON pu.ward_id = w.id
-            WHERE w.lga_id IN ($lga_ids_imploded) AND pu.is_active = 1
-        ");
-        $stmt->execute();
-        $progress['total_pus'] = (int)($stmt->fetch(PDO::FETCH_ASSOC)['count'] ?? 0);
-        
-        // Reported PUs for this election
-        $stmt = $db->prepare("
-            SELECT COUNT(DISTINCT pu_id) as count 
-            FROM results_ec8a 
-            WHERE election_id = ? AND tenant_id = ?
-        ");
-        $stmt->execute([$election_id, $tenant_id]);
-        $progress['reported_pus'] = (int)($stmt->fetch(PDO::FETCH_ASSOC)['count'] ?? 0);
-        
-        // Verified PUs
-        $stmt = $db->prepare("
-            SELECT COUNT(DISTINCT pu_id) as count 
-            FROM results_ec8a 
-            WHERE election_id = ? AND tenant_id = ? AND status IN ('verified', 'approved')
-        ");
-        $stmt->execute([$election_id, $tenant_id]);
-        $progress['verified_pus'] = (int)($stmt->fetch(PDO::FETCH_ASSOC)['count'] ?? 0);
-        
-        // Pending PUs
-        $stmt = $db->prepare("
-            SELECT COUNT(DISTINCT pu_id) as count 
-            FROM results_ec8a 
-            WHERE election_id = ? AND tenant_id = ? AND status = 'pending'
-        ");
-        $stmt->execute([$election_id, $tenant_id]);
-        $progress['pending_pus'] = (int)($stmt->fetch(PDO::FETCH_ASSOC)['count'] ?? 0);
-        
-        // Total agents in state
-        $stmt = $db->prepare("
-            SELECT COUNT(*) as count 
-            FROM users 
-            WHERE state_id = ? AND deleted_at IS NULL AND status = 'active'
-        ");
-        $stmt->execute([$state_id]);
-        $progress['total_agents'] = (int)($stmt->fetch(PDO::FETCH_ASSOC)['count'] ?? 0);
-        
-        // Active agents (last 15 minutes)
-        $stmt = $db->prepare("
-            SELECT COUNT(DISTINCT u.id) as count
-            FROM users u
-            JOIN user_sessions us ON u.id = us.user_id
-            WHERE u.state_id = ? 
-            AND us.is_active = 1 
-            AND us.last_activity_at > DATE_SUB(NOW(), INTERVAL 15 MINUTE)
-            AND u.status = 'active'
-            AND u.deleted_at IS NULL
-        ");
-        $stmt->execute([$state_id]);
-        $progress['active_agents'] = (int)($stmt->fetch(PDO::FETCH_ASSOC)['count'] ?? 0);
-        
-        // Total incidents
-        $stmt = $db->prepare("
-            SELECT COUNT(*) as count 
-            FROM incidents 
-            WHERE state_id = ? AND election_id = ?
-        ");
-        $stmt->execute([$state_id, $election_id]);
-        $progress['total_incidents'] = (int)($stmt->fetch(PDO::FETCH_ASSOC)['count'] ?? 0);
-        
-        // Resolved incidents
-        $stmt = $db->prepare("
-            SELECT COUNT(*) as count 
-            FROM incidents 
-            WHERE state_id = ? AND election_id = ? AND status IN ('resolved', 'false_alarm')
-        ");
-        $stmt->execute([$state_id, $election_id]);
-        $progress['resolved_incidents'] = (int)($stmt->fetch(PDO::FETCH_ASSOC)['count'] ?? 0);
-    }
-    
-    // Calculate percentages
-    if ($progress['total_pus'] > 0) {
-        $progress['completion_percentage'] = round(($progress['reported_pus'] / $progress['total_pus']) * 100, 1);
-        $progress['verification_percentage'] = round(($progress['verified_pus'] / $progress['total_pus']) * 100, 1);
-    }
-    
-} catch (Exception $e) {
-    error_log("Error fetching progress: " . $e->getMessage());
-}
-
-// ============================================================
-// FETCH LGA PROGRESS
-// ============================================================
-$lga_progress = [];
-
-try {
-    $stmt = $db->prepare("
-        SELECT 
-            l.id,
-            l.name,
-            l.code,
-            (SELECT COUNT(*) FROM polling_units pu 
-             JOIN wards w ON pu.ward_id = w.id 
-             WHERE w.lga_id = l.id AND pu.is_active = 1) as total_pus,
-            (SELECT COUNT(DISTINCT r.pu_id) FROM results_ec8a r 
-             JOIN polling_units pu ON r.pu_id = pu.id 
-             JOIN wards w ON pu.ward_id = w.id 
-             WHERE w.lga_id = l.id AND r.election_id = ? AND r.tenant_id = ?) as reported_pus,
-            (SELECT COUNT(DISTINCT r.pu_id) FROM results_ec8a r 
-             JOIN polling_units pu ON r.pu_id = pu.id 
-             JOIN wards w ON pu.ward_id = w.id 
-             WHERE w.lga_id = l.id AND r.election_id = ? AND r.tenant_id = ? AND r.status = 'pending') as pending_pus,
-            (SELECT COUNT(DISTINCT r.pu_id) FROM results_ec8a r 
-             JOIN polling_units pu ON r.pu_id = pu.id 
-             JOIN wards w ON pu.ward_id = w.id 
-             WHERE w.lga_id = l.id AND r.election_id = ? AND r.tenant_id = ? AND r.status IN ('verified', 'approved')) as verified_pus
-        FROM lgas l
-        WHERE l.state_id = ? AND l.is_active = 1
-        ORDER BY l.name ASC
-    ");
-    $stmt->execute([$election_id, $tenant_id, $election_id, $tenant_id, $election_id, $tenant_id, $state_id]);
-    $lga_progress = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    foreach ($lga_progress as &$lga) {
-        $lga['total_pus'] = (int)($lga['total_pus'] ?? 0);
-        $lga['reported_pus'] = (int)($lga['reported_pus'] ?? 0);
-        $lga['pending_pus'] = (int)($lga['pending_pus'] ?? 0);
-        $lga['verified_pus'] = (int)($lga['verified_pus'] ?? 0);
-        
-        if ($lga['total_pus'] > 0) {
-            $lga['percentage'] = round(($lga['reported_pus'] / $lga['total_pus']) * 100, 1);
-        } else {
-            $lga['percentage'] = 0;
-        }
-        
-        // Determine status
-        if ($lga['percentage'] >= 80) {
-            $lga['status'] = 'success';
-            $lga['status_text'] = 'Excellent';
-        } elseif ($lga['percentage'] >= 50) {
-            $lga['status'] = 'warning';
-            $lga['status_text'] = 'In Progress';
-        } elseif ($lga['percentage'] > 0) {
-            $lga['status'] = 'danger';
-            $lga['status_text'] = 'Low';
-        } else {
-            $lga['status'] = 'secondary';
-            $lga['status_text'] = 'No Data';
-        }
-    }
-    
-} catch (Exception $e) {
-    error_log("Error fetching LGA progress: " . $e->getMessage());
-}
-
+$page_title = 'Election Progress';
 include '../includes/base.php';
 include '../includes/sidebar.php';
 ?>
 
 <style>
-.page-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 12px;
+.progress-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 14px;
     margin-bottom: 20px;
 }
-.page-header h2 {
-    font-size: 1.3rem;
-    font-weight: 700;
-    margin: 0;
-}
-.page-header h2 small {
-    font-size: 0.8rem;
-    font-weight: 400;
-    color: var(--gray-500);
-    display: block;
-    margin-top: 2px;
-}
 
-.btn-secondary-sm {
-    padding: 8px 20px;
-    background: var(--gray-100);
-    color: var(--gray-700);
-    border: 1px solid var(--gray-200);
-    border-radius: 10px;
-    text-decoration: none;
-    font-weight: 500;
-    font-size: 0.8rem;
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    transition: var(--transition);
-    font-family: 'Inter', sans-serif;
-}
-.btn-secondary-sm:hover {
-    background: var(--gray-200);
-}
-
-.election-header {
+.progress-stat {
     background: white;
     border-radius: var(--radius);
-    border: 1px solid var(--gray-200);
-    padding: 20px 24px;
-    margin-bottom: 24px;
-    box-shadow: var(--shadow-sm);
-}
-.election-header .title {
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: var(--gray-800);
-}
-.election-header .subtitle {
-    color: var(--gray-500);
-    font-size: 0.85rem;
-    margin-top: 2px;
-}
-.election-header .meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 16px;
-    margin-top: 8px;
-    font-size: 0.8rem;
-    color: var(--gray-500);
-}
-.election-header .meta span {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.badge-status {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 2px 10px;
-    border-radius: 20px;
-    font-size: 0.65rem;
-    font-weight: 600;
-}
-.badge-status .dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    display: inline-block;
-}
-.badge-status.success { background: #ECFDF5; color: #065F46; }
-.badge-status.success .dot { background: #10B981; }
-.badge-status.warning { background: #FFFBEB; color: #92400E; }
-.badge-status.warning .dot { background: #F59E0B; }
-.badge-status.danger { background: #FEF2F2; color: #991B1B; }
-.badge-status.danger .dot { background: #EF4444; }
-.badge-status.secondary { background: #F3F4F6; color: #6B7280; }
-.badge-status.secondary .dot { background: #9CA3AF; }
-
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 12px;
-    margin-bottom: 24px;
-}
-.stat-card {
-    background: white;
-    border-radius: 12px;
-    padding: 16px 20px;
+    padding: 16px 18px;
     border: 1px solid var(--gray-200);
     text-align: center;
 }
-.stat-card .number {
-    font-size: 1.8rem;
+
+.progress-stat .number {
+    font-size: 1.6rem;
     font-weight: 700;
     color: var(--gray-800);
 }
-.stat-card .label {
+
+.progress-stat .label {
     font-size: 0.7rem;
     color: var(--gray-500);
+}
+
+.progress-stat .sub {
+    font-size: 0.6rem;
+    color: var(--gray-400);
     margin-top: 2px;
 }
-.stat-card .sub {
+
+.progress-stat .number.green { color: #10B981; }
+.progress-stat .number.yellow { color: #F59E0B; }
+.progress-stat .number.red { color: #EF4444; }
+.progress-stat .number.blue { color: #3B82F6; }
+.progress-stat .number.purple { color: #8B5CF6; }
+
+.lga-progress-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+    margin-top: 16px;
+}
+
+.lga-progress-card {
+    background: white;
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    border: 1px solid var(--gray-200);
+    transition: var(--transition);
+}
+
+.lga-progress-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-hover);
+}
+
+.lga-progress-card .lga-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--gray-800);
+}
+
+.lga-progress-card .lga-stats {
+    display: flex;
+    gap: 12px;
+    margin: 8px 0;
+    flex-wrap: wrap;
+}
+
+.lga-progress-card .lga-stats .stat {
+    font-size: 0.7rem;
+    color: var(--gray-600);
+}
+
+.lga-progress-card .lga-stats .stat .value {
+    font-weight: 600;
+    color: var(--gray-800);
+}
+
+.lga-progress-card .progress-bar {
+    height: 6px;
+    background: var(--gray-200);
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 6px 0;
+}
+
+.lga-progress-card .progress-bar .fill {
+    height: 100%;
+    background: var(--primary);
+    border-radius: 4px;
+    transition: width 0.8s ease;
+}
+
+.lga-progress-card .progress-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.6rem;
+    color: var(--gray-500);
+}
+
+.lga-progress-card .lga-incidents {
     font-size: 0.65rem;
-    color: var(--gray-400);
+    color: #EF4444;
     margin-top: 4px;
 }
 
-.progress-card {
+.election-selector {
     background: white;
     border-radius: var(--radius);
+    padding: 16px 20px;
     border: 1px solid var(--gray-200);
-    padding: 20px 24px;
-    margin-bottom: 24px;
-}
-.progress-card .progress-title {
-    font-size: 0.9rem;
-    font-weight: 600;
-    margin-bottom: 12px;
-}
-.progress-card .progress-title i {
-    color: var(--primary);
-    margin-right: 6px;
-}
-.progress-bar-large {
-    height: 24px;
-    background: var(--gray-200);
-    border-radius: 12px;
-    overflow: hidden;
-    position: relative;
-}
-.progress-bar-large .progress-fill {
-    height: 100%;
-    border-radius: 12px;
-    transition: width 1s ease;
+    margin-bottom: 20px;
     display: flex;
+    gap: 12px;
     align-items: center;
-    justify-content: center;
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: white;
+    flex-wrap: wrap;
 }
-.progress-bar-large .progress-fill.success { background: linear-gradient(90deg, #10B981, #34D399); }
-.progress-bar-large .progress-fill.warning { background: linear-gradient(90deg, #F59E0B, #FBBF24); }
-.progress-bar-large .progress-fill.danger { background: linear-gradient(90deg, #EF4444, #F87171); }
 
-.table-wrapper {
+.election-selector select {
+    padding: 8px 14px;
+    border: 1px solid var(--gray-200);
+    border-radius: 10px;
+    font-size: 0.8rem;
+    font-family: 'Inter', sans-serif;
+    background: white;
+    min-width: 200px;
+}
+
+.election-selector select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(var(--primary-rgb), 0.06);
+}
+
+.election-selector .election-info {
+    font-size: 0.8rem;
+    color: var(--gray-500);
+}
+
+.election-selector .election-info strong {
+    color: var(--gray-800);
+}
+
+.chart-container {
     background: white;
     border-radius: var(--radius);
+    padding: 18px 20px;
     border: 1px solid var(--gray-200);
-    overflow: hidden;
-    box-shadow: var(--shadow-sm);
-}
-.table-wrapper table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.85rem;
-}
-.table-wrapper table th {
-    background: var(--gray-50);
-    padding: 12px 16px;
-    text-align: left;
-    font-weight: 600;
-    font-size: 0.75rem;
-    color: var(--gray-600);
-    border-bottom: 1px solid var(--gray-200);
-    white-space: nowrap;
-}
-.table-wrapper table td {
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--gray-100);
-    vertical-align: middle;
-}
-.table-wrapper table tr:hover td {
-    background: var(--gray-50);
-}
-.table-wrapper table tr:last-child td {
-    border-bottom: none;
+    margin-top: 16px;
 }
 
-.progress-bar-small {
-    height: 6px;
-    background: var(--gray-200);
-    border-radius: 3px;
-    overflow: hidden;
-    min-width: 80px;
-}
-.progress-bar-small .progress-fill {
-    height: 100%;
-    border-radius: 3px;
-    transition: width 0.6s ease;
-}
-.progress-bar-small .progress-fill.success { background: #10B981; }
-.progress-bar-small .progress-fill.warning { background: #F59E0B; }
-.progress-bar-small .progress-fill.danger { background: #EF4444; }
-.progress-bar-small .progress-fill.secondary { background: #9CA3AF; }
-
-.empty-state {
-    text-align: center;
-    padding: 40px 20px;
-    color: var(--gray-400);
-}
-.empty-state i {
-    font-size: 3rem;
-    display: block;
+.chart-container .chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: 12px;
-    color: var(--gray-300);
+}
+
+.chart-container .chart-header h4 {
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.chart-container canvas {
+    max-height: 200px;
 }
 
 @media (max-width: 768px) {
-    .page-header {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-    .stats-grid {
+    .progress-stats {
         grid-template-columns: repeat(2, 1fr);
     }
-    .table-wrapper {
-        overflow-x: auto;
+    .lga-progress-grid {
+        grid-template-columns: 1fr;
+    }
+    .election-selector {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .election-selector select {
+        width: 100%;
+        min-width: unset;
     }
 }
 </style>
@@ -515,175 +383,202 @@ include '../includes/sidebar.php';
     
     <div class="main-content-inner">
         <!-- Page Header -->
-        <div class="page-header">
+        <div class="welcome-section">
             <div>
-                <h2>
-                    <i class="fas fa-chart-line" style="color:var(--primary);margin-right:8px;"></i>
-                    Election Progress
-                    <small><?php echo htmlspecialchars($state_name); ?> - Track election progress</small>
-                </h2>
+                <h1><i class="fas fa-chart-line"></i> Election Progress</h1>
+                <p class="subtitle">
+                    <i class="fas fa-flag"></i> 
+                    <?php echo htmlspecialchars($state_name); ?> State - Track Election Progress
+                </p>
             </div>
-            <div>
+            <div class="actions">
                 <a href="elections.php" class="btn-secondary-sm">
                     <i class="fas fa-arrow-left"></i> Back to Elections
                 </a>
             </div>
         </div>
 
-        <!-- Election Header -->
-        <div class="election-header">
-            <div class="title"><?php echo htmlspecialchars($election['name']); ?></div>
-            <div class="subtitle">
-                <span class="badge-status <?php echo $status_colors[$election['status']] ?? 'secondary'; ?>">
-                    <span class="dot"></span>
-                    <?php echo ucfirst($election['status']); ?>
-                </span>
-                <span style="margin-left:8px;"><?php echo date('F j, Y', strtotime($election['election_date'])); ?></span>
-            </div>
-            <div class="meta">
-                <span><i class="fas fa-calendar-alt"></i> <?php echo date('F j, Y', strtotime($election['election_date'])); ?></span>
-                <span><i class="fas fa-clock"></i> <?php echo date('g:i A', strtotime($election['start_time'] ?? '00:00:00')); ?></span>
-                <span><i class="fas fa-tag"></i> <?php echo ucfirst(str_replace('_', ' ', $election['type'])); ?></span>
-                <span><i class="fas fa-user"></i> Created by: <?php echo htmlspecialchars($election['created_by_first'] . ' ' . $election['created_by_last']); ?></span>
-            </div>
-        </div>
-
-        <!-- Stats -->
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="number"><?php echo number_format($progress['total_pus']); ?></div>
-                <div class="label">Total Polling Units</div>
-            </div>
-            <div class="stat-card">
-                <div class="number" style="color:#F59E0B;"><?php echo number_format($progress['reported_pus']); ?></div>
-                <div class="label">Reported</div>
-                <div class="sub"><?php echo number_format($progress['pending_pus']); ?> pending</div>
-            </div>
-            <div class="stat-card">
-                <div class="number" style="color:#10B981;"><?php echo number_format($progress['verified_pus']); ?></div>
-                <div class="label">Verified</div>
-                <div class="sub"><?php echo $progress['verification_percentage']; ?>% of total</div>
-            </div>
-            <div class="stat-card">
-                <div class="number" style="color:#3B82F6;"><?php echo number_format($progress['total_agents']); ?></div>
-                <div class="label">Total Agents</div>
-                <div class="sub" style="color:#10B981;"><?php echo number_format($progress['active_agents']); ?> online</div>
-            </div>
-            <div class="stat-card">
-                <div class="number" style="color:#EF4444;"><?php echo number_format($progress['total_incidents']); ?></div>
-                <div class="label">Incidents</div>
-                <div class="sub" style="color:#10B981;"><?php echo number_format($progress['resolved_incidents']); ?> resolved</div>
-            </div>
-        </div>
-
-        <!-- Progress Bar -->
-        <div class="progress-card">
-            <div class="progress-title">
-                <i class="fas fa-tasks"></i> Overall Progress
-                <span style="float:right;font-weight:400;color:var(--gray-500);font-size:0.8rem;">
-                    <?php echo $progress['completion_percentage']; ?>% Complete
-                </span>
-            </div>
-            <div class="progress-bar-large">
-                <div class="progress-fill <?php 
-                    $pct = $progress['completion_percentage'];
-                    if ($pct >= 80) echo 'success';
-                    elseif ($pct >= 50) echo 'warning';
-                    elseif ($pct > 0) echo 'danger';
-                    else echo 'secondary';
-                ?>" style="width: <?php echo $progress['completion_percentage']; ?>%;">
-                    <?php if ($progress['completion_percentage'] > 20): ?>
-                        <?php echo $progress['completion_percentage']; ?>%
-                    <?php endif; ?>
+        <?php if ($election): ?>
+            <!-- Election Selector -->
+            <div class="election-selector">
+                <select id="electionSelect" onchange="window.location.href='election-progress.php?id='+this.value">
+                    <?php foreach ($elections as $e): ?>
+                        <option value="<?php echo $e['id']; ?>" <?php echo $e['id'] == $election_id ? 'selected' : ''; ?>>
+                            <?php echo htmlspecialchars($e['name']); ?> (<?php echo $election_types[$e['type']] ?? $e['type']; ?>)
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+                <div class="election-info">
+                    <strong><?php echo htmlspecialchars($election['name']); ?></strong>
+                    <span style="margin:0 6px;">•</span>
+                    <?php echo $election_types[$election['type']] ?? ucfirst($election['type']); ?>
+                    <span style="margin:0 6px;">•</span>
+                    <span class="status-badge <?php echo $election['status']; ?>" style="font-size:0.6rem;">
+                        <span class="dot"></span>
+                        <?php echo ucfirst($election['status']); ?>
+                    </span>
+                    <span style="margin:0 6px;">•</span>
+                    <?php echo date('M j, Y', strtotime($election['election_date'])); ?>
                 </div>
             </div>
-            <div style="display:flex;justify-content:space-between;font-size:0.65rem;color:var(--gray-400);margin-top:4px;">
-                <span><?php echo number_format($progress['reported_pus']); ?> reported</span>
-                <span><?php echo number_format($progress['total_pus'] - $progress['reported_pus']); ?> remaining</span>
-            </div>
-        </div>
 
-        <!-- LGA Progress Table -->
-        <div class="table-wrapper">
-            <table>
-                <thead>
-                    <tr>
-                        <th>S/N</th>
-                        <th>LGA</th>
-                        <th>Code</th>
-                        <th>Total PUs</th>
-                        <th>Reported</th>
-                        <th>Pending</th>
-                        <th>Verified</th>
-                        <th>Progress</th>
-                        <th>Status</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php if (count($lga_progress) > 0): ?>
-                        <?php $sn = 1; ?>
-                        <?php foreach ($lga_progress as $lga): ?>
-                            <tr>
-                                <td><?php echo $sn++; ?></td>
-                                <td><strong><?php echo htmlspecialchars($lga['name']); ?></strong></td>
-                                <td><?php echo htmlspecialchars($lga['code'] ?? 'N/A'); ?></td>
-                                <td><?php echo number_format($lga['total_pus']); ?></td>
-                                <td><?php echo number_format($lga['reported_pus']); ?></td>
-                                <td style="color:#F59E0B;"><?php echo number_format($lga['pending_pus']); ?></td>
-                                <td style="color:#10B981;"><?php echo number_format($lga['verified_pus']); ?></td>
-                                <td>
-                                    <div style="display:flex;align-items:center;gap:8px;">
-                                        <div class="progress-bar-small">
-                                            <div class="progress-fill <?php echo $lga['status']; ?>" 
-                                                 style="width: <?php echo $lga['percentage']; ?>%;">
-                                            </div>
-                                        </div>
-                                        <span style="font-size:0.7rem;font-weight:600;min-width:35px;">
-                                            <?php echo $lga['percentage']; ?>%
-                                        </span>
-                                    </div>
-                                </td>
-                                <td>
-                                    <span class="badge-status <?php echo $lga['status']; ?>">
-                                        <span class="dot"></span>
-                                        <?php echo $lga['status_text']; ?>
-                                    </span>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    <?php else: ?>
-                        <tr>
-                            <td colspan="9">
-                                <div class="empty-state">
-                                    <i class="fas fa-map-marker-alt"></i>
-                                    <p>No LGAs found in <?php echo htmlspecialchars($state_name); ?>.</p>
+            <!-- Progress Stats -->
+            <div class="progress-stats">
+                <div class="progress-stat">
+                    <div class="number"><?php echo number_format($total_pus); ?></div>
+                    <div class="label">Total Polling Units</div>
+                </div>
+                <div class="progress-stat">
+                    <div class="number yellow"><?php echo number_format($reported_pus); ?></div>
+                    <div class="label">Reported PUs</div>
+                    <div class="sub"><?php echo $total_pus > 0 ? round(($reported_pus / $total_pus) * 100, 1) : 0; ?>% of total</div>
+                </div>
+                <div class="progress-stat">
+                    <div class="number green"><?php echo number_format($verified_pus); ?></div>
+                    <div class="label">Verified PUs</div>
+                    <div class="sub"><?php echo $reported_pus > 0 ? round(($verified_pus / $reported_pus) * 100, 1) : 0; ?>% of reported</div>
+                </div>
+                <div class="progress-stat">
+                    <div class="number red"><?php echo number_format($reported_pus - $verified_pus); ?></div>
+                    <div class="label">Pending Verification</div>
+                </div>
+            </div>
+
+            <!-- LGA Progress -->
+            <h4 style="font-size:0.9rem;font-weight:600;margin:16px 0 8px;">
+                <i class="fas fa-map-marker-alt" style="color:var(--primary);"></i> LGA-wise Progress
+            </h4>
+            <div class="lga-progress-grid">
+                <?php foreach ($lga_progress as $lga): 
+                    $reporting_rate = $lga['total_pus'] > 0 ? round(($lga['reported_pus'] / $lga['total_pus']) * 100, 1) : 0;
+                    $verification_rate = $lga['reported_pus'] > 0 ? round(($lga['verified_pus'] / $lga['reported_pus']) * 100, 1) : 0;
+                ?>
+                    <div class="lga-progress-card">
+                        <div class="lga-name"><?php echo htmlspecialchars($lga['lga_name']); ?></div>
+                        <div class="lga-stats">
+                            <span class="stat">Total: <span class="value"><?php echo number_format($lga['total_pus']); ?></span></span>
+                            <span class="stat">Reported: <span class="value"><?php echo number_format($lga['reported_pus']); ?></span></span>
+                            <span class="stat">Verified: <span class="value"><?php echo number_format($lga['verified_pus']); ?></span></span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="fill" style="width: <?php echo $reporting_rate; ?>%;"></div>
+                        </div>
+                        <div class="progress-label">
+                            <span>Reporting Rate</span>
+                            <span><?php echo $reporting_rate; ?>%</span>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;font-size:0.6rem;color:var(--gray-500);margin-top:2px;">
+                            <span>Verification: <?php echo $verification_rate; ?>%</span>
+                            <?php if ($lga['active_incidents'] > 0): ?>
+                                <span class="lga-incidents">
+                                    <i class="fas fa-exclamation-triangle"></i> <?php echo $lga['active_incidents']; ?> incidents
+                                </span>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+
+            <!-- Timeline Chart -->
+            <?php if (!empty($timeline_data)): ?>
+            <div class="chart-container">
+                <div class="chart-header">
+                    <h4><i class="fas fa-calendar-alt" style="color:var(--primary);"></i> Submission Timeline</h4>
+                    <span style="font-size:0.65rem;color:var(--gray-400);">Last 30 days</span>
+                </div>
+                <canvas id="timelineChart"></canvas>
+            </div>
+            <?php endif; ?>
+
+        <?php else: ?>
+            <!-- No election selected - show list -->
+            <div style="background:white;border-radius:var(--radius);padding:30px;border:1px solid var(--gray-200);text-align:center;">
+                <i class="fas fa-vote-yea" style="font-size:3rem;color:var(--gray-300);display:block;margin-bottom:12px;"></i>
+                <h3 style="color:var(--gray-600);margin:0;">Select an Election</h3>
+                <p style="color:var(--gray-400);margin-top:6px;">Choose an election to view progress details</p>
+                
+                <?php if (!empty($elections)): ?>
+                    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-top:16px;text-align:left;">
+                        <?php foreach ($elections as $e): ?>
+                            <a href="election-progress.php?id=<?php echo $e['id']; ?>" style="display:block;padding:14px 18px;background:var(--gray-50);border-radius:10px;text-decoration:none;color:var(--gray-700);transition:var(--transition);border:1px solid var(--gray-200);">
+                                <div style="font-weight:600;font-size:0.85rem;"><?php echo htmlspecialchars($e['name']); ?></div>
+                                <div style="font-size:0.7rem;color:var(--gray-500);">
+                                    <?php echo $election_types[$e['type']] ?? ucfirst($e['type']); ?>
+                                    <span style="margin:0 4px;">•</span>
+                                    <?php echo date('M j, Y', strtotime($e['election_date'])); ?>
                                 </div>
-                            </td>
-                        </tr>
-                    <?php endif; ?>
-                </tbody>
-            </table>
-        </div>
+                                <div style="margin-top:4px;">
+                                    <span class="status-badge <?php echo $e['status']; ?>" style="font-size:0.55rem;">
+                                        <span class="dot"></span> <?php echo ucfirst($e['status']); ?>
+                                    </span>
+                                </div>
+                            </a>
+                        <?php endforeach; ?>
+                    </div>
+                <?php else: ?>
+                    <p style="color:var(--gray-400);margin-top:12px;">No elections found for <?php echo htmlspecialchars($state_name); ?></p>
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
     </div>
 </main>
 
+<?php if ($election && !empty($timeline_data)): ?>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-// ============================================================
-// PRELOADER
-// ============================================================
+// Timeline Chart
+var ctx = document.getElementById('timelineChart').getContext('2d');
+var timelineChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+        labels: <?php echo json_encode($timeline_labels); ?>,
+        datasets: [{
+            label: 'Results Submitted',
+            data: <?php echo json_encode($timeline_values); ?>,
+            backgroundColor: 'rgba(59, 130, 246, 0.6)',
+            borderColor: 'rgba(59, 130, 246, 1)',
+            borderWidth: 1,
+            borderRadius: 4
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+            legend: {
+                display: false
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    font: { size: 10 }
+                }
+            },
+            x: {
+                ticks: {
+                    font: { size: 9 },
+                    maxRotation: 45,
+                    minRotation: 0
+                }
+            }
+        }
+    }
+});
+</script>
+<?php endif; ?>
+
+<script>
+// Same sidebar scripts as index.php
 window.addEventListener('load', function() {
     var preloader = document.getElementById('preloader');
     if (preloader) {
         preloader.classList.add('hidden');
-        setTimeout(function() {
-            preloader.style.display = 'none';
-        }, 600);
+        setTimeout(function() { preloader.style.display = 'none'; }, 600);
     }
 });
 
-// ============================================================
-// SIDEBAR TOGGLE
-// ============================================================
 var sidebar = document.getElementById('sidebar');
 var sidebarToggle = document.getElementById('sidebarToggle');
 var sidebarOverlay = document.getElementById('sidebarOverlay');
@@ -722,9 +617,6 @@ window.addEventListener('resize', function() {
     }
 });
 
-// ============================================================
-// SIDEBAR DROPDOWNS
-// ============================================================
 document.querySelectorAll('.dropdown-toggle').forEach(function(toggle) {
     toggle.addEventListener('click', function(e) {
         e.preventDefault();
@@ -738,9 +630,6 @@ document.querySelectorAll('.dropdown-toggle').forEach(function(toggle) {
     });
 });
 
-// ============================================================
-// PROFILE DROPDOWN
-// ============================================================
 var profileBtn = document.getElementById('profileBtn');
 var profileMenu = document.getElementById('profileMenu');
 
@@ -755,21 +644,6 @@ if (profileBtn && profileMenu) {
         }
     });
 }
-
-// ============================================================
-// ANIMATE PROGRESS BARS ON LOAD
-// ============================================================
-document.addEventListener('DOMContentLoaded', function() {
-    setTimeout(function() {
-        document.querySelectorAll('.progress-bar-large .progress-fill, .progress-bar-small .progress-fill').forEach(function(bar) {
-            var width = bar.style.width;
-            bar.style.width = '0%';
-            setTimeout(function() {
-                bar.style.width = width;
-            }, 300);
-        });
-    }, 500);
-});
 </script>
 </body>
 </html>

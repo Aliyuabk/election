@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// STATE COORDINATOR - RESOLVE INCIDENT
+// STATE COORDINATOR - ADD INCIDENT NOTES
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -53,14 +53,12 @@ try {
         SELECT i.*, 
                u.first_name as reporter_first_name, u.last_name as reporter_last_name,
                pu.name as pu_name,
-               w.name as ward_name, l.name as lga_name,
-               e.name as election_name
+               w.name as ward_name, l.name as lga_name
         FROM incidents i
         LEFT JOIN users u ON i.reporter_id = u.id
         LEFT JOIN polling_units pu ON i.pu_id = pu.id
         LEFT JOIN wards w ON pu.ward_id = w.id
         LEFT JOIN lgas l ON w.lga_id = l.id
-        LEFT JOIN elections e ON i.election_id = e.id
         WHERE i.id = ? AND i.tenant_id = ? AND i.state_id = ?
     ");
     $stmt->execute([$incident_id, $tenant_id, $state_id]);
@@ -78,41 +76,32 @@ $message = '';
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $resolution_notes = trim($_POST['resolution_notes'] ?? '');
+    $notes = trim($_POST['notes'] ?? '');
     
-    if (empty($resolution_notes)) {
-        $error = 'Please provide resolution notes.';
+    if (empty($notes)) {
+        $error = 'Please enter some notes.';
     } else {
         try {
-            $stmt = $db->prepare("
-                UPDATE incidents 
-                SET status = 'resolved', 
-                    resolved_by = ?,
-                    resolved_at = NOW(),
-                    updated_at = NOW()
-                WHERE id = ? AND tenant_id = ?
-            ");
-            $stmt->execute([$user_id, $incident_id, $tenant_id]);
+            // Append notes to resolution_notes
+            $current_notes = $incident['resolution_notes'] ?? '';
+            $new_notes = $current_notes . "\n[" . date('Y-m-d H:i:s') . "] " . $notes;
             
-            // Add notes
-            $notes = $incident['resolution_notes'] ?? '';
-            $new_notes = $notes . "\n[" . date('Y-m-d H:i:s') . "] RESOLVED: " . $resolution_notes;
-            $stmt = $db->prepare("UPDATE incidents SET resolution_notes = ? WHERE id = ?");
+            $stmt = $db->prepare("UPDATE incidents SET resolution_notes = ?, updated_at = NOW() WHERE id = ?");
             $stmt->execute([$new_notes, $incident_id]);
             
-            logActivity($user_id, 'incident_resolved', 
-                "Resolved incident #$incident_id",
+            logActivity($user_id, 'incident_notes_added', 
+                "Added notes to incident #$incident_id",
                 'incidents', $incident_id
             );
             
-            $message = "Incident resolved successfully!";
+            $message = "Notes added successfully!";
             
             // Refresh incident data
             $stmt = $db->prepare("SELECT * FROM incidents WHERE id = ?");
             $stmt->execute([$incident_id]);
             $incident = $stmt->fetch(PDO::FETCH_ASSOC);
         } catch (Exception $e) {
-            $error = 'Failed to resolve incident: ' . $e->getMessage();
+            $error = 'Failed to add notes: ' . $e->getMessage();
         }
     }
 }
@@ -130,18 +119,18 @@ $incident_types = [
     'panic_button' => 'Panic Button'
 ];
 
-$page_title = 'Resolve Incident';
+$page_title = 'Add Incident Notes';
 include '../includes/base.php';
 include '../includes/sidebar.php';
 ?>
 
 <style>
-.resolve-container {
+.notes-container {
     max-width: 700px;
     margin: 0 auto;
 }
 
-.resolve-card {
+.notes-card {
     background: white;
     border-radius: var(--radius);
     border: 1px solid var(--gray-200);
@@ -149,7 +138,7 @@ include '../includes/sidebar.php';
     margin-bottom: 16px;
 }
 
-.resolve-card .card-title {
+.notes-card .card-title {
     font-size: 0.85rem;
     font-weight: 600;
     margin: 0 0 12px;
@@ -158,8 +147,8 @@ include '../includes/sidebar.php';
     color: var(--gray-700);
 }
 
-.resolve-card .card-title i {
-    color: #10B981;
+.notes-card .card-title i {
+    color: #F59E0B;
     margin-right: 6px;
 }
 
@@ -219,8 +208,36 @@ include '../includes/sidebar.php';
     display: inline-block;
 }
 
-.status-badge.investigating { background: #F5F3FF; color: #5B21B6; }
-.status-badge.investigating .dot { background: #8B5CF6; }
+.status-badge.reported { background: #FFFBEB; color: #92400E; }
+.status-badge.reported .dot { background: #F59E0B; }
+
+.notes-history {
+    background: var(--gray-50);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.notes-history .note-item {
+    padding: 6px 0;
+    border-bottom: 1px solid var(--gray-200);
+    font-size: 0.78rem;
+}
+
+.notes-history .note-item:last-child {
+    border-bottom: none;
+}
+
+.notes-history .note-item .timestamp {
+    font-size: 0.6rem;
+    color: var(--gray-400);
+}
+
+.notes-history .note-item .note-content {
+    color: var(--gray-700);
+}
 
 .form-group {
     margin-bottom: 16px;
@@ -253,8 +270,8 @@ include '../includes/sidebar.php';
 
 .form-group textarea:focus {
     outline: none;
-    border-color: #10B981;
-    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.06);
+    border-color: #F59E0B;
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.06);
 }
 
 .alert {
@@ -280,20 +297,6 @@ include '../includes/sidebar.php';
     margin-right: 6px;
 }
 
-.info-box {
-    background: #F0F9FF;
-    border: 1px solid #BAE6FD;
-    border-radius: 10px;
-    padding: 12px 16px;
-    margin-bottom: 16px;
-    font-size: 0.75rem;
-    color: #0369A1;
-}
-
-.info-box i {
-    margin-right: 6px;
-}
-
 .btn-group {
     display: flex;
     gap: 10px;
@@ -311,15 +314,15 @@ include '../includes/sidebar.php';
     font-family: 'Inter', sans-serif;
 }
 
-.btn-group .btn-resolve {
-    background: #10B981;
+.btn-group .btn-add {
+    background: #F59E0B;
     color: white;
 }
 
-.btn-group .btn-resolve:hover {
-    background: #059669;
+.btn-group .btn-add:hover {
+    background: #D97706;
     transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
 }
 
 .btn-group .btn-cancel {
@@ -340,8 +343,15 @@ include '../includes/sidebar.php';
     background: var(--gray-200);
 }
 
+.empty-notes {
+    text-align: center;
+    padding: 20px;
+    color: var(--gray-400);
+    font-size: 0.8rem;
+}
+
 @media (max-width: 768px) {
-    .resolve-card {
+    .notes-card {
         padding: 16px 18px;
     }
     .detail-grid {
@@ -362,11 +372,11 @@ include '../includes/sidebar.php';
     <?php include '../includes/header.php'; ?>
     
     <div class="main-content-inner">
-        <div class="resolve-container">
+        <div class="notes-container">
             <!-- Page Header -->
             <div class="welcome-section">
                 <div>
-                    <h1><i class="fas fa-check-circle" style="color:#10B981;"></i> Resolve Incident</h1>
+                    <h1><i class="fas fa-sticky-note" style="color:#F59E0B;"></i> Add Incident Notes</h1>
                     <p class="subtitle">
                         <i class="fas fa-exclamation-triangle"></i> 
                         #<?php echo $incident_id; ?> - <?php echo htmlspecialchars($incident['title']); ?>
@@ -392,7 +402,7 @@ include '../includes/sidebar.php';
                 </div>
             <?php endif; ?>
 
-            <div class="resolve-card">
+            <div class="notes-card">
                 <div class="card-title"><i class="fas fa-info-circle"></i> Incident Details</div>
                 
                 <div class="incident-info">
@@ -416,33 +426,63 @@ include '../includes/sidebar.php';
                             </span>
                         </div>
                         <div class="detail-item">
-                            <span class="label">Election</span>
-                            <span class="value"><?php echo htmlspecialchars($incident['election_name'] ?? 'N/A'); ?></span>
-                        </div>
-                        <div class="detail-item" style="grid-column: span 2;">
-                            <span class="label">Description</span>
-                            <span class="value" style="font-weight:400;"><?php echo htmlspecialchars($incident['description']); ?></span>
+                            <span class="label">Reported By</span>
+                            <span class="value">
+                                <?php echo htmlspecialchars($incident['reporter_first_name'] ?? '') . ' ' . htmlspecialchars($incident['reporter_last_name'] ?? 'Unknown'); ?>
+                            </span>
                         </div>
                     </div>
                 </div>
+            </div>
 
-                <div class="info-box">
-                    <i class="fas fa-info-circle"></i>
-                    Resolving this incident will mark it as resolved. It can be closed later.
-                </div>
+            <!-- Notes History -->
+            <div class="notes-card">
+                <div class="card-title"><i class="fas fa-history"></i> Notes History</div>
+                
+                <?php if (!empty($incident['resolution_notes'])): ?>
+                    <div class="notes-history">
+                        <?php 
+                            $notes_lines = explode("\n", $incident['resolution_notes']);
+                            foreach ($notes_lines as $line):
+                                if (empty(trim($line))) continue;
+                                // Check if line starts with timestamp
+                                if (preg_match('/^\[([^\]]+)\]\s*(.+)/', $line, $matches)):
+                        ?>
+                            <div class="note-item">
+                                <div class="timestamp"><?php echo $matches[1]; ?></div>
+                                <div class="note-content"><?php echo htmlspecialchars($matches[2]); ?></div>
+                            </div>
+                        <?php else: ?>
+                            <div class="note-item">
+                                <div class="note-content"><?php echo htmlspecialchars($line); ?></div>
+                            </div>
+                        <?php endif; ?>
+                        <?php endforeach; ?>
+                    </div>
+                <?php else: ?>
+                    <div class="empty-notes">
+                        <i class="fas fa-sticky-note" style="font-size:1.5rem;display:block;margin-bottom:8px;"></i>
+                        <p>No notes have been added yet.</p>
+                    </div>
+                <?php endif; ?>
+            </div>
+
+            <!-- Add Notes -->
+            <div class="notes-card">
+                <div class="card-title"><i class="fas fa-plus-circle" style="color:#F59E0B;"></i> Add New Note</div>
 
                 <form method="POST" action="">
                     <div class="form-group">
-                        <label>Resolution Notes <span class="required">*</span></label>
-                        <textarea name="resolution_notes" required placeholder="Describe how this incident was resolved..."></textarea>
+                        <label>Note Content <span class="required">*</span></label>
+                        <textarea name="notes" required placeholder="Enter your notes about this incident..."></textarea>
                     </div>
 
                     <div class="btn-group">
                         <a href="incidents.php" class="btn-cancel">
                             <i class="fas fa-times"></i> Cancel
                         </a>
-                        <button type="submit" class="btn-resolve">
-                            <i class="fas fa-check"></i> Resolve Incident
+                        <button type="submit" class="btn-add">
+                            <i class="fas fa-plus"></i> Add Note
                         </button>
                     </div>
                 </form>
