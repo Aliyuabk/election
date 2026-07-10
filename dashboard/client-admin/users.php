@@ -1162,9 +1162,9 @@ include 'includes/sidebar.php';
                 <button onclick="openModal('exportModal')" class="btn-outline">
                     <i class="fas fa-file-export"></i> Export
                 </button>
-                <button onclick="openModal('createUserModal')" class="btn-primary">
+                <a href="users-create.php" class="btn-primary">
                     <i class="fas fa-user-plus"></i> Add User
-                </button>
+                </a>
             </div>
         </div>
 
