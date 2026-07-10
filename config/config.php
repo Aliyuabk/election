@@ -6,7 +6,7 @@
 // Database Configuration
 define('DB_HOST', 'localhost');
 define('DB_NAME', 'utgoohwm_election');
-define('DB_USER', 'utgoohwm_kowaguru');
+define('DB_USER', 'utgoohwm_election');
 define('DB_PASS', 'Jiddahhh@1');
 
 
