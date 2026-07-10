@@ -12,7 +12,7 @@ define('DB_PASS', 'Jiddahhh@1');
 
 // Application Configuration
 define('APP_NAME', '5G Election Guru');
-define('APP_URL', 'http://localhost/election');
+define('APP_URL', 'https://eguruelction.kowagurutech.ng/');
 define('APP_TIMEZONE', 'Africa/Lagos');
 
 // Session Configuration
