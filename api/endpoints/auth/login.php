@@ -58,8 +58,8 @@ if (empty($email) || empty($password)) {
 // Database configuration - UPDATE THESE VALUES
 $host = 'localhost';
 $db_name = 'utgoohwm_election';
-$username = 'utgoohwm_admin'; // Your actual database username
-$password_db = 'your_database_password'; // Your actual database password
+$username = 'utgoohwm_election'; // Your actual database username
+$password_db = 'Jiddaahh@1'; // Your actual database password
 
 try {
     // Create connection
