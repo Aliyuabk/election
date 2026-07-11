@@ -1,0 +1,37 @@
+// Update the _login method
+Future<void> _login() async {
+  if (!_formKey.currentState!.validate()) {
+    return;
+  }
+
+  setState(() {
+    _isLoading = true;
+    _errorMessage = null;
+  });
+
+  try {
+    final response = await ApiService.login(
+      _emailController.text.trim(),
+      _passwordController.text,
+    );
+
+    if (!mounted) return;
+
+    if (response['success'] == true) {
+      // ... success handling
+    } else {
+      setState(() {
+        _isLoading = false;
+        _errorMessage = response['message'] ?? 'Login failed. Please try again.';
+      });
+    }
+  } catch (e) {
+    setState(() {
+      _isLoading = false;
+      _errorMessage = 'Connection error. Please check:\n'
+                     '1. Your internet connection\n'
+                     '2. The server is running\n'
+                     '3. Try again in a few minutes';
+    });
+  }
+}
