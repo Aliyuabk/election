@@ -20,11 +20,10 @@ if (!$token) {
     exit;
 }
 
-
 $host = 'localhost';
 $db_name = 'utgoohwm_election';
-$username = 'utgoohwm_election'; // Your actual database username
-$password_db = 'Jiddaahh@1'; // Your actual database password
+$username = 'utgoohwm_election';
+$password_db = 'Jiddaahh@1';
 
 try {
     $conn = new mysqli($host, $username, $password_db, $db_name);
@@ -57,7 +56,15 @@ try {
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         // Get today's checklist
         $stmt = $conn->prepare("
-            SELECT checklist_data, status, created_at 
+            SELECT 
+                materials_arrived,
+                poll_opened,
+                accreditation_started,
+                voting_started,
+                counting_started,
+                poll_closed,
+                status,
+                created_at
             FROM election_checklists 
             WHERE user_id = ? AND DATE(created_at) = CURDATE()
             ORDER BY created_at DESC LIMIT 1
@@ -67,17 +74,22 @@ try {
         $result = $stmt->get_result();
         
         if ($row = $result->fetch_assoc()) {
-            // Decode JSON data
-            $data = json_decode($row['checklist_data'], true);
-            
+            // Map database columns to checklist items
             echo json_encode([
                 'success' => true,
-                'data' => $data,
+                'data' => [
+                    'materials' => (bool)$row['materials_arrived'],
+                    'poll_opened' => (bool)$row['poll_opened'],
+                    'accreditation' => (bool)$row['accreditation_started'],
+                    'voting' => (bool)$row['voting_started'],
+                    'counting' => (bool)$row['counting_started'],
+                    'poll_closed' => (bool)$row['poll_closed']
+                ],
                 'status' => $row['status'],
                 'created_at' => $row['created_at']
             ]);
         } else {
-            // Default checklist
+            // Default checklist (all unchecked)
             echo json_encode([
                 'success' => true,
                 'data' => [
@@ -104,9 +116,15 @@ try {
             exit;
         }
         
-        $checklistData = json_encode($input);
+        // Map input to database columns
+        $materials = isset($input['materials']) ? (int)$input['materials'] : 0;
+        $pollOpened = isset($input['poll_opened']) ? (int)$input['poll_opened'] : 0;
+        $accreditation = isset($input['accreditation']) ? (int)$input['accreditation'] : 0;
+        $voting = isset($input['voting']) ? (int)$input['voting'] : 0;
+        $counting = isset($input['counting']) ? (int)$input['counting'] : 0;
+        $pollClosed = isset($input['poll_closed']) ? (int)$input['poll_closed'] : 0;
         
-        // Check if exists today
+        // Check if a checklist exists for today
         $checkStmt = $conn->prepare("
             SELECT id FROM election_checklists 
             WHERE user_id = ? AND DATE(created_at) = CURDATE()
@@ -116,21 +134,56 @@ try {
         $checkResult = $checkStmt->get_result();
         
         if ($checkResult->num_rows > 0) {
-            // Update existing
+            // Update existing checklist
             $stmt = $conn->prepare("
                 UPDATE election_checklists 
-                SET checklist_data = ?, status = 'submitted', submitted_at = NOW()
+                SET 
+                    materials_arrived = ?,
+                    poll_opened = ?,
+                    accreditation_started = ?,
+                    voting_started = ?,
+                    counting_started = ?,
+                    poll_closed = ?,
+                    status = 'submitted',
+                    submitted_at = NOW()
                 WHERE user_id = ? AND DATE(created_at) = CURDATE()
             ");
-            $stmt->bind_param("si", $checklistData, $userId);
+            $stmt->bind_param(
+                "iiiiiii",
+                $materials,
+                $pollOpened,
+                $accreditation,
+                $voting,
+                $counting,
+                $pollClosed,
+                $userId
+            );
         } else {
-            // Insert new
+            // Insert new checklist
             $stmt = $conn->prepare("
                 INSERT INTO election_checklists (
-                    user_id, checklist_data, status, submitted_at, created_at
-                ) VALUES (?, ?, 'submitted', NOW(), NOW())
+                    user_id, 
+                    materials_arrived,
+                    poll_opened,
+                    accreditation_started,
+                    voting_started,
+                    counting_started,
+                    poll_closed,
+                    status,
+                    submitted_at,
+                    created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 'submitted', NOW(), NOW())
             ");
-            $stmt->bind_param("is", $userId, $checklistData);
+            $stmt->bind_param(
+                "iiiiiii",
+                $userId,
+                $materials,
+                $pollOpened,
+                $accreditation,
+                $voting,
+                $counting,
+                $pollClosed
+            );
         }
         
         if ($stmt->execute()) {
