@@ -1,17 +1,11 @@
 <?php
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, OPTIONS');
+header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit(0);
-}
-
-if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
-    http_response_code(405);
-    echo json_encode(['success' => false, 'message' => 'Method not allowed']);
-    exit;
 }
 
 $headers = getallheaders();
@@ -59,52 +53,28 @@ try {
     $userId = $session['user_id'];
     $sessionStmt->close();
     
-    // Get EC8A history
-    $ec8aStmt = $conn->prepare("
-        SELECT 
-            id,
-            pu_name as title,
-            'EC8A' as type,
-            status,
-            created_at as date
-        FROM results_ec8a 
-        WHERE agent_id = ? 
-        ORDER BY created_at DESC
-    ");
-    $ec8aStmt->bind_param("i", $userId);
-    $ec8aStmt->execute();
-    $ec8aResult = $ec8aStmt->get_result();
-    
-    $history = [];
-    while ($row = $ec8aResult->fetch_assoc()) {
-        $history[] = $row;
+    if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        $stmt = $conn->prepare("
+            SELECT * FROM incidents 
+            WHERE reporter_id = ? 
+            ORDER BY created_at DESC
+        ");
+        $stmt->bind_param("i", $userId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        
+        $incidents = [];
+        while ($row = $result->fetch_assoc()) {
+            $incidents[] = $row;
+        }
+        
+        echo json_encode([
+            'success' => true,
+            'data' => $incidents
+        ]);
+        
+        $stmt->close();
     }
-    $ec8aStmt->close();
-    
-    // If no history, return mock data
-    if (empty($history)) {
-        $history = [
-            [
-                'id' => '1',
-                'title' => 'EC8A Result Submission',
-                'type' => 'EC8A',
-                'status' => 'submitted',
-                'date' => date('Y-m-d H:i:s', strtotime('-1 hour'))
-            ],
-            [
-                'id' => '2',
-                'title' => 'Observation Report',
-                'type' => 'Observation',
-                'status' => 'approved',
-                'date' => date('Y-m-d H:i:s', strtotime('-3 hours'))
-            ]
-        ];
-    }
-    
-    echo json_encode([
-        'success' => true,
-        'data' => $history
-    ]);
     
     $conn->close();
     

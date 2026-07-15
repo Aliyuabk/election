@@ -70,27 +70,10 @@ try {
     
     $checkins = [];
     while ($row = $result->fetch_assoc()) {
-        $checkins[] = [
-            'id' => $row['id'],
-            'tenant_id' => $row['tenant_id'],
-            'election_id' => $row['election_id'],
-            'agent_id' => $row['agent_id'],
-            'assignment_id' => $row['assignment_id'],
-            'pu_id' => $row['pu_id'],
-            'checkin_type' => $row['checkin_type'],
-            'gps_lat' => $row['gps_lat'],
-            'gps_lng' => $row['gps_lng'],
-            'gps_accuracy' => $row['gps_accuracy'],
-            'gps_distance_from_pu' => $row['gps_distance_from_pu'],
-            'photo_url' => $row['photo_url'],
-            'device_id' => $row['device_id'],
-            'device_battery' => $row['device_battery'],
-            'network_type' => $row['network_type'],
-            'is_offline_sync' => $row['is_offline_sync'],
-            'created_at' => $row['created_at']
-        ];
+        $checkins[] = $row;
     }
     
+    // If no checkins, return empty array
     echo json_encode([
         'success' => true,
         'data' => $checkins

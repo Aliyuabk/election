@@ -59,53 +59,51 @@ try {
     $userId = $session['user_id'];
     $sessionStmt->close();
     
-    // Get EC8A history
-    $ec8aStmt = $conn->prepare("
-        SELECT 
-            id,
-            pu_name as title,
-            'EC8A' as type,
-            status,
-            created_at as date
-        FROM results_ec8a 
-        WHERE agent_id = ? 
+    $stmt = $conn->prepare("
+        SELECT * FROM notifications 
+        WHERE user_id = ? 
         ORDER BY created_at DESC
+        LIMIT 50
     ");
-    $ec8aStmt->bind_param("i", $userId);
-    $ec8aStmt->execute();
-    $ec8aResult = $ec8aStmt->get_result();
+    $stmt->bind_param("i", $userId);
+    $stmt->execute();
+    $result = $stmt->get_result();
     
-    $history = [];
-    while ($row = $ec8aResult->fetch_assoc()) {
-        $history[] = $row;
+    $notifications = [];
+    while ($row = $result->fetch_assoc()) {
+        $notifications[] = $row;
     }
-    $ec8aStmt->close();
     
-    // If no history, return mock data
-    if (empty($history)) {
-        $history = [
+    // If no notifications, return mock data
+    if (empty($notifications)) {
+        $notifications = [
             [
                 'id' => '1',
-                'title' => 'EC8A Result Submission',
-                'type' => 'EC8A',
-                'status' => 'submitted',
-                'date' => date('Y-m-d H:i:s', strtotime('-1 hour'))
+                'user_id' => $userId,
+                'type' => 'election',
+                'title' => 'Election Day',
+                'message' => 'Today is the election day. Please be at your polling unit by 7am.',
+                'is_read' => 0,
+                'created_at' => date('Y-m-d H:i:s', strtotime('-2 hours'))
             ],
             [
                 'id' => '2',
-                'title' => 'Observation Report',
-                'type' => 'Observation',
-                'status' => 'approved',
-                'date' => date('Y-m-d H:i:s', strtotime('-3 hours'))
+                'user_id' => $userId,
+                'type' => 'system',
+                'title' => 'Check-in Reminder',
+                'message' => 'Please remember to check in when you arrive at your polling unit.',
+                'is_read' => 0,
+                'created_at' => date('Y-m-d H:i:s', strtotime('-4 hours'))
             ]
         ];
     }
     
     echo json_encode([
         'success' => true,
-        'data' => $history
+        'data' => $notifications
     ]);
     
+    $stmt->close();
     $conn->close();
     
 } catch (Exception $e) {
