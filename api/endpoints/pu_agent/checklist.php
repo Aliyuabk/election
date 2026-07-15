@@ -20,6 +20,7 @@ if (!$token) {
     exit;
 }
 
+
 $host = 'localhost';
 $db_name = 'utgoohwm_election';
 $username = 'utgoohwm_election'; // Your actual database username
@@ -54,9 +55,10 @@ try {
     $sessionStmt->close();
     
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-        // Get checklist
+        // Get today's checklist
         $stmt = $conn->prepare("
-            SELECT checklist_data FROM election_checklists 
+            SELECT checklist_data, status, created_at 
+            FROM election_checklists 
             WHERE user_id = ? AND DATE(created_at) = CURDATE()
             ORDER BY created_at DESC LIMIT 1
         ");
@@ -65,9 +67,14 @@ try {
         $result = $stmt->get_result();
         
         if ($row = $result->fetch_assoc()) {
+            // Decode JSON data
+            $data = json_decode($row['checklist_data'], true);
+            
             echo json_encode([
                 'success' => true,
-                'data' => json_decode($row['checklist_data'], true)
+                'data' => $data,
+                'status' => $row['status'],
+                'created_at' => $row['created_at']
             ]);
         } else {
             // Default checklist
@@ -80,7 +87,8 @@ try {
                     'voting' => false,
                     'counting' => false,
                     'poll_closed' => false
-                ]
+                ],
+                'status' => 'draft'
             ]);
         }
         
@@ -90,17 +98,40 @@ try {
         // Submit checklist
         $input = json_decode(file_get_contents('php://input'), true);
         
+        if (!$input || !is_array($input)) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Invalid checklist data']);
+            exit;
+        }
+        
         $checklistData = json_encode($input);
         
-        $stmt = $conn->prepare("
-            INSERT INTO election_checklists (user_id, checklist_data, created_at)
-            VALUES (?, ?, NOW())
-            ON DUPLICATE KEY UPDATE 
-                checklist_data = VALUES(checklist_data),
-                updated_at = NOW()
+        // Check if exists today
+        $checkStmt = $conn->prepare("
+            SELECT id FROM election_checklists 
+            WHERE user_id = ? AND DATE(created_at) = CURDATE()
         ");
+        $checkStmt->bind_param("i", $userId);
+        $checkStmt->execute();
+        $checkResult = $checkStmt->get_result();
         
-        $stmt->bind_param("is", $userId, $checklistData);
+        if ($checkResult->num_rows > 0) {
+            // Update existing
+            $stmt = $conn->prepare("
+                UPDATE election_checklists 
+                SET checklist_data = ?, status = 'submitted', submitted_at = NOW()
+                WHERE user_id = ? AND DATE(created_at) = CURDATE()
+            ");
+            $stmt->bind_param("si", $checklistData, $userId);
+        } else {
+            // Insert new
+            $stmt = $conn->prepare("
+                INSERT INTO election_checklists (
+                    user_id, checklist_data, status, submitted_at, created_at
+                ) VALUES (?, ?, 'submitted', NOW(), NOW())
+            ");
+            $stmt->bind_param("is", $userId, $checklistData);
+        }
         
         if ($stmt->execute()) {
             echo json_encode([
