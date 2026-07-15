@@ -1,17 +1,11 @@
 <?php
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, OPTIONS');
+header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit(0);
-}
-
-if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
-    http_response_code(405);
-    echo json_encode(['success' => false, 'message' => 'Method not allowed']);
-    exit;
 }
 
 // Get token from header
@@ -24,6 +18,16 @@ if (isset($headers['Authorization'])) {
 if (!$token) {
     http_response_code(401);
     echo json_encode(['success' => false, 'message' => 'Authentication required']);
+    exit;
+}
+
+$input = json_decode(file_get_contents('php://input'), true);
+$currentPassword = $input['current_password'] ?? '';
+$newPassword = $input['new_password'] ?? '';
+
+if (empty($currentPassword) || empty($newPassword)) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'message' => 'Current and new password required']);
     exit;
 }
 
@@ -62,55 +66,44 @@ try {
     $userId = $session['user_id'];
     $sessionStmt->close();
     
-    // Get assigned polling unit
-    $stmt = $conn->prepare("
-        SELECT 
-            pu.id,
-            pu.code,
-            pu.name,
-            w.name as ward_name,
-            l.name as lga_name,
-            s.name as state_name,
-            e.name as election_name,
-            CONCAT(u.first_name, ' ', u.last_name) as coordinator_name
-        FROM agent_assignments aa
-        JOIN polling_units pu ON aa.pu_id = pu.id
-        JOIN wards w ON pu.ward_id = w.id
-        JOIN lgas l ON w.lga_id = l.id
-        JOIN states s ON l.state_id = s.id
-        JOIN elections e ON aa.election_id = e.id
-        LEFT JOIN users u ON aa.assigned_by = u.id
-        WHERE aa.user_id = ? AND aa.status = 'active'
-        LIMIT 1
-    ");
-    
+    // Get user's current password
+    $stmt = $conn->prepare("SELECT password_hash FROM users WHERE id = ?");
     $stmt->bind_param("i", $userId);
     $stmt->execute();
     $result = $stmt->get_result();
+    $user = $result->fetch_assoc();
+    $stmt->close();
     
-    if ($row = $result->fetch_assoc()) {
-        echo json_encode([
-            'success' => true,
-            'data' => [
-                'id' => $row['id'],
-                'code' => $row['code'],
-                'name' => $row['name'],
-                'ward' => $row['ward_name'],
-                'lga' => $row['lga_name'],
-                'state' => $row['state_name'],
-                'election' => $row['election_name'],
-                'coordinator' => $row['coordinator_name'] ?? 'Not Assigned'
-            ]
-        ]);
-    } else {
-        echo json_encode([
-            'success' => true,
-            'data' => null,
-            'message' => 'No active assignment found'
-        ]);
+    if (!password_verify($currentPassword, $user['password_hash'])) {
+        http_response_code(401);
+        echo json_encode(['success' => false, 'message' => 'Current password is incorrect']);
+        exit;
     }
     
-    $stmt->close();
+    // Update password
+    $newHash = password_hash($newPassword, PASSWORD_BCRYPT);
+    $updateStmt = $conn->prepare("UPDATE users SET password_hash = ? WHERE id = ?");
+    $updateStmt->bind_param("si", $newHash, $userId);
+    
+    if ($updateStmt->execute()) {
+        // Log activity
+        $logStmt = $conn->prepare("
+            INSERT INTO activity_logs (user_id, activity_type, description, created_at)
+            VALUES (?, 'password_change', 'Password changed successfully', NOW())
+        ");
+        $logStmt->bind_param("i", $userId);
+        $logStmt->execute();
+        $logStmt->close();
+        
+        echo json_encode([
+            'success' => true,
+            'message' => 'Password changed successfully'
+        ]);
+    } else {
+        throw new Exception("Failed to update password");
+    }
+    
+    $updateStmt->close();
     $conn->close();
     
 } catch (Exception $e) {
