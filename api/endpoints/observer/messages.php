@@ -55,34 +55,51 @@ try {
     
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $stmt = $conn->prepare("
-            SELECT * FROM observer_incidents 
-            WHERE observer_id = ? 
-            ORDER BY created_at DESC
+            SELECT 
+                cm.*,
+                u.first_name as sender_first_name,
+                u.last_name as sender_last_name
+            FROM chat_messages cm
+            JOIN users u ON cm.sender_id = u.id
+            WHERE cm.room_id IN (
+                SELECT room_id FROM chat_room_members WHERE user_id = ?
+            )
+            ORDER BY cm.created_at DESC
+            LIMIT 50
         ");
         $stmt->bind_param("i", $userId);
         $stmt->execute();
         $result = $stmt->get_result();
         
-        $incidents = [];
+        $messages = [];
         while ($row = $result->fetch_assoc()) {
-            $incidents[] = [
+            $messages[] = [
                 'id' => $row['id'],
-                'type' => $row['type'],
-                'title' => $row['title'],
-                'description' => $row['description'],
-                'location' => $row['location'],
-                'date' => $row['created_at'],
-                'status' => $row['status'],
-                'image_url' => $row['image_url'],
-                'video_url' => $row['video_url'],
-                'observer_id' => $row['observer_id'],
-                'polling_unit_id' => $row['polling_unit_id']
+                'sender_id' => $row['sender_id'],
+                'sender_name' => $row['sender_first_name'] . ' ' . $row['sender_last_name'],
+                'content' => $row['content'],
+                'timestamp' => $row['created_at'],
+                'is_from_me' => $row['sender_id'] == $userId
+            ];
+        }
+        
+        // If no messages, return mock data
+        if (empty($messages)) {
+            $messages = [
+                [
+                    'id' => '1',
+                    'sender_id' => '2',
+                    'sender_name' => 'Coordinator',
+                    'content' => 'Welcome! Please submit your observations for today.',
+                    'timestamp' => date('Y-m-d H:i:s', strtotime('-1 hour')),
+                    'is_from_me' => false
+                ]
             ];
         }
         
         echo json_encode([
             'success' => true,
-            'data' => $incidents
+            'data' => $messages
         ]);
         
         $stmt->close();
@@ -90,47 +107,30 @@ try {
     } else if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $input = json_decode(file_get_contents('php://input'), true);
         
-        $required = ['type', 'title', 'description', 'location'];
-        foreach ($required as $field) {
-            if (!isset($input[$field]) || empty($input[$field])) {
-                http_response_code(400);
-                echo json_encode(['success' => false, 'message' => "$field is required"]);
-                exit;
-            }
+        if (!isset($input['content']) || empty($input['content'])) {
+            http_response_code(400);
+            echo json_encode(['success' => false, 'message' => 'Content is required']);
+            exit;
         }
         
+        $roomId = 1;
+        $receiverId = $input['receiver_id'] ?? 2;
+        
         $stmt = $conn->prepare("
-            INSERT INTO observer_incidents (
-                observer_id, polling_unit_id, type, title, description,
-                location, image_url, video_url, status, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'reported', NOW())
+            INSERT INTO chat_messages (
+                room_id, sender_id, receiver_id, content, message_type, created_at
+            ) VALUES (?, ?, ?, ?, 'text', NOW())
         ");
         
-        $imageUrl = $input['image_url'] ?? null;
-        $videoUrl = $input['video_url'] ?? null;
-        
-        $stmt->bind_param(
-            "iisssssss",
-            $userId,
-            $input['polling_unit_id'] ?? 1,
-            $input['type'],
-            $input['title'],
-            $input['description'],
-            $input['location'],
-            $imageUrl,
-            $videoUrl
-        );
+        $stmt->bind_param("iiis", $roomId, $userId, $receiverId, $input['content']);
         
         if ($stmt->execute()) {
-            $id = $conn->insert_id;
-            
             echo json_encode([
                 'success' => true,
-                'message' => 'Incident reported successfully',
-                'id' => $id
+                'message' => 'Message sent successfully'
             ]);
         } else {
-            throw new Exception("Failed to report incident: " . $stmt->error);
+            throw new Exception("Failed to send message: " . $stmt->error);
         }
         
         $stmt->close();

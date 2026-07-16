@@ -1,7 +1,7 @@
 <?php
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, OPTIONS');
+header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
@@ -17,6 +17,14 @@ if (isset($headers['Authorization'])) {
 if (!$token) {
     http_response_code(401);
     echo json_encode(['success' => false, 'message' => 'Authentication required']);
+    exit;
+}
+
+$input = json_decode(file_get_contents('php://input'), true);
+
+if (!isset($input['current_password']) || !isset($input['new_password'])) {
+    http_response_code(400);
+    echo json_encode(['success' => false, 'message' => 'Current and new password are required']);
     exit;
 }
 
@@ -53,64 +61,35 @@ try {
     $userId = $session['user_id'];
     $sessionStmt->close();
     
-    // Get assigned polling unit for observer
-    $stmt = $conn->prepare("
-        SELECT 
-            pu.id,
-            pu.code,
-            pu.name,
-            w.name as ward_name,
-            l.name as lga_name,
-            s.name as state_name,
-            e.name as election_name,
-            CONCAT(u.first_name, ' ', u.last_name) as coordinator_name
-        FROM observer_assignments oa
-        JOIN polling_units pu ON oa.pu_id = pu.id
-        JOIN wards w ON pu.ward_id = w.id
-        JOIN lgas l ON w.lga_id = l.id
-        JOIN states s ON l.state_id = s.id
-        JOIN elections e ON oa.election_id = e.id
-        LEFT JOIN users u ON oa.coordinator_id = u.id
-        WHERE oa.observer_id = ? AND oa.status = 'active'
-        LIMIT 1
-    ");
-    
+    // Get current password
+    $stmt = $conn->prepare("SELECT password_hash FROM users WHERE id = ?");
     $stmt->bind_param("i", $userId);
     $stmt->execute();
     $result = $stmt->get_result();
+    $user = $result->fetch_assoc();
+    $stmt->close();
     
-    if ($row = $result->fetch_assoc()) {
-        echo json_encode([
-            'success' => true,
-            'data' => [
-                'id' => $row['id'],
-                'code' => $row['code'],
-                'name' => $row['name'],
-                'ward' => $row['ward_name'],
-                'lga' => $row['lga_name'],
-                'state' => $row['state_name'],
-                'election' => $row['election_name'],
-                'coordinator' => $row['coordinator_name'] ?? 'Not Assigned'
-            ]
-        ]);
-    } else {
-        // Return mock data for testing
-        echo json_encode([
-            'success' => true,
-            'data' => [
-                'id' => '1',
-                'code' => 'PU-001',
-                'name' => 'KANGIRE YAMMA/AREWA/KANGIRE P.S',
-                'ward' => 'Kangire',
-                'lga' => 'Birnin Kudu',
-                'state' => 'Jigawa',
-                'election' => '2027 Governorship Election',
-                'coordinator' => 'Aliyu Abubakar'
-            ]
-        ]);
+    if (!password_verify($input['current_password'], $user['password_hash'])) {
+        http_response_code(401);
+        echo json_encode(['success' => false, 'message' => 'Current password is incorrect']);
+        exit;
     }
     
-    $stmt->close();
+    // Update password
+    $newHash = password_hash($input['new_password'], PASSWORD_BCRYPT);
+    $updateStmt = $conn->prepare("UPDATE users SET password_hash = ? WHERE id = ?");
+    $updateStmt->bind_param("si", $newHash, $userId);
+    
+    if ($updateStmt->execute()) {
+        echo json_encode([
+            'success' => true,
+            'message' => 'Password changed successfully'
+        ]);
+    } else {
+        throw new Exception("Failed to update password");
+    }
+    
+    $updateStmt->close();
     $conn->close();
     
 } catch (Exception $e) {

@@ -53,62 +53,54 @@ try {
     $userId = $session['user_id'];
     $sessionStmt->close();
     
-    // Get assigned polling unit for observer
     $stmt = $conn->prepare("
-        SELECT 
-            pu.id,
-            pu.code,
-            pu.name,
-            w.name as ward_name,
-            l.name as lga_name,
-            s.name as state_name,
-            e.name as election_name,
-            CONCAT(u.first_name, ' ', u.last_name) as coordinator_name
-        FROM observer_assignments oa
-        JOIN polling_units pu ON oa.pu_id = pu.id
-        JOIN wards w ON pu.ward_id = w.id
-        JOIN lgas l ON w.lga_id = l.id
-        JOIN states s ON l.state_id = s.id
-        JOIN elections e ON oa.election_id = e.id
-        LEFT JOIN users u ON oa.coordinator_id = u.id
-        WHERE oa.observer_id = ? AND oa.status = 'active'
-        LIMIT 1
+        SELECT * FROM notifications 
+        WHERE user_id = ? 
+        ORDER BY created_at DESC
+        LIMIT 50
     ");
-    
     $stmt->bind_param("i", $userId);
     $stmt->execute();
     $result = $stmt->get_result();
     
-    if ($row = $result->fetch_assoc()) {
-        echo json_encode([
-            'success' => true,
-            'data' => [
-                'id' => $row['id'],
-                'code' => $row['code'],
-                'name' => $row['name'],
-                'ward' => $row['ward_name'],
-                'lga' => $row['lga_name'],
-                'state' => $row['state_name'],
-                'election' => $row['election_name'],
-                'coordinator' => $row['coordinator_name'] ?? 'Not Assigned'
-            ]
-        ]);
-    } else {
-        // Return mock data for testing
-        echo json_encode([
-            'success' => true,
-            'data' => [
-                'id' => '1',
-                'code' => 'PU-001',
-                'name' => 'KANGIRE YAMMA/AREWA/KANGIRE P.S',
-                'ward' => 'Kangire',
-                'lga' => 'Birnin Kudu',
-                'state' => 'Jigawa',
-                'election' => '2027 Governorship Election',
-                'coordinator' => 'Aliyu Abubakar'
-            ]
-        ]);
+    $notifications = [];
+    while ($row = $result->fetch_assoc()) {
+        $notifications[] = [
+            'id' => $row['id'],
+            'user_id' => $row['user_id'],
+            'type' => $row['type'],
+            'title' => $row['title'],
+            'message' => $row['message'],
+            'data_json' => $row['data_json'],
+            'action_url' => $row['action_url'],
+            'is_read' => $row['is_read'],
+            'read_at' => $row['read_at'],
+            'created_at' => $row['created_at']
+        ];
     }
+    
+    // If no notifications, return mock data
+    if (empty($notifications)) {
+        $notifications = [
+            [
+                'id' => '1',
+                'user_id' => $userId,
+                'type' => 'election',
+                'title' => 'Election Day Observation',
+                'message' => 'Please submit your observations for today\'s election process.',
+                'data_json' => null,
+                'action_url' => null,
+                'is_read' => 0,
+                'read_at' => null,
+                'created_at' => date('Y-m-d H:i:s', strtotime('-2 hours'))
+            ]
+        ];
+    }
+    
+    echo json_encode([
+        'success' => true,
+        'data' => $notifications
+    ]);
     
     $stmt->close();
     $conn->close();
