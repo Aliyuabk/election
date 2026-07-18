@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// WARD COORDINATOR - AGENT PERFORMANCE
+// WARD COORDINATOR - AGENT PERFORMANCE REPORT
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -73,16 +73,16 @@ $period = isset($_GET['period']) ? $_GET['period'] : 'month';
 $date_filter = '';
 switch ($period) {
     case 'today':
-        $date_filter = "DATE(ra.created_at) = CURDATE()";
+        $date_filter = "DATE(r.created_at) = CURDATE()";
         break;
     case 'week':
-        $date_filter = "ra.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)";
+        $date_filter = "r.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)";
         break;
     case 'month':
-        $date_filter = "ra.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)";
+        $date_filter = "r.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)";
         break;
     case 'quarter':
-        $date_filter = "ra.created_at >= DATE_SUB(NOW(), INTERVAL 90 DAY)";
+        $date_filter = "r.created_at >= DATE_SUB(NOW(), INTERVAL 90 DAY)";
         break;
     default:
         $date_filter = "1=1";
@@ -109,13 +109,13 @@ try {
             u.phone,
             u.status,
             u.created_at,
-            u.pu_id,
+            pu.id as pu_id,
             pu.name as pu_name,
             pu.code as pu_code,
-            COUNT(DISTINCT ra.id) as total_submissions,
-            COUNT(DISTINCT CASE WHEN ra.status IN ('verified', 'approved') THEN ra.id END) as verified_submissions,
-            COUNT(DISTINCT CASE WHEN ra.status = 'pending' THEN ra.id END) as pending_submissions,
-            COUNT(DISTINCT CASE WHEN ra.status = 'flagged' THEN ra.id END) as flagged_submissions,
+            COUNT(DISTINCT r.id) as total_submissions,
+            COUNT(DISTINCT CASE WHEN r.status IN ('verified', 'approved') THEN r.id END) as verified_submissions,
+            COUNT(DISTINCT CASE WHEN r.status = 'pending' THEN r.id END) as pending_submissions,
+            COUNT(DISTINCT CASE WHEN r.status = 'flagged' THEN r.id END) as flagged_submissions,
             COUNT(DISTINCT i.id) as incidents_reported,
             (SELECT COUNT(*) FROM user_sessions us WHERE us.user_id = u.id AND us.is_active = 1 AND us.last_activity_at > DATE_SUB(NOW(), INTERVAL 15 MINUTE)) as is_online,
             (SELECT COUNT(*) FROM agent_checkins ac WHERE ac.agent_id = u.id AND ac.checkin_type = 'arrival' AND DATE(ac.created_at) = CURDATE()) as checked_in_today
@@ -136,7 +136,7 @@ try {
         $params[] = $pu_filter;
     }
     
-    $sql .= " GROUP BY u.id, u.first_name, u.last_name, u.email, u.phone, u.status, u.created_at, u.pu_id, pu.name, pu.code
+    $sql .= " GROUP BY u.id, u.first_name, u.last_name, u.email, u.phone, u.status, u.created_at, pu.id, pu.name, pu.code
               ORDER BY verified_submissions DESC, total_submissions DESC";
     
     $stmt = $db->prepare($sql);
@@ -148,15 +148,11 @@ try {
         if ($agent['status'] === 'active') {
             $summary['active_agents']++;
         }
-        $summary['total_results'] += (int)($agent['total_submissions'] ?? 0);
-        $summary['verified_results'] += (int)($agent['verified_submissions'] ?? 0);
-        $summary['pending_results'] += (int)($agent['pending_submissions'] ?? 0);
+        $summary['total_results'] += $agent['total_submissions'];
+        $summary['verified_results'] += $agent['verified_submissions'];
+        $summary['pending_results'] += $agent['pending_submissions'];
     }
     
-    // Sort top performers
-    usort($agents, function($a, $b) {
-        return ($b['verified_submissions'] ?? 0) - ($a['verified_submissions'] ?? 0);
-    });
     $summary['top_performers'] = array_slice($agents, 0, 10);
 } catch (Exception $e) {
     error_log("Error fetching agent performance: " . $e->getMessage());
@@ -170,15 +166,13 @@ $period_labels = [
     'all' => 'All Time'
 ];
 
-$page_title = 'Agent Performance';
+$page_title = 'Agent Performance Report';
 include '../includes/base.php';
 include '../includes/sidebar.php';
 ?>
 
-<!-- The rest of the HTML stays the same, but update the PHP display sections -->
-
 <style>
-.performance-container {
+.report-container {
     max-width: 1000px;
     margin: 0 auto;
 }
@@ -410,21 +404,21 @@ include '../includes/sidebar.php';
     <?php include '../includes/header.php'; ?>
     
     <div class="main-content-inner">
-        <div class="performance-container">
+        <div class="report-container">
             <!-- Page Header -->
             <div class="welcome-section">
                 <div>
-                    <h1><i class="fas fa-chart-bar"></i> Agent Performance</h1>
+                    <h1><i class="fas fa-chart-bar"></i> Agent Performance Report</h1>
                     <p class="subtitle">
                         <i class="fas fa-layer-group"></i> 
-                        <?php echo htmlspecialchars($ward_name); ?> Ward - PU Agent Performance
+                        <?php echo htmlspecialchars($ward_name); ?> Ward - Agent Performance Analysis
                     </p>
                 </div>
                 <div class="export-buttons">
-                    <a href="export-pdf.php?type=agent_performance&period=<?php echo $period; ?>" class="btn-pdf">
+                    <a href="export-pdf.php?type=agent_performance&period=<?php echo $period; ?>&pu_id=<?php echo $pu_filter; ?>" class="btn-pdf">
                         <i class="fas fa-file-pdf"></i> PDF
                     </a>
-                    <a href="export-excel.php?type=agent_performance&period=<?php echo $period; ?>" class="btn-excel">
+                    <a href="export-excel.php?type=agent_performance&period=<?php echo $period; ?>&pu_id=<?php echo $pu_filter; ?>" class="btn-excel">
                         <i class="fas fa-file-excel"></i> Excel
                     </a>
                 </div>
@@ -458,7 +452,7 @@ include '../includes/sidebar.php';
                 </span>
             </div>
 
-            <!-- Summary Cards -->
+            <!-- Summary -->
             <div class="summary-grid">
                 <div class="summary-card">
                     <div class="number primary"><?php echo number_format($summary['total_agents']); ?></div>
@@ -507,7 +501,7 @@ include '../includes/sidebar.php';
                                 <?php echo htmlspecialchars($agent['pu_name'] ?? 'Unassigned'); ?>
                             </div>
                             <div style="font-size:0.75rem;font-weight:700;color:#10B981;margin-top:2px;">
-                                <?php echo number_format($agent['verified_submissions'] ?? 0); ?> verified
+                                <?php echo number_format($agent['verified_submissions']); ?> verified
                             </div>
                         </div>
                     <?php endforeach; ?>
@@ -532,9 +526,8 @@ include '../includes/sidebar.php';
                     </thead>
                     <tbody>
                         <?php foreach ($agents as $agent): 
-                            $online_status = ($agent['is_online'] ?? 0) > 0 ? 'online' : 'offline';
-                            $online_label = ($agent['is_online'] ?? 0) > 0 ? 'Online' : 'Offline';
-                            $pu_name = !empty($agent['pu_name']) ? $agent['pu_name'] : 'Unassigned';
+                            $online_status = $agent['is_online'] > 0 ? 'online' : 'offline';
+                            $online_label = $agent['is_online'] > 0 ? 'Online' : 'Offline';
                         ?>
                             <tr>
                                 <td>
@@ -542,33 +535,33 @@ include '../includes/sidebar.php';
                                     <div style="font-size:0.55rem;color:var(--gray-400);"><?php echo htmlspecialchars($agent['email'] ?? 'N/A'); ?></div>
                                 </td>
                                 <td>
-                                    <?php if (!empty($agent['pu_id'])): ?>
-                                        <?php echo htmlspecialchars($pu_name); ?>
-                                        <div style="font-size:0.5rem;color:var(--gray-400);"><?php echo htmlspecialchars($agent['pu_code'] ?? ''); ?></div>
+                                    <?php if ($agent['pu_id']): ?>
+                                        <?php echo htmlspecialchars($agent['pu_name']); ?>
+                                        <div style="font-size:0.5rem;color:var(--gray-400);"><?php echo htmlspecialchars($agent['pu_code']); ?></div>
                                     <?php else: ?>
-                                        <span style="color:var(--gray-400);font-size:0.65rem;"><?php echo $pu_name; ?></span>
+                                        <span style="color:var(--gray-400);">Unassigned</span>
                                     <?php endif; ?>
                                 </td>
                                 <td>
-                                    <span class="status-badge <?php echo $agent['status'] ?? 'pending'; ?>">
+                                    <span class="status-badge <?php echo $agent['status']; ?>">
                                         <span class="dot"></span>
-                                        <?php echo ucfirst($agent['status'] ?? 'pending'); ?>
+                                        <?php echo ucfirst($agent['status']); ?>
                                     </span>
                                 </td>
                                 <td>
                                     <span style="font-weight:600;color:#10B981;">
-                                        <?php echo number_format($agent['verified_submissions'] ?? 0); ?>
+                                        <?php echo number_format($agent['verified_submissions']); ?>
                                     </span>
                                 </td>
                                 <td>
                                     <span style="font-weight:600;color:#F59E0B;">
-                                        <?php echo number_format($agent['pending_submissions'] ?? 0); ?>
+                                        <?php echo number_format($agent['pending_submissions']); ?>
                                     </span>
                                 </td>
-                                <td><?php echo number_format($agent['total_submissions'] ?? 0); ?></td>
-                                <td><?php echo number_format($agent['incidents_reported'] ?? 0); ?></td>
+                                <td><?php echo number_format($agent['total_submissions']); ?></td>
+                                <td><?php echo number_format($agent['incidents_reported']); ?></td>
                                 <td>
-                                    <?php if (($agent['checked_in_today'] ?? 0) > 0): ?>
+                                    <?php if ($agent['checked_in_today'] > 0): ?>
                                         <span style="color:#10B981;font-size:0.6rem;">
                                             <i class="fas fa-check-circle"></i> Yes
                                         </span>
