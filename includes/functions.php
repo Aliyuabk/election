@@ -160,17 +160,24 @@ function getDB() {
             ]);
             
             // ============================================================
-            // CRITICAL FIX: Set MySQL timezone to match PHP
+            // FIX: Use numeric offset instead of timezone name
             // ============================================================
-            $timezone = APP_TIMEZONE;
+            // Africa/Lagos is UTC+1
+            // Try these in order of preference
             try {
-                $pdo->exec("SET time_zone = '$timezone'");
-                error_log("MySQL timezone set to: $timezone");
+                // Try with numeric offset (most reliable)
+                $pdo->exec("SET time_zone = '+01:00'");
+                error_log("MySQL timezone set to: +01:00 (Africa/Lagos)");
             } catch (Exception $e) {
-                // If timezone name doesn't work, try using offset
-                $offset = date('P');
-                $pdo->exec("SET time_zone = '$offset'");
-                error_log("MySQL timezone set to offset: $offset");
+                try {
+                    // Try with timezone name (if available)
+                    $pdo->exec("SET time_zone = 'Africa/Lagos'");
+                    error_log("MySQL timezone set to: Africa/Lagos");
+                } catch (Exception $e2) {
+                    // If both fail, use UTC
+                    $pdo->exec("SET time_zone = '+00:00'");
+                    error_log("MySQL timezone set to: +00:00 (UTC) - Fallback");
+                }
             }
             
         } catch (PDOException $e) {
