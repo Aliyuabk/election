@@ -457,7 +457,8 @@ function createPasswordReset($userId, $token) {
         error_log("Create password reset failed: " . $e->getMessage());
         return false;
     }
-}
+}  
+
 
 function validatePasswordResetToken($token, $email) {
     try {

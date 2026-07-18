@@ -56,18 +56,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $message_type = 'danger';
             $_SESSION['captcha_code'] = generateCaptcha();
         } else {
-            // Check rate limiting - prevent abuse
-            $ip = getClientIP();
+            // Check rate limiting - prevent abuse (using email only since no ip_address in password_resets)
             $db = getDB();
             
-            $stmt = $db->prepare("SELECT COUNT(*) as count FROM password_resets WHERE ip_address = ? AND created_at > DATE_SUB(NOW(), INTERVAL 1 HOUR)");
-            $stmt->execute([$ip]);
+            $stmt = $db->prepare("
+                SELECT COUNT(*) as count FROM password_resets pr
+                JOIN users u ON pr.user_id = u.id
+                WHERE u.email = ? AND pr.created_at > DATE_SUB(NOW(), INTERVAL 1 HOUR)
+            ");
+            $stmt->execute([$email]);
             $result = $stmt->fetch();
             
-            if ($result && $result['count'] >= 5) {
+            if ($result && $result['count'] >= 3) {
                 $message = 'Too many password reset requests. Please try again after 1 hour.';
                 $message_type = 'danger';
-                logSecurityEvent(null, 'rate_limit_exceeded', "Password reset rate limit exceeded for IP: {$ip}", 50);
+                logSecurityEvent(null, 'rate_limit_exceeded', "Password reset rate limit exceeded for email: {$email}", 50);
             } else {
                 // Check if user exists
                 $user = getUserByEmail($email);
@@ -75,11 +78,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($user) {
                     // Generate reset token
                     $token = generateRandomToken(32);
-                    $expires = date('Y-m-d H:i:s', time() + 3600); // 1 hour
                     
-                    // Store in database
-                    $stmt = $db->prepare("INSERT INTO password_resets (user_id, token, expires_at, ip_address, created_at) VALUES (?, ?, ?, ?, NOW())");
-                    $stmt->execute([$user['id'], $token, $expires, $ip]);
+                    // Store in database using the function
+                    createPasswordReset($user['id'], $token);
                     
                     // Build reset link
                     $reset_link = APP_URL . 'reset-password.php?token=' . $token . '&email=' . urlencode($email);
@@ -92,7 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $message = 'Password reset link has been sent to your email address. Please check your inbox.';
                         $message_type = 'success';
                         $show_success = true;
-                        logActivity($user['id'], 'password_reset_request', 'Password reset requested');
+                        logActivity($user['id'], 'password_reset', 'Password reset requested');
                         
                         // Clear CAPTCHA for security
                         $_SESSION['captcha_code'] = generateCaptcha();
@@ -107,9 +108,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $message_type = 'success';
                     $show_success = true;
                     
-                    // Still generate a token for security (but don't store it)
-                    // This prevents timing attacks
-                    usleep(rand(100000, 500000)); // Random delay
+                    // Random delay to prevent timing attacks
+                    usleep(rand(100000, 500000));
                 }
             }
         }
@@ -130,7 +130,7 @@ $current_year = date('Y');
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        /* Reuse login page styles */
+        /* [Same styles as login page - copy from login.php styles] */
         :root {
             --primary: #0F4C81;
             --primary-dark: #0A3A63;
@@ -140,11 +140,7 @@ $current_year = date('Y');
             --warning: #F59E0B;
         }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -263,7 +259,6 @@ $current_year = date('Y');
             margin: 0;
         }
 
-        /* Alert Styles */
         .alert {
             border-radius: 12px;
             padding: 14px 16px;
@@ -287,21 +282,10 @@ $current_year = date('Y');
             border-left: 4px solid #10B981;
         }
 
-        .alert i {
-            font-size: 18px;
-            margin-top: 1px;
-        }
+        .alert i { font-size: 18px; margin-top: 1px; }
+        .alert .alert-link { color: inherit; font-weight: 600; text-decoration: underline; }
 
-        .alert .alert-link {
-            color: inherit;
-            font-weight: 600;
-            text-decoration: underline;
-        }
-
-        /* Form Styles */
-        .form-group {
-            margin-bottom: 20px;
-        }
+        .form-group { margin-bottom: 20px; }
 
         .form-label {
             font-weight: 500;
@@ -313,9 +297,7 @@ $current_year = date('Y');
             gap: 6px;
         }
 
-        .form-label .required {
-            color: #EF4444;
-        }
+        .form-label .required { color: #EF4444; }
 
         .input-group {
             border-radius: 12px;
@@ -347,15 +329,9 @@ $current_year = date('Y');
             height: 50px;
         }
 
-        .input-group .form-control:focus {
-            box-shadow: none;
-        }
+        .input-group .form-control:focus { box-shadow: none; }
+        .input-group .form-control::placeholder { color: #9CA3AF; }
 
-        .input-group .form-control::placeholder {
-            color: #9CA3AF;
-        }
-
-        /* CAPTCHA Styles */
         .captcha-container {
             display: flex;
             gap: 12px;
@@ -395,17 +371,9 @@ $current_year = date('Y');
             justify-content: center;
         }
 
-        .captcha-refresh:hover {
-            background: rgba(15, 76, 129, 0.08);
-        }
-
-        .captcha-refresh i {
-            transition: transform 0.5s ease;
-        }
-
-        .captcha-refresh:hover i {
-            transform: rotate(180deg);
-        }
+        .captcha-refresh:hover { background: rgba(15, 76, 129, 0.08); }
+        .captcha-refresh i { transition: transform 0.5s ease; }
+        .captcha-refresh:hover i { transform: rotate(180deg); }
 
         .captcha-input .form-control {
             height: 50px;
@@ -416,7 +384,6 @@ $current_year = date('Y');
             text-transform: uppercase;
         }
 
-        /* Button Styles */
         .btn-reset {
             width: 100%;
             padding: 14px;
@@ -440,10 +407,7 @@ $current_year = date('Y');
             color: white;
         }
 
-        .btn-reset:active {
-            transform: translateY(0px);
-        }
-
+        .btn-reset:active { transform: translateY(0px); }
         .btn-reset:disabled {
             opacity: 0.7;
             cursor: not-allowed;
@@ -466,23 +430,6 @@ $current_year = date('Y');
             text-decoration: underline;
         }
 
-        .footer-bottom {
-            text-align: center;
-            margin-top: 20px;
-            color: rgba(255, 255, 255, 0.6);
-            font-size: 13px;
-        }
-
-        .footer-bottom a {
-            color: rgba(255, 255, 255, 0.8);
-            text-decoration: none;
-        }
-
-        .footer-bottom a:hover {
-            color: white;
-            text-decoration: underline;
-        }
-
         .auth-footer {
             text-align: center;
             margin-top: 24px;
@@ -502,63 +449,54 @@ $current_year = date('Y');
             font-weight: 500;
         }
 
-        .auth-footer a:hover {
+        .auth-footer a:hover { text-decoration: underline; }
+
+        .footer-bottom {
+            text-align: center;
+            margin-top: 20px;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 13px;
+        }
+
+        .footer-bottom a {
+            color: rgba(255, 255, 255, 0.8);
+            text-decoration: none;
+        }
+
+        .footer-bottom a:hover {
+            color: white;
             text-decoration: underline;
         }
 
-        /* Responsive */
+        .is-invalid { border-color: #EF4444 !important; }
+        .is-invalid:focus-within {
+            border-color: #EF4444 !important;
+            box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.1) !important;
+        }
+
+        .invalid-feedback {
+            color: #EF4444;
+            font-size: 13px;
+            margin-top: 4px;
+        }
+
         @media (max-width: 480px) {
-            .reset-card {
-                padding: 32px 24px;
-                border-radius: 20px;
-            }
-
-            .brand h1 {
-                font-size: 20px;
-            }
-
-            .captcha-box {
-                font-size: 22px;
-                min-width: 100px;
-                height: 44px;
-                line-height: 44px;
-            }
-
-            .captcha-refresh {
-                width: 44px;
-                height: 44px;
-                font-size: 20px;
-            }
-
-            .btn-reset {
-                height: 48px;
-                font-size: 15px;
-            }
+            .reset-card { padding: 32px 24px; border-radius: 20px; }
+            .brand h1 { font-size: 20px; }
+            .captcha-box { font-size: 22px; min-width: 100px; height: 44px; line-height: 44px; }
+            .captcha-refresh { width: 44px; height: 44px; font-size: 20px; }
+            .btn-reset { height: 48px; font-size: 15px; }
         }
 
         @media (max-width: 360px) {
-            .reset-card {
-                padding: 24px 16px;
-            }
-
-            .captcha-container {
-                flex-wrap: wrap;
-                justify-content: center;
-            }
-
-            .captcha-box {
-                min-width: 80px;
-                font-size: 18px;
-                letter-spacing: 3px;
-                height: 38px;
-                line-height: 38px;
-            }
+            .reset-card { padding: 24px 16px; }
+            .captcha-container { flex-wrap: wrap; justify-content: center; }
+            .captcha-box { min-width: 80px; font-size: 18px; letter-spacing: 3px; height: 38px; line-height: 38px; }
         }
     </style>
 </head>
 <body>
 
-<!-- Floating Particles -->
 <div class="particles">
     <div class="particle"></div>
     <div class="particle"></div>
@@ -572,7 +510,6 @@ $current_year = date('Y');
 
 <div class="reset-container">
     <div class="reset-card">
-        <!-- Brand -->
         <div class="brand">
             <div class="brand-icon">
                 <i class="bi bi-key"></i>
@@ -581,7 +518,6 @@ $current_year = date('Y');
             <p>Enter your email to receive a reset link</p>
         </div>
 
-        <!-- Messages -->
         <?php if ($message): ?>
             <div class="alert alert-<?= $message_type ?>" role="alert">
                 <i class="bi bi-<?= $message_type === 'success' ? 'check-circle-fill' : 'exclamation-circle-fill' ?>"></i>
@@ -589,12 +525,10 @@ $current_year = date('Y');
             </div>
         <?php endif; ?>
 
-        <!-- Form -->
         <?php if (!$show_success): ?>
         <form method="POST" action="" id="resetForm" novalidate>
             <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf_token) ?>">
 
-            <!-- Email -->
             <div class="form-group">
                 <label class="form-label" for="email">
                     <i class="bi bi-envelope"></i> Email Address
@@ -615,7 +549,6 @@ $current_year = date('Y');
                 <div class="invalid-feedback" id="emailHelp"></div>
             </div>
 
-            <!-- CAPTCHA -->
             <div class="form-group">
                 <label class="form-label">
                     <i class="bi bi-shield-check"></i> Security Verification
@@ -646,13 +579,11 @@ $current_year = date('Y');
                 <div class="invalid-feedback" id="captchaHelp"></div>
             </div>
 
-            <!-- Submit Button -->
             <button type="submit" class="btn-reset" id="resetBtn">
                 <span id="btnText"><i class="bi bi-envelope-paper"></i> Send Reset Link</span>
                 <span id="btnSpinner" class="spinner-border spinner-border-sm" style="display: none;" role="status" aria-hidden="true"></span>
             </button>
 
-            <!-- Back to Login -->
             <div style="margin-top: 16px; text-align: center;">
                 <a href="login.php" class="btn-back">
                     <i class="bi bi-arrow-left"></i> Back to Login
@@ -660,7 +591,6 @@ $current_year = date('Y');
             </div>
         </form>
         <?php else: ?>
-        <!-- Success Message Actions -->
         <div style="text-align: center; margin-top: 16px;">
             <p style="color: #6B7280; font-size: 14px; margin-bottom: 16px;">
                 <i class="bi bi-info-circle"></i> If you don't see the email, please check your spam folder.
@@ -675,7 +605,6 @@ $current_year = date('Y');
         </div>
         <?php endif; ?>
 
-        <!-- Footer -->
         <div class="auth-footer">
             <p>Remember your password? <a href="login.php">Sign In</a></p>
         </div>
@@ -687,9 +616,6 @@ $current_year = date('Y');
 </div>
 
 <script>
-// ============================================================
-// Refresh CAPTCHA
-// ============================================================
 function refreshCaptcha() {
     fetch('ajax/refresh-captcha.php')
         .then(response => response.json())
@@ -705,9 +631,6 @@ function refreshCaptcha() {
         });
 }
 
-// ============================================================
-// Form Submission - Show Loading State
-// ============================================================
 document.getElementById('resetForm')?.addEventListener('submit', function(e) {
     const btn = document.getElementById('resetBtn');
     const btnText = document.getElementById('btnText');
@@ -718,13 +641,9 @@ document.getElementById('resetForm')?.addEventListener('submit', function(e) {
     btnSpinner.style.display = 'inline-block';
 });
 
-// ============================================================
-// Client-side Validation
-// ============================================================
 document.getElementById('resetForm')?.addEventListener('submit', function(e) {
     let isValid = true;
     
-    // Validate email
     const email = document.getElementById('email');
     const emailHelp = document.getElementById('emailHelp');
     const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -742,7 +661,6 @@ document.getElementById('resetForm')?.addEventListener('submit', function(e) {
         emailHelp.textContent = '';
     }
     
-    // Validate CAPTCHA
     const captcha = document.getElementById('captcha');
     const captchaHelp = document.getElementById('captchaHelp');
     
@@ -761,7 +679,6 @@ document.getElementById('resetForm')?.addEventListener('submit', function(e) {
     
     if (!isValid) {
         e.preventDefault();
-        // Re-enable button
         const btn = document.getElementById('resetBtn');
         const btnText = document.getElementById('btnText');
         const btnSpinner = document.getElementById('btnSpinner');
@@ -771,16 +688,10 @@ document.getElementById('resetForm')?.addEventListener('submit', function(e) {
     }
 });
 
-// ============================================================
-// Auto-capitalize CAPTCHA input
-// ============================================================
 document.getElementById('captcha')?.addEventListener('input', function() {
     this.value = this.value.toUpperCase();
 });
 
-// ============================================================
-// Remove validation errors on input
-// ============================================================
 document.querySelectorAll('.form-control').forEach(input => {
     input.addEventListener('input', function() {
         const group = this.closest('.input-group');
