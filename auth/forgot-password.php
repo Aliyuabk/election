@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// FORGOT PASSWORD - Request password reset
+// FORGOT PASSWORD - Request password reset link
 // ============================================================
 require_once '../config/config.php';
 require_once '../includes/session.php';
@@ -8,63 +8,8 @@ require_once '../includes/functions.php';
 
 SessionManager::start();
 
-// If already logged in, redirect to dashboard
-if (SessionManager::isLoggedIn()) {
-    header('Location: ../dashboard/index.php');
-    exit();
-}
-
-$message = '';
 $error = '';
-$email = '';
-
-// ============================================================
-// DYNAMIC URL HELPER - Gets the current base URL
-// ============================================================
-function getCurrentBaseUrl() {
-    $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://';
-    $host = $_SERVER['HTTP_HOST'];
-    $script_name = $_SERVER['SCRIPT_NAME'];
-    
-    // Get the directory where the script is running
-    $script_dir = dirname($script_name);
-    
-    // Remove trailing slash if exists
-    $script_dir = rtrim($script_dir, '/');
-    
-    // If we're in a subdirectory, include it
-    $base_url = $protocol . $host . $script_dir;
-    
-    // Get the parent directory (up one level from 'auth' folder)
-    $base_url = dirname($base_url);
-    
-    // If we're at root, make sure it's properly formatted
-    if ($base_url === $protocol . $host) {
-        $base_url = $protocol . $host;
-    }
-    
-    return $base_url;
-}
-
-// ============================================================
-// GET CURRENT APP URL - Uses defined APP_URL or falls back to dynamic
-// ============================================================
-function getAppUrl() {
-    // Try to use the defined APP_URL first
-    if (defined('APP_URL') && !empty(APP_URL) && APP_URL !== 'http://localhost/election') {
-        return rtrim(APP_URL, '/');
-    }
-    
-    // Fallback to dynamic URL
-    return getCurrentBaseUrl();
-}
-
-// ============================================================
-// DEBUG: Log the app URL for troubleshooting
-// ============================================================
-function logDebug($message) {
-    error_log("Forgot Password Debug: " . $message);
-}
+$success = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? '');
@@ -77,74 +22,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $db = getDB();
             
-            // Check if user exists
-            $stmt = $db->prepare("SELECT id, email, first_name, last_name, status FROM users WHERE email = ?");
+            // Find user by email
+            $stmt = $db->prepare("SELECT id, email, first_name FROM users WHERE email = ? AND status = 'active'");
             $stmt->execute([$email]);
             $user = $stmt->fetch();
             
-            if ($user && $user['status'] === 'active') {
-                // Generate reset token
-                $token = bin2hex(random_bytes(32));
-                $expires = date('Y-m-d H:i:s', strtotime('+1 hour'));
+            if ($user) {
+                // Generate reset token (raw token for URL)
+                $raw_token = generateRandomToken();
                 
-                // Delete old tokens for this user
+                // Hash the token for storage
+                $hashed_token = password_hash($raw_token, PASSWORD_DEFAULT);
+                
+                // Calculate expiry (1 hour from now)
+                $expires = date('Y-m-d H:i:s', time() + 3600);
+                
+                // Delete any existing reset tokens for this user
                 $stmt = $db->prepare("DELETE FROM password_resets WHERE user_id = ?");
                 $stmt->execute([$user['id']]);
                 
-                // Save token to database
-                $stmt = $db->prepare("INSERT INTO password_resets (user_id, token, expires_at) VALUES (?, ?, ?)");
-                $stmt->execute([$user['id'], $token, $expires]);
+                // Insert new reset token
+                $stmt = $db->prepare("INSERT INTO password_resets (user_id, token, token_hash, expires_at, used) VALUES (?, ?, ?, ?, 0)");
+                $stmt->execute([$user['id'], $raw_token, $hashed_token, $expires]);
                 
-                // ============================================================
-                // GENERATE RESET LINK - FIXED FOR CPANEL
-                // ============================================================
-                $app_url = getAppUrl();
-                $resetLink = $app_url . '/auth/reset-password.php?token=' . $token;
+                // Build reset link with raw token
+                $resetLink = APP_URL . 'auth/reset-password.php?token=' . urlencode($raw_token);
                 
-                // Alternative: Use the full current URL
-                // This is more reliable for cPanel
-                $current_url = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https://" : "http://") . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
-                $base_url = dirname(dirname($current_url)); // Go up two levels from auth/
-                $resetLink2 = $base_url . '/auth/reset-password.php?token=' . $token;
+                // Send email with reset link
+                sendPasswordResetEmail($email, $resetLink, $user['first_name']);
                 
-                // DEBUG: Log both links
-                logDebug("APP_URL: " . ($app_url ?? 'not set'));
-                logDebug("Reset Link 1: " . $resetLink);
-                logDebug("Reset Link 2: " . $resetLink2);
-                logDebug("Current URL: " . $current_url);
-                logDebug("Base URL: " . $base_url);
+                logActivity($user['id'], 'password_reset', 'Password reset requested');
+                logSecurityEvent($user['id'], 'password_reset', 'Password reset requested from IP: ' . getClientIP());
                 
-                // Use the second method which is more reliable
-                $resetLink = $resetLink2;
-                
-                // Send reset email
-                $result = sendPasswordResetEmail($user['email'], $resetLink, $user['first_name']);
-                
-                if ($result['success']) {
-                    // Log activity
-                    try {
-                        logActivity($user['id'], 'password_reset', 'Password reset requested');
-                        logSecurityEvent($user['id'], 'password_reset', 'Password reset requested from IP: ' . getClientIP());
-                    } catch (Exception $e) {
-                        error_log("Activity log failed: " . $e->getMessage());
-                    }
-                    
-                    $message = 'Password reset link has been sent to your email. Please check your inbox.';
-                    $email = ''; // Clear email field
-                } else {
-                    $error = 'Failed to send reset email. Please try again later.';
-                    error_log("Password reset email failed: " . ($result['message'] ?? 'Unknown error'));
-                }
+                $success = 'Password reset link has been sent to your email. Please check your inbox.';
             } else {
-                // Don't reveal if user exists or not for security
-                $message = 'If the email exists in our system, a reset link has been sent.';
+                // Don't reveal if email exists or not for security
+                $success = 'If an account exists with that email, a password reset link has been sent.';
             }
-        } catch (PDOException $e) {
-            error_log("Forgot password database error: " . $e->getMessage());
-            $error = 'A database error occurred. Please try again later.';
         } catch (Exception $e) {
-            error_log("Forgot password general error: " . $e->getMessage());
-            $error = 'An unexpected error occurred. Please try again later.';
+            error_log("Forgot password error: " . $e->getMessage());
+            $error = 'An error occurred. Please try again later.';
         }
     }
 }
@@ -180,6 +97,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .login-logo a { display: inline-flex; align-items: center; gap: 10px; font-family: 'Poppins', sans-serif; font-weight: 700; font-size: 1.8rem; color: #0F4C81; text-decoration: none; }
         .login-logo i { font-size: 2.2rem; color: #2563EB; }
         .login-logo p { color: #64748B; font-size: 0.95rem; margin-top: 4px; }
+        .login-card h2 { font-size: 1.3rem; margin-bottom: 4px; }
+        .login-card .subtitle { color: #64748B; margin-bottom: 20px; }
         .form-group { margin-bottom: 20px; }
         .form-group label { display: block; font-weight: 600; font-size: 0.9rem; margin-bottom: 6px; color: #0F172A; }
         .form-group .input-wrapper { position: relative; }
@@ -188,17 +107,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .form-group input:focus { outline: none; border-color: #2563EB; background: white; box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.06); }
         .btn-login { width: 100%; padding: 16px; border: none; border-radius: 14px; background: #0F4C81; color: white; font-size: 1rem; font-weight: 600; font-family: 'Inter', sans-serif; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 10px; }
         .btn-login:hover { background: #1a3f6a; transform: translateY(-1px); box-shadow: 0 8px 24px rgba(15, 76, 129, 0.2); }
-        .btn-login:disabled { opacity: 0.7; cursor: not-allowed; }
         .error-message { background: #FEF2F2; color: #DC2626; padding: 12px 16px; border-radius: 12px; font-size: 0.9rem; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; border: 1px solid #FECACA; }
-        .error-message i { font-size: 1.1rem; }
         .success-message { background: #ECFDF5; color: #065F46; padding: 12px 16px; border-radius: 12px; font-size: 0.9rem; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; border: 1px solid #A7F3D0; }
-        .success-message i { font-size: 1.1rem; }
         .back-link { text-align: center; margin-top: 20px; }
         .back-link a { color: #64748B; text-decoration: none; font-size: 0.9rem; transition: 0.15s; display: inline-flex; align-items: center; gap: 8px; }
         .back-link a:hover { color: #0F4C81; }
-        .info-text { color: #64748B; margin-bottom: 20px; font-size: 0.95rem; }
-        .info-text i { color: #2563EB; }
-        @media (max-width: 480px) { .login-card { padding: 32px 24px; border-radius: 24px; } .login-logo a { font-size: 1.5rem; } }
+        @media (max-width: 480px) { .login-card { padding: 32px 24px; border-radius: 24px; } }
     </style>
 </head>
 <body>
@@ -212,6 +126,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <p>Reset your password</p>
         </div>
         
+        <h2>Forgot Password</h2>
+        <p class="subtitle">Enter your email and we'll send you a reset link.</p>
+        
         <?php if (!empty($error)): ?>
         <div class="error-message">
             <i class="fas fa-exclamation-circle"></i>
@@ -219,32 +136,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
         <?php endif; ?>
         
-        <?php if (!empty($message)): ?>
+        <?php if (!empty($success)): ?>
         <div class="success-message">
             <i class="fas fa-check-circle"></i>
-            <?php echo htmlspecialchars($message); ?>
+            <?php echo htmlspecialchars($success); ?>
         </div>
         <?php endif; ?>
         
-        <form method="POST" action="" id="resetForm">
-            <p class="info-text">
-                <i class="fas fa-info-circle"></i>
-                Enter your email address and we'll send you a link to reset your password.
-            </p>
-            
+        <?php if (empty($success)): ?>
+        <form method="POST" action="">
             <div class="form-group">
                 <label for="email">Email Address</label>
                 <div class="input-wrapper">
                     <i class="fas fa-envelope"></i>
-                    <input type="email" id="email" name="email" placeholder="admin@organization.ng" value="<?php echo htmlspecialchars($email); ?>" required autofocus />
+                    <input type="email" id="email" name="email" placeholder="you@example.com" required />
                 </div>
             </div>
             
-            <button type="submit" class="btn-login" id="submitBtn">
+            <button type="submit" class="btn-login">
                 <i class="fas fa-paper-plane"></i>
                 Send Reset Link
             </button>
         </form>
+        <?php endif; ?>
         
         <div class="back-link">
             <a href="login.php">
@@ -253,38 +167,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     </div>
 </div>
-
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    const form = document.getElementById('resetForm');
-    const submitBtn = document.getElementById('submitBtn');
-    const emailInput = document.getElementById('email');
-    
-    if (form) {
-        form.addEventListener('submit', function(e) {
-            submitBtn.disabled = true;
-            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
-            
-            setTimeout(function() {
-                submitBtn.disabled = false;
-                submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send Reset Link';
-            }, 5000);
-        });
-    }
-    
-    if (emailInput) {
-        emailInput.addEventListener('input', function() {
-            const email = this.value.trim();
-            if (email.length > 0 && !email.includes('@')) {
-                this.style.borderColor = '#F59E0B';
-            } else if (email.length > 0 && email.includes('@') && email.includes('.')) {
-                this.style.borderColor = '#10B981';
-            } else {
-                this.style.borderColor = '#E2E8F0';
-            }
-        });
-    }
-});
-</script>
 </body>
 </html>
