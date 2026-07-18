@@ -750,7 +750,7 @@ function togglePassword() {
 }
 
 function refreshCaptcha() {
-    fetch('ajax/refresh-captcha.php')
+    fetch('refresh-captcha.php')
         .then(response => response.json())
         .then(data => {
             if (data.success) {
