@@ -37,6 +37,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $user_id = $_SESSION['2fa_user_id'];
         $remember = $_SESSION['2fa_remember'] ?? false;
         
+        // DEBUG: Log the OTP being verified
+        error_log("Verifying OTP: " . $otp . " for user_id: " . $user_id);
+        
         if (verifyOTP($user_id, $otp, 'login')) {
             $user = getUserById($user_id);
             if ($user) {
@@ -46,6 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         } else {
             $error = 'Invalid or expired OTP code. Please try again.';
+            // Allow retry - don't clear the session
         }
         $show_2fa = true;
     } else {
@@ -97,7 +101,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             if ($user['two_factor_enabled']) {
                                 // Generate OTP
                                 $otp = generateOTP();
-                                saveOTP($user['id'], $otp, 'login', 'email');
+                                $saved = saveOTP($user['id'], $otp, 'login', 'email');
+                                
+                                // DEBUG: Log the OTP being saved
+                                error_log("Saving OTP: " . $otp . " for user_id: " . $user['id'] . " - Saved: " . ($saved ? 'Yes' : 'No'));
                                 
                                 // Send OTP via email
                                 $result = sendOTPEmail($user['email'], $otp, $user['first_name']);
@@ -108,6 +115,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     $_SESSION['2fa_email'] = $user['email'];
                                     $show_2fa = true;
                                     $user_id = $user['id'];
+                                    $error = ''; // Clear any previous errors
                                 } else {
                                     $error = 'Failed to send OTP. Please try again. Error: ' . $result['message'];
                                 }
@@ -137,9 +145,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 function loginUser($user, $remember, $db) {
-    // ============================================================
-    // GET ROLE INFORMATION FROM YOUR SCHEMA
-    // ============================================================
+    // Get role information
     $stmt = $db->prepare("
         SELECT r.id, r.name, r.slug, r.level, r.permissions_json 
         FROM roles r 
@@ -148,7 +154,6 @@ function loginUser($user, $remember, $db) {
     $stmt->execute([$user['role_id']]);
     $role = $stmt->fetch();
     
-    // Get role level - using the 'level' column from your roles table
     $role_level = $role['level'] ?? 'client_admin';
     $role_slug = $role['slug'] ?? 'client_admin';
     $role_name = $role['name'] ?? 'Client Administrator';
@@ -169,40 +174,32 @@ function loginUser($user, $remember, $db) {
     SessionManager::set('role_level', $role_level);
     SessionManager::set('role_slug', $role_slug);
     SessionManager::set('role_name', $role_name);
-    SessionManager::set('role', $role_level); // For compatibility
+    SessionManager::set('role', $role_level);
     SessionManager::set('logged_in', true);
     SessionManager::set('login_time', time());
     SessionManager::set('last_activity', time());
     SessionManager::set('session_token', $token);
     
-    // Store permissions if available
     if (isset($role['permissions_json'])) {
         $permissions = json_decode($role['permissions_json'], true);
         SessionManager::set('permissions', $permissions ?? []);
     }
     
-    // Set remember me cookie
     if ($remember && $token) {
         setcookie('remember_token', $token, time() + 2592000, '/', '', false, true);
     }
     
-    // Update last login
     updateUserLastLogin($user['id']);
-    
-    // Log successful login
     logLoginAttempt($user['id'], $user['email'], true);
     logActivity($user['id'], 'login', 'User logged in successfully');
     logSecurityEvent($user['id'], 'login', 'Successful login from IP: ' . getClientIP());
     
-    // Clear session variables
     unset($_SESSION['2fa_user_id']);
     unset($_SESSION['2fa_remember']);
     unset($_SESSION['login_attempts']);
     unset($_SESSION['captcha_text']);
     
-    // ============================================================
-    // REDIRECT BASED ON ROLE LEVEL - USING YOUR SCHEMA
-    // ============================================================
+    // Redirect based on role level
     $dashboardMap = [
         'super_admin' => '../dashboard/super-admin/',
         'client_admin' => '../dashboard/client-admin/',
@@ -221,10 +218,7 @@ function loginUser($user, $remember, $db) {
         'citizen' => '../dashboard/citizen/'
     ];
     
-    // Determine dashboard path based on role level
     $dashboard = $dashboardMap[$role_level] ?? '../dashboard/client-admin/';
-    
-    // DEBUG: Log the redirect
     error_log("Login redirect - User: {$user['email']}, Role Level: {$role_level}, Redirect: {$dashboard}");
     
     header('Location: ' . $dashboard);
@@ -317,10 +311,8 @@ function loginUser($user, $remember, $db) {
 </head>
 <body>
 
-<!-- ===== LOGIN ===== -->
 <div class="login-wrapper">
     <div class="login-card">
-        <!-- Logo -->
         <div class="login-logo">
             <a href="../index.php">
                 <i class="fas fa-bolt"></i>
@@ -329,7 +321,6 @@ function loginUser($user, $remember, $db) {
             <p>Enterprise Election Management Platform</p>
         </div>
 
-        <!-- Error/Success Messages -->
         <?php if (!empty($error)): ?>
         <div class="error-message">
             <i class="fas fa-exclamation-circle"></i>
@@ -354,7 +345,7 @@ function loginUser($user, $remember, $db) {
                 Code sent to: <strong><?php echo htmlspecialchars($_SESSION['2fa_email'] ?? ''); ?></strong>
             </p>
             
-            <form method="POST" action="login.php">
+            <form method="POST" action="login.php" id="otpForm">
                 <div class="otp-input-group">
                     <input type="text" maxlength="1" class="otp-input" data-index="0" autofocus required />
                     <input type="text" maxlength="1" class="otp-input" data-index="1" required />
@@ -401,7 +392,6 @@ function loginUser($user, $remember, $db) {
                 </div>
             </div>
 
-            <!-- CAPTCHA -->
             <?php if ($show_captcha): ?>
             <div class="captcha-container">
                 <span class="captcha-text" id="captchaText"><?php echo $captcha_text; ?></span>
@@ -425,12 +415,10 @@ function loginUser($user, $remember, $db) {
             </button>
         </form>
 
-        <!-- Divider -->
         <div class="divider">or continue with</div>
   
         <?php endif; ?>
 
-        <!-- Back to Home -->
         <div class="back-home">
             <a href="../index.php">
                 <i class="fas fa-arrow-left"></i>
@@ -442,11 +430,14 @@ function loginUser($user, $remember, $db) {
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // OTP Input handling
+    // OTP Input handling - FIXED
     const otpInputs = document.querySelectorAll('.otp-input');
     if (otpInputs.length) {
         otpInputs.forEach((input, index) => {
             input.addEventListener('input', function(e) {
+                // Only allow digits
+                this.value = this.value.replace(/\D/g, '');
+                
                 if (this.value.length === 1) {
                     const next = document.querySelector(`.otp-input[data-index="${index + 1}"]`);
                     if (next) next.focus();
@@ -457,7 +448,11 @@ document.addEventListener('DOMContentLoaded', function() {
             input.addEventListener('keydown', function(e) {
                 if (e.key === 'Backspace' && this.value.length === 0) {
                     const prev = document.querySelector(`.otp-input[data-index="${index - 1}"]`);
-                    if (prev) prev.focus();
+                    if (prev) {
+                        prev.focus();
+                        prev.value = '';
+                        updateOtpCode();
+                    }
                 }
             });
             
@@ -470,7 +465,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (target) target.value = digit;
                 });
                 updateOtpCode();
-                const last = document.querySelector(`.otp-input[data-index="${Math.min(digits.length, 6) - 1}"]`);
+                const lastIndex = Math.min(digits.length, 6) - 1;
+                const last = document.querySelector(`.otp-input[data-index="${lastIndex}"]`);
                 if (last) last.focus();
             });
         });
@@ -481,12 +477,17 @@ document.addEventListener('DOMContentLoaded', function() {
         let code = '';
         inputs.forEach(input => code += input.value);
         document.getElementById('otp_code').value = code;
+        
+        // Auto-submit when all 6 digits are entered
+        if (code.length === 6) {
+            document.getElementById('otpForm').submit();
+        }
     }
 
     // OTP Timer
     const timerElement = document.getElementById('otpTimer');
     if (timerElement) {
-        let timeLeft = 300; // 5 minutes
+        let timeLeft = 300;
         const timerInterval = setInterval(() => {
             const minutes = Math.floor(timeLeft / 60);
             const seconds = timeLeft % 60;
@@ -522,6 +523,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         this.textContent = 'Resend OTP';
                         this.disabled = false;
                     }, 3000);
+                    // Refresh the page to show new OTP form
                     location.reload();
                 } else {
                     this.textContent = 'Failed. Try again';

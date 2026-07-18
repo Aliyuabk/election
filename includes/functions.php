@@ -280,6 +280,9 @@ function verifyOTP($userId, $otp, $type = 'login') {
     try {
         $db = getDB();
         
+        // DEBUG: Log the query parameters
+        error_log("Verifying OTP - User: $userId, OTP: $otp, Type: $type");
+        
         $stmt = $db->prepare("
             SELECT * FROM otp_verifications 
             WHERE user_id = ? AND otp_code = ? AND type = ? AND used = 0 AND expires_at > NOW() 
@@ -288,9 +291,13 @@ function verifyOTP($userId, $otp, $type = 'login') {
         $stmt->execute([$userId, $otp, $type]);
         $record = $stmt->fetch();
         
+        // DEBUG: Log if record found
+        error_log("OTP record found: " . ($record ? 'Yes' : 'No'));
+        
         if ($record) {
             $stmt = $db->prepare("UPDATE otp_verifications SET used = 1, used_at = NOW() WHERE id = ?");
             $stmt->execute([$record['id']]);
+            error_log("OTP marked as used for user: $userId");
             return true;
         }
         return false;
