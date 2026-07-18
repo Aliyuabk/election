@@ -83,7 +83,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     createPasswordReset($user['id'], $token);
                     
                     // Build reset link
-                    $reset_link = APP_URL . 'reset-password.php?token=' . $token . '&email=' . urlencode($email);
+                    $reset_link = APP_URL . 'auth/reset-password.php?token=' . $token . '&email=' . urlencode($email);
                     
                     // Send email
                     $name = $user['full_name'] ?? $user['first_name'] . ' ' . $user['last_name'];
