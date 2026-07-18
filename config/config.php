@@ -9,6 +9,7 @@ define('DB_NAME', 'utgoohwm_election');
 define('DB_USER', 'utgoohwm_election');
 define('DB_PASS', 'Jiddahhh@1');
 
+
 // Application Configuration
 define('APP_NAME', '5G Election Guru');
 define('APP_URL', 'https://eguruelction.kowagurutech.ng/');
@@ -43,12 +44,6 @@ ini_set('display_errors', 1);
 ini_set('log_errors', 1);
 ini_set('error_log', __DIR__ . '/../logs/error.log');
 
-// ============================================================
-// CRITICAL FIX: Set Timezone BEFORE any database operations
-// ============================================================
+// Set Timezone
 date_default_timezone_set(APP_TIMEZONE);
-
-
-// Also set MySQL timezone to match
-// This will be executed when the database connection is created
 ?>
