@@ -29,8 +29,14 @@ if (empty($token)) {
 try {
     $db = getDB();
     
-    // Verify token
-    $stmt = $db->prepare("SELECT pr.*, u.email, u.first_name FROM password_resets pr JOIN users u ON pr.user_id = u.id WHERE pr.token = ? AND pr.used = 0 AND pr.expires_at > NOW() ORDER BY pr.id DESC LIMIT 1");
+    // Verify token - check both the token and the hashed token
+    $stmt = $db->prepare("
+        SELECT pr.*, u.email, u.first_name 
+        FROM password_resets pr 
+        JOIN users u ON pr.user_id = u.id 
+        WHERE pr.token = ? AND pr.used = 0 AND pr.expires_at > NOW() 
+        ORDER BY pr.id DESC LIMIT 1
+    ");
     $stmt->execute([$token]);
     $reset = $stmt->fetch();
     
@@ -39,7 +45,22 @@ try {
         $user_id = $reset['user_id'];
         $email = $reset['email'];
     } else {
-        $error = 'Invalid or expired reset link. Please request a new one.';
+        // Check if token exists but might be expired or used
+        $stmt = $db->prepare("SELECT * FROM password_resets WHERE token = ? ORDER BY id DESC LIMIT 1");
+        $stmt->execute([$token]);
+        $existing = $stmt->fetch();
+        
+        if ($existing) {
+            if ($existing['used'] == 1) {
+                $error = 'This reset link has already been used. Please request a new one.';
+            } elseif (strtotime($existing['expires_at']) < time()) {
+                $error = 'This reset link has expired. Please request a new one.';
+            } else {
+                $error = 'Invalid reset link. Please request a new one.';
+            }
+        } else {
+            $error = 'Invalid or expired reset link. Please request a new one.';
+        }
     }
 } catch (Exception $e) {
     error_log("Reset password token verification error: " . $e->getMessage());
@@ -65,6 +86,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $valid_token) {
         try {
             $db = getDB();
             
+            // Start transaction
+            $db->beginTransaction();
+            
             // Update password
             $hashed = password_hash($password, PASSWORD_BCRYPT);
             $stmt = $db->prepare("UPDATE users SET password_hash = ? WHERE id = ?");
@@ -74,7 +98,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $valid_token) {
             $stmt = $db->prepare("UPDATE password_resets SET used = 1, used_at = NOW() WHERE id = ?");
             $stmt->execute([$reset['id']]);
             
-            // Log activity - wrap in try-catch
+            // Commit transaction
+            $db->commit();
+            
+            // Log activity
             try {
                 logActivity($user_id, 'password_change', 'Password reset successfully');
                 logSecurityEvent($user_id, 'password_change', 'Password reset completed from IP: ' . getClientIP());
@@ -85,6 +112,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $valid_token) {
             $success = 'Password has been reset successfully. You can now login with your new password.';
             $valid_token = false; // Hide form
         } catch (Exception $e) {
+            // Rollback transaction on error
+            if (isset($db)) {
+                $db->rollBack();
+            }
             error_log("Reset password update error: " . $e->getMessage());
             $error = 'Failed to reset password. Please try again.';
         }

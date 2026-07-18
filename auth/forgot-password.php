@@ -24,7 +24,10 @@ $email = '';
 function getCurrentBaseUrl() {
     $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? 'https://' : 'http://';
     $host = $_SERVER['HTTP_HOST'];
-    $script_dir = dirname($_SERVER['SCRIPT_NAME']);
+    $script_name = $_SERVER['SCRIPT_NAME'];
+    
+    // Get the directory where the script is running
+    $script_dir = dirname($script_name);
     
     // Remove trailing slash if exists
     $script_dir = rtrim($script_dir, '/');
@@ -47,13 +50,20 @@ function getCurrentBaseUrl() {
 // GET CURRENT APP URL - Uses defined APP_URL or falls back to dynamic
 // ============================================================
 function getAppUrl() {
-    // First try to use the defined APP_URL
-    if (defined('APP_URL') && APP_URL !== 'http://localhost/election') {
-        return APP_URL;
+    // Try to use the defined APP_URL first
+    if (defined('APP_URL') && !empty(APP_URL) && APP_URL !== 'http://localhost/election') {
+        return rtrim(APP_URL, '/');
     }
     
     // Fallback to dynamic URL
     return getCurrentBaseUrl();
+}
+
+// ============================================================
+// DEBUG: Log the app URL for troubleshooting
+// ============================================================
+function logDebug($message) {
+    error_log("Forgot Password Debug: " . $message);
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -86,41 +96,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([$user['id'], $token, $expires]);
                 
                 // ============================================================
-                // GENERATE RESET LINK USING CURRENT URL
+                // GENERATE RESET LINK - FIXED FOR CPANEL
                 // ============================================================
                 $app_url = getAppUrl();
                 $resetLink = $app_url . '/auth/reset-password.php?token=' . $token;
                 
-                // Alternative: Use the full current URL without the query string
-                // $current_url = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https://" : "http://") . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
-                // $base_url = dirname($current_url);
-                // $resetLink = $base_url . '/reset-password.php?token=' . $token;
+                // Alternative: Use the full current URL
+                // This is more reliable for cPanel
+                $current_url = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https://" : "http://") . $_SERVER['HTTP_HOST'] . $_SERVER['REQUEST_URI'];
+                $base_url = dirname(dirname($current_url)); // Go up two levels from auth/
+                $resetLink2 = $base_url . '/auth/reset-password.php?token=' . $token;
                 
-                // DEBUG: Log the reset link
-                error_log("Password reset link generated: " . $resetLink);
+                // DEBUG: Log both links
+                logDebug("APP_URL: " . ($app_url ?? 'not set'));
+                logDebug("Reset Link 1: " . $resetLink);
+                logDebug("Reset Link 2: " . $resetLink2);
+                logDebug("Current URL: " . $current_url);
+                logDebug("Base URL: " . $base_url);
+                
+                // Use the second method which is more reliable
+                $resetLink = $resetLink2;
                 
                 // Send reset email
                 $result = sendPasswordResetEmail($user['email'], $resetLink, $user['first_name']);
                 
                 if ($result['success']) {
-                    // Log activity - wrap in try-catch to prevent errors
+                    // Log activity
                     try {
                         logActivity($user['id'], 'password_reset', 'Password reset requested');
-                    } catch (Exception $e) {
-                        error_log("Activity log failed: " . $e->getMessage());
-                    }
-                    
-                    try {
                         logSecurityEvent($user['id'], 'password_reset', 'Password reset requested from IP: ' . getClientIP());
                     } catch (Exception $e) {
-                        error_log("Security log failed: " . $e->getMessage());
+                        error_log("Activity log failed: " . $e->getMessage());
                     }
                     
                     $message = 'Password reset link has been sent to your email. Please check your inbox.';
                     $email = ''; // Clear email field
                 } else {
                     $error = 'Failed to send reset email. Please try again later.';
-                    // Debug: Log the error
                     error_log("Password reset email failed: " . ($result['message'] ?? 'Unknown error'));
                 }
             } else {
@@ -250,11 +262,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     if (form) {
         form.addEventListener('submit', function(e) {
-            // Disable submit button to prevent multiple submissions
             submitBtn.disabled = true;
             submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
             
-            // Re-enable after 5 seconds if form doesn't submit (fallback)
             setTimeout(function() {
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send Reset Link';
@@ -262,7 +272,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Email input validation feedback
     if (emailInput) {
         emailInput.addEventListener('input', function() {
             const email = this.value.trim();
