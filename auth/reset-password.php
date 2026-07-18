@@ -20,7 +20,6 @@ $success = '';
 $valid_token = false;
 $user_id = null;
 $email = '';
-$reset_id = null;
 
 if (empty($token)) {
     header('Location: forgot-password.php');
@@ -30,40 +29,24 @@ if (empty($token)) {
 try {
     $db = getDB();
     
-    // First try to find the token as raw token (for backward compatibility)
-    // Then try to find by matching the token_hash using password_verify
+    // Verify token - check both the token and the hashed token
     $stmt = $db->prepare("
         SELECT pr.*, u.email, u.first_name 
         FROM password_resets pr 
         JOIN users u ON pr.user_id = u.id 
-        WHERE pr.used = 0 AND pr.expires_at > NOW() 
-        ORDER BY pr.id DESC
+        WHERE pr.token = ? AND pr.used = 0 AND pr.expires_at > NOW() 
+        ORDER BY pr.id DESC LIMIT 1
     ");
-    $stmt->execute();
-    $all_resets = $stmt->fetchAll();
-    
-    $reset = null;
-    foreach ($all_resets as $r) {
-        // Check if token matches raw token or hashed token
-        if ($r['token'] === $token) {
-            $reset = $r;
-            break;
-        }
-        // Check if token matches hashed token
-        if (!empty($r['token_hash']) && password_verify($token, $r['token_hash'])) {
-            $reset = $r;
-            break;
-        }
-    }
+    $stmt->execute([$token]);
+    $reset = $stmt->fetch();
     
     if ($reset) {
         $valid_token = true;
         $user_id = $reset['user_id'];
         $email = $reset['email'];
-        $reset_id = $reset['id'];
     } else {
         // Check if token exists but might be expired or used
-        $stmt = $db->prepare("SELECT * FROM password_resets WHERE token = ? OR token_hash IS NOT NULL ORDER BY id DESC LIMIT 1");
+        $stmt = $db->prepare("SELECT * FROM password_resets WHERE token = ? ORDER BY id DESC LIMIT 1");
         $stmt->execute([$token]);
         $existing = $stmt->fetch();
         
@@ -113,7 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $valid_token) {
             
             // Mark token as used
             $stmt = $db->prepare("UPDATE password_resets SET used = 1, used_at = NOW() WHERE id = ?");
-            $stmt->execute([$reset_id]);
+            $stmt->execute([$reset['id']]);
             
             // Commit transaction
             $db->commit();
@@ -180,7 +163,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $valid_token) {
         .btn-login { width: 100%; padding: 16px; border: none; border-radius: 14px; background: #0F4C81; color: white; font-size: 1rem; font-weight: 600; font-family: 'Inter', sans-serif; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 10px; }
         .btn-login:hover { background: #1a3f6a; transform: translateY(-1px); box-shadow: 0 8px 24px rgba(15, 76, 129, 0.2); }
         .error-message { background: #FEF2F2; color: #DC2626; padding: 12px 16px; border-radius: 12px; font-size: 0.9rem; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; border: 1px solid #FECACA; }
+        .error-message i { font-size: 1.1rem; }
         .success-message { background: #ECFDF5; color: #065F46; padding: 12px 16px; border-radius: 12px; font-size: 0.9rem; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; border: 1px solid #A7F3D0; }
+        .success-message i { font-size: 1.1rem; }
         .back-link { text-align: center; margin-top: 20px; }
         .back-link a { color: #64748B; text-decoration: none; font-size: 0.9rem; transition: 0.15s; display: inline-flex; align-items: center; gap: 8px; }
         .back-link a:hover { color: #0F4C81; }
@@ -189,7 +174,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $valid_token) {
         .password-strength.medium { background: #F59E0B; width: 50%; }
         .password-strength.strong { background: #10B981; width: 75%; }
         .password-strength.very-strong { background: #059669; width: 100%; }
-        @media (max-width: 480px) { .login-card { padding: 32px 24px; border-radius: 24px; } }
+        @media (max-width: 480px) { .login-card { padding: 32px 24px; border-radius: 24px; } .login-logo a { font-size: 1.5rem; } }
     </style>
 </head>
 <body>
@@ -232,7 +217,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $valid_token) {
                 <label for="password">New Password</label>
                 <div class="input-wrapper">
                     <i class="fas fa-lock"></i>
-                    <input type="password" id="password" name="password" placeholder="Enter new password" required minlength="8" />
+                    <input type="password" id="password" name="password" placeholder="••••••••" required minlength="8" />
                 </div>
                 <small>Minimum 8 characters with uppercase, lowercase, and number</small>
                 <div class="password-strength" id="passwordStrength"></div>
@@ -242,7 +227,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $valid_token) {
                 <label for="confirm_password">Confirm Password</label>
                 <div class="input-wrapper">
                     <i class="fas fa-lock"></i>
-                    <input type="password" id="confirm_password" name="confirm_password" placeholder="Confirm new password" required />
+                    <input type="password" id="confirm_password" name="confirm_password" placeholder="••••••••" required />
                 </div>
             </div>
             
@@ -263,6 +248,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $valid_token) {
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Password strength indicator
     const passwordInput = document.getElementById('password');
     const strengthBar = document.getElementById('passwordStrength');
     

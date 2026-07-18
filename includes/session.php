@@ -46,8 +46,10 @@ class SessionManager {
      * Destroy session completely
      */
     public static function destroy() {
+        // Clear all session variables
         $_SESSION = array();
         
+        // Delete session cookie
         if (ini_get("session.use_cookies")) {
             $params = session_get_cookie_params();
             setcookie(
@@ -61,6 +63,7 @@ class SessionManager {
             );
         }
         
+        // Destroy session
         session_destroy();
     }
     
@@ -97,10 +100,12 @@ class SessionManager {
      */
     public static function flash($key, $value = null) {
         if ($value === null) {
+            // Get and remove flash message
             $flash = self::get('flash_' . $key);
             self::remove('flash_' . $key);
             return $flash;
         }
+        // Set flash message
         self::set('flash_' . $key, $value);
     }
 }

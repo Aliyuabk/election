@@ -9,6 +9,7 @@ define('DB_NAME', 'utgoohwm_election');
 define('DB_USER', 'utgoohwm_election');
 define('DB_PASS', 'Jiddahhh@1');
 
+
 // Application Configuration
 define('APP_NAME', '5G Election Guru');
 define('APP_URL', 'https://eguruelction.kowagurutech.ng/');
