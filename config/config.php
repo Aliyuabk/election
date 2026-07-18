@@ -48,6 +48,7 @@ ini_set('error_log', __DIR__ . '/../logs/error.log');
 // ============================================================
 date_default_timezone_set(APP_TIMEZONE);
 
+
 // Also set MySQL timezone to match
 // This will be executed when the database connection is created
 ?>
