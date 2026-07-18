@@ -1,168 +1,133 @@
 <?php
 // ============================================================
-// LOGIN PAGE - 5G ELECTION GURU
+// LOGIN - Complete rewrite with all fixes
 // ============================================================
+require_once '../config/config.php';
+require_once '../includes/session.php';
+require_once '../includes/functions.php';
 
-require_once __DIR__ . '/../config/config.php';
-require_once __DIR__ . '/../includes/functions.php';
-require_once __DIR__ . '/../includes/session.php';
-
-// Initialize session
 SessionManager::start();
 
-// If already logged in, redirect to dashboard
+// Check if already logged in
 if (SessionManager::isLoggedIn()) {
-    header('Location: dashboard.php');
+    header('Location: ../dashboard/index.php');
     exit();
 }
 
-// CSRF Token Generation
-if (empty($_SESSION['csrf_token'])) {
-    $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
-}
-$csrf_token = $_SESSION['csrf_token'];
-
-// Generate CAPTCHA if not set
-if (empty($_SESSION['captcha_code'])) {
-    $_SESSION['captcha_code'] = generateCaptcha();
-}
-
-// Handle Login Form Submission
 $error = '';
-$success = '';
-$email = '';
+$show_2fa = false;
+$user_id = null;
+$show_captcha = false;
+$captcha_text = '';
 
+// Check if CAPTCHA is needed
+if (isset($_SESSION['login_attempts']) && $_SESSION['login_attempts'] >= 3) {
+    $show_captcha = true;
+    $_SESSION['captcha_text'] = generateCaptcha();
+    $captcha_text = $_SESSION['captcha_text'];
+}
+
+// Handle login form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Validate CSRF Token
-    if (!isset($_POST['csrf_token']) || $_POST['csrf_token'] !== $_SESSION['csrf_token']) {
-        $error = 'Invalid security token. Please try again.';
-        logSecurityEvent(null, 'csrf_validation_failed', 'CSRF token validation failed during login attempt');
+    $db = getDB();
+    
+    // Check if this is 2FA verification
+    if (isset($_POST['otp_code']) && isset($_SESSION['2fa_user_id'])) {
+        $otp = trim($_POST['otp_code']);
+        $user_id = $_SESSION['2fa_user_id'];
+        $remember = $_SESSION['2fa_remember'] ?? false;
+        
+        if (verifyOTP($user_id, $otp, 'login')) {
+            $user = getUserById($user_id);
+            if ($user) {
+                loginUser($user, $remember, $db);
+            } else {
+                $error = 'User not found.';
+            }
+        } else {
+            $error = 'Invalid or expired OTP code. Please try again.';
+        }
+        $show_2fa = true;
     } else {
+        // Regular login
         $email = trim($_POST['email'] ?? '');
         $password = $_POST['password'] ?? '';
-        $remember_me = isset($_POST['remember_me']);
-        $captcha_input = trim($_POST['captcha'] ?? '');
-        $captcha_expected = $_SESSION['captcha_code'] ?? '';
+        $remember = isset($_POST['remember']) ? true : false;
         
-        // Basic validation
-        if (empty($email) || empty($password)) {
+        // Validate CAPTCHA if shown
+        if ($show_captcha) {
+            $captcha = trim($_POST['captcha'] ?? '');
+            $expected = $_SESSION['captcha_text'] ?? '';
+            
+            if (empty($captcha)) {
+                $error = 'Please enter the CAPTCHA code.';
+            } elseif (strtoupper($captcha) !== strtoupper($expected)) {
+                $error = 'Invalid CAPTCHA. Please try again.';
+                // Generate new CAPTCHA on failure
+                $_SESSION['captcha_text'] = generateCaptcha();
+                $captcha_text = $_SESSION['captcha_text'];
+            }
+        }
+        
+        if (empty($error) && (empty($email) || empty($password))) {
             $error = 'Please enter both email and password.';
-        } else {
-            // Validate email format
-            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                $error = 'Please enter a valid email address.';
+        }
+        
+        if (empty($error)) {
+            // Check if account is locked
+            if (isAccountLocked($email)) {
+                $error = 'Your account is temporarily locked due to multiple failed attempts. Please try again later.';
             } else {
-                // Check if account is locked
-                $user = getUserByEmail($email);
-                if ($user && isset($user['locked_until']) && strtotime($user['locked_until']) > time()) {
-                    $remaining = ceil((strtotime($user['locked_until']) - time()) / 60);
-                    $error = "Account is temporarily locked. Please try again in {$remaining} minute(s).";
-                    logSecurityEvent($user['id'], 'login_lockout', 'Login attempt on locked account');
+                // Check login attempts
+                $ip = getClientIP();
+                $attempts = getLoginAttempts($email, $ip);
+                
+                if ($attempts >= MAX_LOGIN_ATTEMPTS) {
+                    lockAccount($email);
+                    $error = 'Too many failed login attempts. Your account has been locked for 15 minutes.';
                 } else {
-                    // Validate CAPTCHA
-                    if (empty($captcha_input) || strtoupper($captcha_input) !== $captcha_expected) {
-                        $error = 'Invalid CAPTCHA code. Please try again.';
-                        $_SESSION['captcha_code'] = generateCaptcha();
-                    } else {
-                        // Check login attempts
-                        $ip = getClientIP();
-                        $attempts = getLoginAttempts($email, $ip);
-                        
-                        if ($attempts >= MAX_LOGIN_ATTEMPTS) {
-                            $error = 'Too many failed login attempts. Please try again after 15 minutes.';
-                            logSecurityEvent(null, 'too_many_attempts', "Too many login attempts for email: {$email}", 70);
+                    // Verify user
+                    $user = getUserByEmail($email);
+                    
+                    if ($user && verifyPassword($password, $user['password_hash'])) {
+                        if ($user['status'] !== 'active') {
+                            $error = 'Your account is not active. Please contact support.';
                         } else {
-                            // Attempt login
-                            $user = authenticateUser($email, $password);
-                            
-                            if ($user) {
-                                // Successful login
+                            // Check if 2FA is enabled
+                            if ($user['two_factor_enabled']) {
+                                // Generate OTP
+                                $otp = generateOTP();
+                                saveOTP($user['id'], $otp, 'login', 'email');
                                 
-                                // Clear any lockout
-                                if (isset($user['locked_until']) && strtotime($user['locked_until']) > time()) {
-                                    $db = getDB();
-                                    $stmt = $db->prepare("UPDATE users SET locked_until = NULL WHERE id = ?");
-                                    $stmt->execute([$user['id']]);
-                                }
+                                // Send OTP via email
+                                $result = sendOTPEmail($user['email'], $otp, $user['first_name']);
                                 
-                                // Create session
-                                SessionManager::regenerate();
-                                SessionManager::set('user_id', $user['id']);
-                                SessionManager::set('tenant_id', $user['tenant_id']);
-                                SessionManager::set('email', $user['email']);
-                                SessionManager::set('full_name', $user['full_name']);
-                                SessionManager::set('first_name', $user['first_name']);
-                                SessionManager::set('last_name', $user['last_name']);
-                                SessionManager::set('role_id', $user['role_id']);
-                                SessionManager::set('role_level', $user['role_level'] ?? 0);
-                                SessionManager::set('logged_in', true);
-                                SessionManager::set('last_activity', time());
-                                SessionManager::set('user_code', $user['user_code']);
-                                SessionManager::set('avatar', $user['avatar'] ?? null);
-                                
-                                // Store user permissions if available
-                                if (isset($user['permissions_json'])) {
-                                    $permissions = json_decode($user['permissions_json'], true);
-                                    SessionManager::set('permissions', $permissions ?? []);
-                                }
-                                
-                                // Create persistent session
-                                if ($remember_me) {
-                                    $token = createSession($user['id'], true);
-                                    if ($token) {
-                                        setcookie('remember_token', $token, time() + 2592000, '/', '', true, true);
-                                    }
+                                if ($result['success']) {
+                                    $_SESSION['2fa_user_id'] = $user['id'];
+                                    $_SESSION['2fa_remember'] = $remember;
+                                    $_SESSION['2fa_email'] = $user['email'];
+                                    $show_2fa = true;
+                                    $user_id = $user['id'];
                                 } else {
-                                    createSession($user['id'], false);
+                                    $error = 'Failed to send OTP. Please try again. Error: ' . $result['message'];
                                 }
-                                
-                                // Update last login
-                                updateUserLastLogin($user['id']);
-                                
-                                // Log success
-                                logLoginAttempt($user['id'], $email, true);
-                                logActivity($user['id'], 'login', 'User logged in successfully');
-                                
-                                // Redirect based on role level
-                                $redirect = $_POST['redirect'] ?? 'dashboard.php';
-                                if ($user['role_level'] === 'super_admin' || $user['role_level'] === 'client_admin') {
-                                    $redirect = 'admin/dashboard.php';
-                                } elseif (in_array($user['role_level'], ['national', 'state'])) {
-                                    $redirect = 'coordinator/dashboard.php';
-                                } elseif (in_array($user['role_level'], ['lga', 'ward'])) {
-                                    $redirect = 'lga/dashboard.php';
-                                }
-                                
-                                header('Location: ' . $redirect);
-                                exit();
                             } else {
-                                // Failed login
-                                logLoginAttempt(null, $email, false);
-                                logSecurityEvent(null, 'failed_login', "Failed login attempt for email: {$email}", 30);
-                                
-                                // Check if user exists to increment attempts
-                                $userExists = getUserByEmail($email);
-                                if ($userExists) {
-                                    $db = getDB();
-                                    $stmt = $db->prepare("UPDATE users SET login_attempts = login_attempts + 1 WHERE id = ?");
-                                    $stmt->execute([$userExists['id']]);
-                                    
-                                    // Lock account if too many attempts
-                                    if ($userExists['login_attempts'] + 1 >= MAX_LOGIN_ATTEMPTS) {
-                                        lockAccount($email);
-                                        $error = 'Too many failed attempts. Account locked for ' . (LOCKOUT_TIME / 60) . ' minutes.';
-                                        logSecurityEvent($userExists['id'], 'account_locked', "Account locked due to too many failed attempts");
-                                    } else {
-                                        $remaining_attempts = MAX_LOGIN_ATTEMPTS - ($userExists['login_attempts'] + 1);
-                                        $error = "Invalid email or password. {$remaining_attempts} attempt(s) remaining.";
-                                    }
-                                } else {
-                                    $error = 'Invalid email or password.';
-                                }
-                                
-                                // Generate new CAPTCHA
-                                $_SESSION['captcha_code'] = generateCaptcha();
+                                // Direct login
+                                loginUser($user, $remember, $db);
                             }
+                        }
+                    } else {
+                        // Log failed attempt
+                        logLoginAttempt(null, $email, false);
+                        $_SESSION['login_attempts'] = ($_SESSION['login_attempts'] ?? 0) + 1;
+                        $remaining = MAX_LOGIN_ATTEMPTS - ($_SESSION['login_attempts'] ?? 0);
+                        $error = "Invalid credentials. " . max(0, $remaining) . " attempts remaining.";
+                        
+                        // Show CAPTCHA after 3 attempts
+                        if (($attempts + 1) >= 3) {
+                            $show_captcha = true;
+                            $_SESSION['captcha_text'] = generateCaptcha();
+                            $captcha_text = $_SESSION['captcha_text'];
                         }
                     }
                 }
@@ -171,690 +136,428 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Get current year for footer
-$current_year = date('Y');
+function loginUser($user, $remember, $db) {
+    // ============================================================
+    // GET ROLE INFORMATION FROM YOUR SCHEMA
+    // ============================================================
+    $stmt = $db->prepare("
+        SELECT r.id, r.name, r.slug, r.level, r.permissions_json 
+        FROM roles r 
+        WHERE r.id = ?
+    ");
+    $stmt->execute([$user['role_id']]);
+    $role = $stmt->fetch();
+    
+    // Get role level - using the 'level' column from your roles table
+    $role_level = $role['level'] ?? 'client_admin';
+    $role_slug = $role['slug'] ?? 'client_admin';
+    $role_name = $role['name'] ?? 'Client Administrator';
+    
+    // Create session token
+    $token = createSession($user['id'], $remember);
+    
+    // Set session data
+    SessionManager::regenerate();
+    SessionManager::set('user_id', $user['id']);
+    SessionManager::set('tenant_id', $user['tenant_id']);
+    SessionManager::set('user_name', $user['full_name']);
+    SessionManager::set('first_name', $user['first_name']);
+    SessionManager::set('last_name', $user['last_name']);
+    SessionManager::set('user_email', $user['email']);
+    SessionManager::set('user_code', $user['user_code']);
+    SessionManager::set('role_id', $user['role_id']);
+    SessionManager::set('role_level', $role_level);
+    SessionManager::set('role_slug', $role_slug);
+    SessionManager::set('role_name', $role_name);
+    SessionManager::set('role', $role_level); // For compatibility
+    SessionManager::set('logged_in', true);
+    SessionManager::set('login_time', time());
+    SessionManager::set('last_activity', time());
+    SessionManager::set('session_token', $token);
+    
+    // Store permissions if available
+    if (isset($role['permissions_json'])) {
+        $permissions = json_decode($role['permissions_json'], true);
+        SessionManager::set('permissions', $permissions ?? []);
+    }
+    
+    // Set remember me cookie
+    if ($remember && $token) {
+        setcookie('remember_token', $token, time() + 2592000, '/', '', false, true);
+    }
+    
+    // Update last login
+    updateUserLastLogin($user['id']);
+    
+    // Log successful login
+    logLoginAttempt($user['id'], $user['email'], true);
+    logActivity($user['id'], 'login', 'User logged in successfully');
+    logSecurityEvent($user['id'], 'login', 'Successful login from IP: ' . getClientIP());
+    
+    // Clear session variables
+    unset($_SESSION['2fa_user_id']);
+    unset($_SESSION['2fa_remember']);
+    unset($_SESSION['login_attempts']);
+    unset($_SESSION['captcha_text']);
+    
+    // ============================================================
+    // REDIRECT BASED ON ROLE LEVEL - USING YOUR SCHEMA
+    // ============================================================
+    $dashboardMap = [
+        'super_admin' => '../dashboard/super-admin/',
+        'client_admin' => '../dashboard/client-admin/',
+        'national' => '../dashboard/Coordinator/',
+        'state' => '../dashboard/Coordinator/',
+        'senatorial' => '../dashboard/Coordinator/',
+        'federal_constituency' => '../dashboard/Coordinator/',
+        'lga' => '../dashboard/Coordinator/',
+        'ward' => '../dashboard/Coordinator/',
+        'pu_agent' => '../dashboard/agent/',
+        'party_agent' => '../dashboard/party-agent/',
+        'volunteer' => '../dashboard/volunteer/',
+        'observer' => '../dashboard/observer/',
+        'situation_room' => '../dashboard/situation-room/',
+        'finance_officer' => '../dashboard/finance-officer/',
+        'citizen' => '../dashboard/citizen/'
+    ];
+    
+    // Determine dashboard path based on role level
+    $dashboard = $dashboardMap[$role_level] ?? '../dashboard/client-admin/';
+    
+    // DEBUG: Log the redirect
+    error_log("Login redirect - User: {$user['email']}, Role Level: {$role_level}, Redirect: {$dashboard}");
+    
+    header('Location: ' . $dashboard);
+    exit();
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="robots" content="noindex, nofollow">
-    <title>Login - <?= APP_NAME ?></title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.5" />
+    <title>Login - <?php echo APP_NAME; ?></title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz@14..32&family=Poppins:wght@600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css" />
+    <link rel="shortcut icon" href="favicon.ico" type="image/x-icon">
     <style>
-        /* [Same styles as before - keep all the CSS from the previous version] */
-        :root {
-            --primary: #0F4C81;
-            --primary-dark: #0A3A63;
-            --primary-light: #E8F0FE;
-            --success: #10B981;
-            --danger: #EF4444;
-            --warning: #F59E0B;
-        }
-
         * { margin: 0; padding: 0; box-sizing: border-box; }
-
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-family: 'Inter', sans-serif;
+            background: #F8FAFC;
+            color: #0F172A;
+            line-height: 1.6;
             min-height: 100vh;
-            background: linear-gradient(135deg, #0F4C81 0%, #1a6bb0 50%, #3a8fd4 100%);
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 20px;
-            position: relative;
+            background: linear-gradient(135deg, #F8FAFC 0%, #eef4fa 100%);
         }
-
-        body::before {
-            content: '';
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: 
-                radial-gradient(circle at 20% 80%, rgba(255,255,255,0.05) 0%, transparent 50%),
-                radial-gradient(circle at 80% 20%, rgba(255,255,255,0.05) 0%, transparent 50%);
-            pointer-events: none;
-            z-index: 0;
-        }
-
-        .particles {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            pointer-events: none;
-            z-index: 0;
-            overflow: hidden;
-        }
-
-        .particle {
-            position: absolute;
-            width: 4px;
-            height: 4px;
-            background: rgba(255, 255, 255, 0.15);
-            border-radius: 50%;
-            animation: float 15s infinite linear;
-        }
-
-        .particle:nth-child(1) { left: 10%; animation-duration: 18s; animation-delay: 0s; }
-        .particle:nth-child(2) { left: 20%; animation-duration: 22s; animation-delay: 2s; width: 6px; height: 6px; }
-        .particle:nth-child(3) { left: 35%; animation-duration: 14s; animation-delay: 4s; }
-        .particle:nth-child(4) { left: 50%; animation-duration: 20s; animation-delay: 1s; width: 8px; height: 8px; }
-        .particle:nth-child(5) { left: 65%; animation-duration: 16s; animation-delay: 3s; }
-        .particle:nth-child(6) { left: 75%; animation-duration: 24s; animation-delay: 5s; width: 5px; height: 5px; }
-        .particle:nth-child(7) { left: 85%; animation-duration: 19s; animation-delay: 2s; }
-        .particle:nth-child(8) { left: 95%; animation-duration: 21s; animation-delay: 0s; width: 7px; height: 7px; }
-
-        @keyframes float {
-            0% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
-            10% { opacity: 1; }
-            90% { opacity: 1; }
-            100% { transform: translateY(-100vh) rotate(720deg); opacity: 0; }
-        }
-
-        .login-container {
-            position: relative;
-            z-index: 1;
-            width: 100%;
-            max-width: 440px;
-        }
-
-        .login-card {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border-radius: 24px;
-            padding: 48px 40px;
-            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.25);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-
-        .login-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 30px 70px rgba(0, 0, 0, 0.3);
-        }
-
-        .brand {
-            text-align: center;
-            margin-bottom: 32px;
-        }
-
-        .brand-icon {
-            width: 70px;
-            height: 70px;
-            background: linear-gradient(135deg, var(--primary), var(--primary-light));
-            border-radius: 18px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 32px;
-            color: white;
-            margin-bottom: 16px;
-            box-shadow: 0 8px 24px rgba(15, 76, 129, 0.25);
-        }
-
-        .brand h1 {
-            font-size: 24px;
-            font-weight: 700;
-            color: var(--primary);
-            letter-spacing: -0.5px;
-            margin: 0 0 4px 0;
-        }
-
-        .brand p {
-            color: #6B7280;
-            font-size: 14px;
-            margin: 0;
-        }
-
-        .alert {
-            border-radius: 12px;
-            padding: 14px 16px;
-            font-size: 14px;
-            border: none;
-            margin-bottom: 20px;
-            display: flex;
-            align-items: flex-start;
-            gap: 10px;
-        }
-
-        .alert-danger {
-            background: #FEF2F2;
-            color: #991B1B;
-            border-left: 4px solid #EF4444;
-        }
-
-        .alert-success {
-            background: #F0FDF4;
-            color: #065F46;
-            border-left: 4px solid #10B981;
-        }
-
-        .alert i { font-size: 18px; margin-top: 1px; }
-
+        .login-wrapper { width: 100%; max-width: 440px; padding: 20px; animation: fadeIn 0.6s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .login-card { background: white; border-radius: 32px; padding: 48px 40px; box-shadow: 0 20px 60px rgba(15, 76, 129, 0.08); border: 1px solid #E2E8F0; }
+        .login-logo { text-align: center; margin-bottom: 32px; }
+        .login-logo a { display: inline-flex; align-items: center; gap: 10px; font-family: 'Poppins', sans-serif; font-weight: 700; font-size: 1.8rem; color: #0F4C81; text-decoration: none; }
+        .login-logo i { font-size: 2.2rem; color: #2563EB; }
+        .login-logo p { color: #64748B; font-size: 0.95rem; margin-top: 4px; }
+        .login-form h2 { font-size: 1.6rem; margin-bottom: 8px; }
+        .login-form .subtitle { color: #64748B; margin-bottom: 28px; }
         .form-group { margin-bottom: 20px; }
-
-        .form-label {
-            font-weight: 500;
-            font-size: 14px;
-            color: #374151;
-            margin-bottom: 6px;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .form-label .required { color: #EF4444; }
-
-        .input-group {
-            border-radius: 12px;
-            overflow: hidden;
-            border: 2px solid #E5E7EB;
-            background: white;
-            transition: border-color 0.2s ease, box-shadow 0.2s ease;
-        }
-
-        .input-group:focus-within {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 4px rgba(15, 76, 129, 0.1);
-        }
-
-        .input-group .input-group-text {
-            background: transparent;
-            border: none;
-            color: #9CA3AF;
-            padding: 0 0 0 16px;
-            font-size: 18px;
-        }
-
-        .input-group .form-control {
-            border: none;
-            padding: 12px 16px;
-            font-size: 15px;
-            background: transparent;
-            box-shadow: none;
-            height: 50px;
-        }
-
-        .input-group .form-control:focus { box-shadow: none; }
-        .input-group .form-control::placeholder { color: #9CA3AF; }
-
-        .input-group .toggle-password {
-            background: transparent;
-            border: none;
-            padding: 0 16px 0 0;
-            color: #9CA3AF;
-            cursor: pointer;
-            font-size: 18px;
-            transition: color 0.2s;
-        }
-
-        .input-group .toggle-password:hover { color: #374151; }
-
-        .captcha-container {
-            display: flex;
-            gap: 12px;
-            align-items: center;
-        }
-
-        .captcha-box {
-            background: linear-gradient(135deg, #F3F4F6, #E5E7EB);
-            border-radius: 12px;
-            padding: 8px 16px;
-            font-family: 'Courier New', monospace;
-            font-size: 28px;
-            font-weight: 700;
-            letter-spacing: 6px;
-            color: var(--primary);
-            min-width: 120px;
-            text-align: center;
-            user-select: none;
-            border: 2px dashed #D1D5DB;
-            line-height: 50px;
-            height: 50px;
-        }
-
-        .captcha-refresh {
-            background: transparent;
-            border: none;
-            color: var(--primary);
-            font-size: 24px;
-            cursor: pointer;
-            padding: 8px;
-            border-radius: 50%;
-            transition: background 0.2s;
-            width: 50px;
-            height: 50px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .captcha-refresh:hover { background: rgba(15, 76, 129, 0.08); }
-        .captcha-refresh i { transition: transform 0.5s ease; }
-        .captcha-refresh:hover i { transform: rotate(180deg); }
-
-        .captcha-input .form-control {
-            height: 50px;
-            padding: 12px 16px;
-            font-size: 20px;
-            letter-spacing: 4px;
-            font-family: 'Courier New', monospace;
-            text-transform: uppercase;
-        }
-
-        .options-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin: 16px 0 24px;
-        }
-
-        .form-check {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            cursor: pointer;
-        }
-
-        .form-check-input {
-            width: 18px;
-            height: 18px;
-            border-radius: 4px;
-            border: 2px solid #D1D5DB;
-            cursor: pointer;
-            accent-color: var(--primary);
-        }
-
-        .form-check-label {
-            font-size: 14px;
-            color: #4B5563;
-            cursor: pointer;
-        }
-
-        .forgot-link {
-            font-size: 14px;
-            color: var(--primary);
-            text-decoration: none;
-            font-weight: 500;
-            transition: color 0.2s;
-        }
-
-        .forgot-link:hover {
-            color: var(--primary-dark);
-            text-decoration: underline;
-        }
-
-        .btn-login {
-            width: 100%;
-            padding: 14px;
-            font-size: 16px;
-            font-weight: 600;
-            border-radius: 12px;
-            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-            color: white;
-            border: none;
-            transition: all 0.3s ease;
-            height: 54px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-        }
-
-        .btn-login:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(15, 76, 129, 0.35);
-            color: white;
-        }
-
-        .btn-login:active { transform: translateY(0px); }
-        .btn-login:disabled {
-            opacity: 0.7;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .btn-login .spinner-border {
-            width: 20px;
-            height: 20px;
-            border-width: 2px;
-        }
-
-        .auth-footer {
-            text-align: center;
-            margin-top: 24px;
-            padding-top: 20px;
-            border-top: 1px solid #F3F4F6;
-        }
-
-        .auth-footer p {
-            font-size: 14px;
-            color: #6B7280;
-            margin: 0;
-        }
-
-        .auth-footer a {
-            color: var(--primary);
-            text-decoration: none;
-            font-weight: 500;
-        }
-
-        .auth-footer a:hover { text-decoration: underline; }
-
-        .footer-bottom {
-            text-align: center;
-            margin-top: 20px;
-            color: rgba(255, 255, 255, 0.6);
-            font-size: 13px;
-        }
-
-        .footer-bottom a {
-            color: rgba(255, 255, 255, 0.8);
-            text-decoration: none;
-        }
-
-        .footer-bottom a:hover {
-            color: white;
-            text-decoration: underline;
-        }
-
-        .is-invalid { border-color: #EF4444 !important; }
-        .is-invalid:focus-within {
-            border-color: #EF4444 !important;
-            box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.1) !important;
-        }
-
-        .invalid-feedback {
-            color: #EF4444;
-            font-size: 13px;
-            margin-top: 4px;
-        }
-
-        @media (max-width: 480px) {
-            .login-card { padding: 32px 24px; border-radius: 20px; }
-            .brand h1 { font-size: 20px; }
-            .captcha-box { font-size: 22px; min-width: 100px; height: 44px; line-height: 44px; }
-            .captcha-refresh { width: 44px; height: 44px; font-size: 20px; }
-            .options-row { flex-direction: column; gap: 12px; align-items: flex-start; }
-            .btn-login { height: 48px; font-size: 15px; }
-        }
-
-        @media (max-width: 360px) {
-            .login-card { padding: 24px 16px; }
-            .captcha-container { flex-wrap: wrap; justify-content: center; }
-            .captcha-box { min-width: 80px; font-size: 18px; letter-spacing: 3px; height: 38px; line-height: 38px; }
-        }
+        .form-group label { display: block; font-weight: 600; font-size: 0.9rem; margin-bottom: 6px; color: #0F172A; }
+        .form-group .input-wrapper { position: relative; }
+        .form-group .input-wrapper i { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #94A3B8; font-size: 1rem; }
+        .form-group input { width: 100%; padding: 14px 16px 14px 46px; border: 1.5px solid #E2E8F0; border-radius: 14px; font-family: 'Inter', sans-serif; font-size: 0.95rem; background: #F8FAFC; transition: all 0.2s; color: #0F172A; }
+        .form-group input:focus { outline: none; border-color: #2563EB; background: white; box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.06); }
+        .form-group input.error { border-color: #EF4444; }
+        .form-group input.success { border-color: #10B981; }
+        .form-options { display: flex; justify-content: space-between; align-items: center; margin: 20px 0 28px; }
+        .form-options label { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; color: #475569; cursor: pointer; }
+        .form-options label input[type="checkbox"] { width: 16px; height: 16px; accent-color: #0F4C81; cursor: pointer; }
+        .form-options a { color: #2563EB; text-decoration: none; font-weight: 600; font-size: 0.9rem; transition: 0.15s; }
+        .form-options a:hover { color: #0F4C81; text-decoration: underline; }
+        .btn-login { width: 100%; padding: 16px; border: none; border-radius: 14px; background: #0F4C81; color: white; font-size: 1rem; font-weight: 600; font-family: 'Inter', sans-serif; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 10px; }
+        .btn-login:hover { background: #1a3f6a; transform: translateY(-1px); box-shadow: 0 8px 24px rgba(15, 76, 129, 0.2); }
+        .btn-login:disabled { opacity: 0.7; cursor: not-allowed; }
+        .error-message { background: #FEF2F2; color: #DC2626; padding: 12px 16px; border-radius: 12px; font-size: 0.9rem; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; border: 1px solid #FECACA; }
+        .error-message i { font-size: 1.1rem; }
+        .success-message { background: #ECFDF5; color: #065F46; padding: 12px 16px; border-radius: 12px; font-size: 0.9rem; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; border: 1px solid #A7F3D0; }
+        .otp-section { display: none; animation: fadeIn 0.3s ease; }
+        .otp-section.active { display: block; }
+        .otp-input-group { display: flex; gap: 10px; justify-content: center; margin: 20px 0; }
+        .otp-input-group input { width: 50px; height: 56px; text-align: center; font-size: 1.4rem; font-weight: 600; border: 1.5px solid #E2E8F0; border-radius: 12px; background: #F8FAFC; transition: all 0.2s; }
+        .otp-input-group input:focus { border-color: #2563EB; background: white; box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.06); outline: none; }
+        .otp-timer { text-align: center; color: #64748B; font-size: 0.9rem; margin: 12px 0; }
+        .otp-timer span { font-weight: 600; color: #0F4C81; }
+        .resend-otp { background: none; border: none; color: #2563EB; font-weight: 600; cursor: pointer; font-size: 0.9rem; font-family: 'Inter', sans-serif; }
+        .resend-otp:hover { text-decoration: underline; }
+        .resend-otp:disabled { opacity: 0.5; cursor: not-allowed; }
+        .divider { display: flex; align-items: center; gap: 16px; margin: 28px 0; color: #94A3B8; font-size: 0.85rem; }
+        .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: #E2E8F0; }
+        .social-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .social-btn { padding: 12px; border: 1.5px solid #E2E8F0; border-radius: 14px; background: white; font-family: 'Inter', sans-serif; font-size: 0.9rem; font-weight: 500; color: #0F172A; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; }
+        .social-btn:hover { background: #F8FAFC; border-color: #2563EB; }
+        .social-btn.google i { color: #EA4335; }
+        .social-btn.microsoft i { color: #00A4EF; }
+        .register-link { text-align: center; margin-top: 28px; color: #64748B; font-size: 0.95rem; }
+        .register-link a { color: #2563EB; text-decoration: none; font-weight: 600; transition: 0.15s; }
+        .register-link a:hover { color: #0F4C81; text-decoration: underline; }
+        .back-home { text-align: center; margin-top: 20px; }
+        .back-home a { color: #64748B; text-decoration: none; font-size: 0.9rem; transition: 0.15s; display: inline-flex; align-items: center; gap: 8px; }
+        .back-home a:hover { color: #0F4C81; }
+        .captcha-container { background: #F1F5F9; padding: 12px 16px; border-radius: 12px; display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+        .captcha-container .captcha-text { font-family: 'Courier New', monospace; font-size: 1.4rem; font-weight: 700; letter-spacing: 4px; color: #0F4C81; background: white; padding: 4px 16px; border-radius: 8px; user-select: none; }
+        .captcha-container .refresh-captcha { background: none; border: none; color: #64748B; cursor: pointer; font-size: 1.2rem; }
+        .captcha-container .refresh-captcha:hover { color: #0F4C81; }
+        .captcha-container input { flex: 1; padding: 8px 12px; border: 1px solid #E2E8F0; border-radius: 8px; font-size: 0.9rem; background: white; }
+        .captcha-container input:focus { outline: none; border-color: #2563EB; }
+        @media (max-width: 480px) { .login-card { padding: 32px 24px; border-radius: 24px; } .login-logo a { font-size: 1.5rem; } .social-buttons { grid-template-columns: 1fr; } .form-options { flex-direction: column; gap: 12px; align-items: flex-start; } .otp-input-group input { width: 40px; height: 48px; font-size: 1.2rem; } }
     </style>
 </head>
 <body>
 
-<div class="particles">
-    <div class="particle"></div>
-    <div class="particle"></div>
-    <div class="particle"></div>
-    <div class="particle"></div>
-    <div class="particle"></div>
-    <div class="particle"></div>
-    <div class="particle"></div>
-    <div class="particle"></div>
-</div>
-
-<div class="login-container">
+<!-- ===== LOGIN ===== -->
+<div class="login-wrapper">
     <div class="login-card">
-        <div class="brand">
-            <div class="brand-icon">
-                <i class="bi bi-shield-lock-fill"></i>
-            </div>
-            <h1><?= APP_NAME ?></h1>
-            <p>Sign in to continue to your dashboard</p>
+        <!-- Logo -->
+        <div class="login-logo">
+            <a href="../index.php">
+                <i class="fas fa-bolt"></i>
+                <?php echo APP_NAME; ?>
+            </a>
+            <p>Enterprise Election Management Platform</p>
         </div>
 
-        <?php if ($error): ?>
-            <div class="alert alert-danger" role="alert">
-                <i class="bi bi-exclamation-circle-fill"></i>
-                <div><?= htmlspecialchars($error) ?></div>
-            </div>
+        <!-- Error/Success Messages -->
+        <?php if (!empty($error)): ?>
+        <div class="error-message">
+            <i class="fas fa-exclamation-circle"></i>
+            <?php echo htmlspecialchars($error); ?>
+        </div>
+        <?php endif; ?>
+        
+        <?php if (isset($_SESSION['2fa_error'])): ?>
+        <div class="error-message">
+            <i class="fas fa-exclamation-circle"></i>
+            <?php echo htmlspecialchars($_SESSION['2fa_error']); unset($_SESSION['2fa_error']); ?>
+        </div>
         <?php endif; ?>
 
-        <?php if ($success): ?>
-            <div class="alert alert-success" role="alert">
-                <i class="bi bi-check-circle-fill"></i>
-                <div><?= htmlspecialchars($success) ?></div>
-            </div>
-        <?php endif; ?>
-
-        <form method="POST" action="" id="loginForm" novalidate>
-            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf_token) ?>">
-            <input type="hidden" name="redirect" value="<?= htmlspecialchars($_GET['redirect'] ?? '') ?>">
+        <?php if ($show_2fa): ?>
+        <!-- ===== 2FA SECTION ===== -->
+        <div class="otp-section active">
+            <h2>Two-Factor Authentication</h2>
+            <p class="subtitle">Enter the 6-digit code sent to your email.</p>
+            <p style="font-size: 0.85rem; color: #64748B; margin-bottom: 12px;">
+                <i class="fas fa-envelope"></i> 
+                Code sent to: <strong><?php echo htmlspecialchars($_SESSION['2fa_email'] ?? ''); ?></strong>
+            </p>
+            
+            <form method="POST" action="login.php">
+                <div class="otp-input-group">
+                    <input type="text" maxlength="1" class="otp-input" data-index="0" autofocus required />
+                    <input type="text" maxlength="1" class="otp-input" data-index="1" required />
+                    <input type="text" maxlength="1" class="otp-input" data-index="2" required />
+                    <input type="text" maxlength="1" class="otp-input" data-index="3" required />
+                    <input type="text" maxlength="1" class="otp-input" data-index="4" required />
+                    <input type="text" maxlength="1" class="otp-input" data-index="5" required />
+                </div>
+                <input type="hidden" name="otp_code" id="otp_code" />
+                
+                <div class="otp-timer">
+                    Code expires in <span id="otpTimer">5:00</span>
+                </div>
+                
+                <button type="submit" class="btn-login" id="verifyOtpBtn">
+                    <i class="fas fa-check-circle"></i>
+                    Verify OTP
+                </button>
+                
+                <div style="text-align: center; margin-top: 16px;">
+                    <button type="button" class="resend-otp" id="resendOtp">Resend OTP</button>
+                </div>
+            </form>
+        </div>
+        <?php else: ?>
+        <!-- ===== LOGIN FORM ===== -->
+        <form class="login-form" method="POST" action="login.php" id="loginForm">
+            <h2>Welcome Back</h2>
+            <p class="subtitle">Sign in to access your dashboard and manage elections.</p>
 
             <div class="form-group">
-                <label class="form-label" for="email">
-                    <i class="bi bi-envelope"></i> Email Address
-                    <span class="required">*</span>
-                </label>
-                <div class="input-group <?= isset($error) && strpos($error, 'email') !== false ? 'is-invalid' : '' ?>">
-                    <span class="input-group-text"><i class="bi bi-envelope"></i></span>
-                    <input type="email" 
-                           class="form-control" 
-                           id="email" 
-                           name="email" 
-                           placeholder="you@example.com"
-                           value="<?= htmlspecialchars($email) ?>" 
-                           required 
-                           autofocus
-                           aria-describedby="emailHelp">
+                <label for="email">Email Address</label>
+                <div class="input-wrapper">
+                    <i class="fas fa-envelope"></i>
+                    <input type="email" id="email" name="email" placeholder="admin@organization.ng" required />
                 </div>
-                <div class="invalid-feedback" id="emailHelp"></div>
-            </div>
-
-            <div class="form-group">
-                <label class="form-label" for="password">
-                    <i class="bi bi-lock"></i> Password
-                    <span class="required">*</span>
-                </label>
-                <div class="input-group <?= isset($error) && strpos($error, 'password') !== false ? 'is-invalid' : '' ?>">
-                    <span class="input-group-text"><i class="bi bi-lock"></i></span>
-                    <input type="password" 
-                           class="form-control" 
-                           id="password" 
-                           name="password" 
-                           placeholder="Enter your password" 
-                           required>
-                    <button type="button" class="toggle-password" onclick="togglePassword()" aria-label="Toggle password visibility">
-                        <i class="bi bi-eye" id="togglePasswordIcon"></i>
-                    </button>
-                </div>
-                <div class="invalid-feedback" id="passwordHelp"></div>
             </div>
 
             <div class="form-group">
-                <label class="form-label">
-                    <i class="bi bi-shield-check"></i> Security Verification
-                    <span class="required">*</span>
-                </label>
-                <div class="captcha-container">
-                    <div class="captcha-box" id="captchaDisplay">
-                        <?= htmlspecialchars($_SESSION['captcha_code']) ?>
-                    </div>
-                    <button type="button" class="captcha-refresh" onclick="refreshCaptcha()" aria-label="Refresh CAPTCHA">
-                        <i class="bi bi-arrow-clockwise"></i>
-                    </button>
+                <label for="password">Password</label>
+                <div class="input-wrapper">
+                    <i class="fas fa-lock"></i>
+                    <input type="password" id="password" name="password" placeholder="••••••••" required />
                 </div>
-                <div class="captcha-input" style="margin-top: 10px;">
-                    <div class="input-group">
-                        <span class="input-group-text"><i class="bi bi-key"></i></span>
-                        <input type="text" 
-                               class="form-control" 
-                               id="captcha" 
-                               name="captcha" 
-                               placeholder="Enter CAPTCHA code" 
-                               maxlength="6"
-                               autocomplete="off"
-                               required
-                               style="text-transform: uppercase; letter-spacing: 4px; font-family: 'Courier New', monospace;">
-                    </div>
-                </div>
-                <div class="invalid-feedback" id="captchaHelp"></div>
             </div>
 
-            <div class="options-row">
-                <div class="form-check">
-                    <input class="form-check-input" type="checkbox" id="remember_me" name="remember_me">
-                    <label class="form-check-label" for="remember_me">
-                        <i class="bi bi-check-circle"></i> Remember Me
-                    </label>
-                </div>
-                <a href="forgot-password.php" class="forgot-link">
-                    <i class="bi bi-key"></i> Forgot Password?
-                </a>
+            <!-- CAPTCHA -->
+            <?php if ($show_captcha): ?>
+            <div class="captcha-container">
+                <span class="captcha-text" id="captchaText"><?php echo $captcha_text; ?></span>
+                <button type="button" class="refresh-captcha" id="refreshCaptcha">
+                    <i class="fas fa-sync"></i>
+                </button>
+                <input type="text" name="captcha" placeholder="Enter captcha" maxlength="6" required autocomplete="off" />
+            </div>
+            <?php endif; ?>
+
+            <div class="form-options">
+                <label>
+                    <input type="checkbox" name="remember" /> Remember me
+                </label>
+                <a href="forgot-password.php">Forgot Password?</a>
             </div>
 
             <button type="submit" class="btn-login" id="loginBtn">
-                <span id="btnText"><i class="bi bi-box-arrow-in-right"></i> Sign In</span>
-                <span id="btnSpinner" class="spinner-border spinner-border-sm" style="display: none;" role="status" aria-hidden="true"></span>
+                <i class="fas fa-arrow-right-to-bracket"></i>
+                Sign In
             </button>
         </form>
 
-        <div class="auth-footer">
-            <p>Don't have an account? <a href="register.php">Create Account</a></p>
-        </div>
-    </div>
+        <!-- Divider -->
+        <div class="divider">or continue with</div>
+  
+        <?php endif; ?>
 
-    <div class="footer-bottom">
-        &copy; <?= $current_year ?> <?= APP_NAME ?>. All rights reserved.
-        <br>
-        <a href="privacy.php">Privacy Policy</a> &middot; <a href="terms.php">Terms of Service</a>
+        <!-- Back to Home -->
+        <div class="back-home">
+            <a href="../index.php">
+                <i class="fas fa-arrow-left"></i>
+                Back to Homepage
+            </a>
+        </div>
     </div>
 </div>
 
 <script>
-function togglePassword() {
-    const passwordInput = document.getElementById('password');
-    const icon = document.getElementById('togglePasswordIcon');
-    
-    if (passwordInput.type === 'password') {
-        passwordInput.type = 'text';
-        icon.className = 'bi bi-eye-slash';
-    } else {
-        passwordInput.type = 'password';
-        icon.className = 'bi bi-eye';
-    }
-}
-
-function refreshCaptcha() {
-    fetch('refresh-captcha.php')
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                document.getElementById('captchaDisplay').textContent = data.captcha;
-                document.getElementById('captcha').value = '';
-                document.getElementById('captcha').focus();
-            }
-        })
-        .catch(error => {
-            console.error('Error refreshing CAPTCHA:', error);
+document.addEventListener('DOMContentLoaded', function() {
+    // OTP Input handling
+    const otpInputs = document.querySelectorAll('.otp-input');
+    if (otpInputs.length) {
+        otpInputs.forEach((input, index) => {
+            input.addEventListener('input', function(e) {
+                if (this.value.length === 1) {
+                    const next = document.querySelector(`.otp-input[data-index="${index + 1}"]`);
+                    if (next) next.focus();
+                }
+                updateOtpCode();
+            });
+            
+            input.addEventListener('keydown', function(e) {
+                if (e.key === 'Backspace' && this.value.length === 0) {
+                    const prev = document.querySelector(`.otp-input[data-index="${index - 1}"]`);
+                    if (prev) prev.focus();
+                }
+            });
+            
+            input.addEventListener('paste', function(e) {
+                e.preventDefault();
+                const paste = (e.clipboardData || window.clipboardData).getData('text');
+                const digits = paste.replace(/\D/g, '').slice(0, 6);
+                digits.split('').forEach((digit, i) => {
+                    const target = document.querySelector(`.otp-input[data-index="${i}"]`);
+                    if (target) target.value = digit;
+                });
+                updateOtpCode();
+                const last = document.querySelector(`.otp-input[data-index="${Math.min(digits.length, 6) - 1}"]`);
+                if (last) last.focus();
+            });
         });
-}
-
-document.getElementById('loginForm').addEventListener('submit', function(e) {
-    const btn = document.getElementById('loginBtn');
-    const btnText = document.getElementById('btnText');
-    const btnSpinner = document.getElementById('btnSpinner');
-    
-    btn.disabled = true;
-    btnText.innerHTML = 'Signing in...';
-    btnSpinner.style.display = 'inline-block';
-});
-
-document.getElementById('loginForm').addEventListener('submit', function(e) {
-    let isValid = true;
-    
-    const email = document.getElementById('email');
-    const emailHelp = document.getElementById('emailHelp');
-    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    
-    if (!email.value.trim()) {
-        emailHelp.textContent = 'Email address is required.';
-        email.closest('.input-group').classList.add('is-invalid');
-        isValid = false;
-    } else if (!emailPattern.test(email.value.trim())) {
-        emailHelp.textContent = 'Please enter a valid email address.';
-        email.closest('.input-group').classList.add('is-invalid');
-        isValid = false;
-    } else {
-        email.closest('.input-group').classList.remove('is-invalid');
-        emailHelp.textContent = '';
     }
-    
-    const password = document.getElementById('password');
-    const passwordHelp = document.getElementById('passwordHelp');
-    
-    if (!password.value.trim()) {
-        passwordHelp.textContent = 'Password is required.';
-        password.closest('.input-group').classList.add('is-invalid');
-        isValid = false;
-    } else if (password.value.length < 6) {
-        passwordHelp.textContent = 'Password must be at least 6 characters.';
-        password.closest('.input-group').classList.add('is-invalid');
-        isValid = false;
-    } else {
-        password.closest('.input-group').classList.remove('is-invalid');
-        passwordHelp.textContent = '';
-    }
-    
-    const captcha = document.getElementById('captcha');
-    const captchaHelp = document.getElementById('captchaHelp');
-    
-    if (!captcha.value.trim()) {
-        captchaHelp.textContent = 'Please enter the CAPTCHA code.';
-        captcha.closest('.input-group').classList.add('is-invalid');
-        isValid = false;
-    } else if (captcha.value.length < 4) {
-        captchaHelp.textContent = 'CAPTCHA code must be at least 4 characters.';
-        captcha.closest('.input-group').classList.add('is-invalid');
-        isValid = false;
-    } else {
-        captcha.closest('.input-group').classList.remove('is-invalid');
-        captchaHelp.textContent = '';
-    }
-    
-    if (!isValid) {
-        e.preventDefault();
-        const btn = document.getElementById('loginBtn');
-        const btnText = document.getElementById('btnText');
-        const btnSpinner = document.getElementById('btnSpinner');
-        btn.disabled = false;
-        btnText.innerHTML = '<i class="bi bi-box-arrow-in-right"></i> Sign In';
-        btnSpinner.style.display = 'none';
-    }
-});
 
-document.getElementById('captcha').addEventListener('input', function() {
-    this.value = this.value.toUpperCase();
-});
+    function updateOtpCode() {
+        const inputs = document.querySelectorAll('.otp-input');
+        let code = '';
+        inputs.forEach(input => code += input.value);
+        document.getElementById('otp_code').value = code;
+    }
 
-document.querySelectorAll('.form-control').forEach(input => {
-    input.addEventListener('input', function() {
-        const group = this.closest('.input-group');
-        if (group) {
-            group.classList.remove('is-invalid');
-        }
-        const help = document.getElementById(this.id + 'Help');
-        if (help) {
-            help.textContent = '';
-        }
-    });
+    // OTP Timer
+    const timerElement = document.getElementById('otpTimer');
+    if (timerElement) {
+        let timeLeft = 300; // 5 minutes
+        const timerInterval = setInterval(() => {
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            timerElement.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+            timeLeft--;
+            
+            if (timeLeft < 0) {
+                clearInterval(timerInterval);
+                timerElement.textContent = 'Expired';
+                document.getElementById('verifyOtpBtn').disabled = true;
+                document.querySelector('.resend-otp').disabled = false;
+            }
+        }, 1000);
+    }
+
+    // Resend OTP
+    const resendBtn = document.getElementById('resendOtp');
+    if (resendBtn) {
+        resendBtn.addEventListener('click', function() {
+            this.disabled = true;
+            this.textContent = 'Sending...';
+            
+            fetch('resend-otp.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'resend' })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    this.textContent = 'Resent!';
+                    setTimeout(() => {
+                        this.textContent = 'Resend OTP';
+                        this.disabled = false;
+                    }, 3000);
+                    location.reload();
+                } else {
+                    this.textContent = 'Failed. Try again';
+                    this.disabled = false;
+                }
+            })
+            .catch(() => {
+                this.textContent = 'Resend OTP';
+                this.disabled = false;
+            });
+        });
+    }
+
+    // CAPTCHA refresh
+    const refreshBtn = document.getElementById('refreshCaptcha');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', function() {
+            const textElement = document.getElementById('captchaText');
+            fetch('captcha.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.captcha) {
+                    textElement.textContent = data.captcha;
+                    const captchaInput = document.querySelector('input[name="captcha"]');
+                    if (captchaInput) captchaInput.value = '';
+                }
+            })
+            .catch(error => {
+                console.error('CAPTCHA refresh failed:', error);
+            });
+        });
+    }
 });
 </script>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
