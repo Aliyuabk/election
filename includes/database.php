@@ -27,6 +27,17 @@ class Database {
                 PDO::ATTR_EMULATE_PREPARES => false,
                 PDO::ATTR_PERSISTENT => false
             ]);
+            
+            // ============================================================
+            // CRITICAL FIX: Set MySQL timezone to match PHP
+            // ============================================================
+            $timezone = APP_TIMEZONE;
+            $this->connection->exec("SET time_zone = '$timezone'");
+            
+            // Alternative: Use UTC offset if timezone name doesn't work
+            // $offset = date('P');
+            // $this->connection->exec("SET time_zone = '$offset'");
+            
         } catch (PDOException $e) {
             die("Database connection failed: " . $e->getMessage());
         }
@@ -67,17 +78,8 @@ class Database {
         return $this->connection->rollback();
     }
 
-    // Prevent cloning
     private function __clone() {}
 
-    // Prevent unserialization
     public function __wakeup() {}
 }
-
-// ============================================================
-// COMMENT OUT OR REMOVE THIS FUNCTION - IT'S NOW IN functions.php
-// ============================================================
-// function getDB() {
-//     return Database::getInstance()->getConnection();
-// }
 ?>

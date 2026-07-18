@@ -59,7 +59,6 @@ function authenticateUser($email, $password) {
         $user = $stmt->fetch();
         
         if ($user && verifyPassword($password, $user['password_hash'])) {
-            // Get user's full name (already generated in DB)
             return $user;
         }
         return null;
@@ -145,7 +144,7 @@ function generateDeviceFingerprint() {
 }
 
 // ============================================================
-// 4. DATABASE FUNCTIONS
+// 4. DATABASE FUNCTIONS - WITH TIMEZONE FIX
 // ============================================================
 
 function getDB() {
@@ -159,6 +158,21 @@ function getDB() {
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                 PDO::ATTR_EMULATE_PREPARES => false
             ]);
+            
+            // ============================================================
+            // CRITICAL FIX: Set MySQL timezone to match PHP
+            // ============================================================
+            $timezone = APP_TIMEZONE;
+            try {
+                $pdo->exec("SET time_zone = '$timezone'");
+                error_log("MySQL timezone set to: $timezone");
+            } catch (Exception $e) {
+                // If timezone name doesn't work, try using offset
+                $offset = date('P');
+                $pdo->exec("SET time_zone = '$offset'");
+                error_log("MySQL timezone set to offset: $offset");
+            }
+            
         } catch (PDOException $e) {
             die("Database connection failed: " . $e->getMessage());
         }
@@ -217,7 +231,7 @@ function logLoginAttempt($userId, $email, $success) {
 }
 
 // ============================================================
-// 6. AUTHENTICATION DATABASE FUNCTIONS
+// 6. AUTHENTICATION DATABASE FUNCTIONS - WITH TIMEZONE FIX
 // ============================================================
 
 function getLoginAttempts($email, $ip) {
@@ -249,7 +263,6 @@ function isAccountLocked($email) {
 function lockAccount($email) {
     try {
         $db = getDB();
-        // LOCKOUT_TIME is in seconds, convert to minutes for DB
         $lockoutMinutes = LOCKOUT_TIME / 60;
         $stmt = $db->prepare("UPDATE users SET locked_until = DATE_ADD(NOW(), INTERVAL ? MINUTE) WHERE email = ?");
         $stmt->execute([$lockoutMinutes, $email]);
@@ -259,53 +272,152 @@ function lockAccount($email) {
     }
 }
 
+// ============================================================
+// 6A. OTP FUNCTIONS - COMPLETELY REWRITTEN WITH TIMEZONE FIX
+// ============================================================
+
+/**
+ * Save OTP with timezone-safe expiration
+ */
 function saveOTP($userId, $otp, $type = 'login', $channel = 'email') {
     try {
         $db = getDB();
+        
+        // Use PHP's time with proper timezone for expiration
         $expires = date('Y-m-d H:i:s', time() + OTP_EXPIRY);
         
+        // Log for debugging
+        error_log("SAVE OTP - User: $userId, OTP: $otp, Expires: $expires, PHP Time: " . date('Y-m-d H:i:s'));
+        
         $stmt = $db->prepare("
-            INSERT INTO otp_verifications (user_id, otp_code, type, channel, expires_at, used, attempts) 
-            VALUES (?, ?, ?, ?, ?, 0, 0)
+            INSERT INTO otp_verifications (user_id, otp_code, type, channel, expires_at, used, attempts, created_at) 
+            VALUES (?, ?, ?, ?, ?, 0, 0, NOW())
         ");
         $stmt->execute([$userId, $otp, $type, $channel, $expires]);
+        
+        $id = $db->lastInsertId();
+        error_log("OTP saved successfully - ID: $id, User: $userId");
         return true;
+        
     } catch (Exception $e) {
         error_log("OTP save failed: " . $e->getMessage());
         return false;
     }
 }
 
+/**
+ * Verify OTP with timezone-safe comparison
+ */
 function verifyOTP($userId, $otp, $type = 'login') {
     try {
         $db = getDB();
         
-        // DEBUG: Log the query parameters
-        error_log("Verifying OTP - User: $userId, OTP: $otp, Type: $type");
+        // Get current time for logging
+        $current_time = date('Y-m-d H:i:s');
+        $current_timestamp = time();
         
+        error_log("VERIFY OTP - User: $userId, OTP: $otp, Type: $type, Current Time: $current_time");
+        
+        // First, get the latest OTP for this user
         $stmt = $db->prepare("
             SELECT * FROM otp_verifications 
-            WHERE user_id = ? AND otp_code = ? AND type = ? AND used = 0 AND expires_at > NOW() 
+            WHERE user_id = ? AND otp_code = ? AND type = ? AND used = 0 
             ORDER BY id DESC LIMIT 1
         ");
         $stmt->execute([$userId, $otp, $type]);
         $record = $stmt->fetch();
         
-        // DEBUG: Log if record found
-        error_log("OTP record found: " . ($record ? 'Yes' : 'No'));
-        
-        if ($record) {
-            $stmt = $db->prepare("UPDATE otp_verifications SET used = 1, used_at = NOW() WHERE id = ?");
-            $stmt->execute([$record['id']]);
-            error_log("OTP marked as used for user: $userId");
-            return true;
+        if (!$record) {
+            error_log("OTP verification failed - No valid OTP found for user: $userId");
+            
+            // Check if OTP exists but is already used
+            $stmt = $db->prepare("
+                SELECT * FROM otp_verifications 
+                WHERE user_id = ? AND otp_code = ? AND type = ? AND used = 1
+                ORDER BY id DESC LIMIT 1
+            ");
+            $stmt->execute([$userId, $otp, $type]);
+            $used_record = $stmt->fetch();
+            
+            if ($used_record) {
+                error_log("OTP already used for user: $userId");
+            }
+            return false;
         }
-        return false;
+        
+        // Convert expires_at to timestamp for comparison
+        $expires_timestamp = strtotime($record['expires_at']);
+        $time_diff = $expires_timestamp - $current_timestamp;
+        
+        error_log("OTP Record - ID: {$record['id']}, Expires: {$record['expires_at']}, Time Diff: $time_diff seconds");
+        
+        // Check if expired
+        if ($expires_timestamp < $current_timestamp) {
+            error_log("OTP expired for user: $userId (Expired: " . date('Y-m-d H:i:s', $expires_timestamp) . ")");
+            return false;
+        }
+        
+        // Mark as used
+        $stmt = $db->prepare("UPDATE otp_verifications SET used = 1, used_at = NOW() WHERE id = ?");
+        $stmt->execute([$record['id']]);
+        
+        error_log("OTP verified successfully for user: $userId");
+        return true;
+        
     } catch (Exception $e) {
         error_log("OTP verification failed: " . $e->getMessage());
         return false;
     }
 }
+
+/**
+ * Clean up expired OTPs (optional - can be run via cron)
+ */
+function cleanupExpiredOTPs() {
+    try {
+        $db = getDB();
+        $stmt = $db->prepare("DELETE FROM otp_verifications WHERE expires_at < NOW() AND used = 0");
+        $stmt->execute();
+        return $stmt->rowCount();
+    } catch (Exception $e) {
+        error_log("Cleanup expired OTPs failed: " . $e->getMessage());
+        return 0;
+    }
+}
+
+/**
+ * Resend OTP - generate new OTP and update existing
+ */
+function resendOTP($userId, $type = 'login') {
+    try {
+        $db = getDB();
+        
+        // Invalidate old OTPs
+        $stmt = $db->prepare("UPDATE otp_verifications SET used = 1 WHERE user_id = ? AND type = ? AND used = 0");
+        $stmt->execute([$userId, $type]);
+        
+        // Generate new OTP
+        $otp = generateOTP();
+        $expires = date('Y-m-d H:i:s', time() + OTP_EXPIRY);
+        
+        $stmt = $db->prepare("
+            INSERT INTO otp_verifications (user_id, otp_code, type, channel, expires_at, used, attempts, created_at) 
+            VALUES (?, ?, ?, 'email', ?, 0, 0, NOW())
+        ");
+        $stmt->execute([$userId, $otp, $type, $expires]);
+        
+        error_log("OTP resent for user: $userId, New OTP: $otp");
+        return $otp;
+        
+    } catch (Exception $e) {
+        error_log("Resend OTP failed: " . $e->getMessage());
+        return false;
+    }
+}
+
+// ============================================================
+// 7. SESSION FUNCTIONS - WITH TIMEZONE FIX
+// ============================================================
 
 function createSession($userId, $remember = false) {
     try {
@@ -315,8 +427,8 @@ function createSession($userId, $remember = false) {
         $deviceId = generateDeviceFingerprint();
         
         $stmt = $db->prepare("
-            INSERT INTO user_sessions (user_id, token, device_id, device_type, ip_address, gps_lat, gps_lng, user_agent, expires_at) 
-            VALUES (?, ?, ?, 'web', ?, NULL, NULL, ?, ?)
+            INSERT INTO user_sessions (user_id, token, device_id, device_type, ip_address, gps_lat, gps_lng, user_agent, expires_at, created_at) 
+            VALUES (?, ?, ?, 'web', ?, NULL, NULL, ?, ?, NOW())
         ");
         $stmt->execute([$userId, $token, $deviceId, getClientIP(), getUserAgent(), $expires]);
         
@@ -354,7 +466,7 @@ function revokeAllSessions($userId) {
 }
 
 // ============================================================
-// 7. USER DATABASE FUNCTIONS
+// 8. USER DATABASE FUNCTIONS
 // ============================================================
 
 function getUserById($userId) {
@@ -446,7 +558,7 @@ function deleteSession($userId, $sessionId) {
 }
 
 // ============================================================
-// 8. PASSWORD RESET FUNCTIONS
+// 9. PASSWORD RESET FUNCTIONS - WITH TIMEZONE FIX
 // ============================================================
 
 function createPasswordReset($userId, $token) {
@@ -459,13 +571,13 @@ function createPasswordReset($userId, $token) {
             VALUES (?, ?, ?, NOW())
         ");
         $stmt->execute([$userId, $token, $expires]);
+        error_log("Password reset created for user: $userId, expires: $expires");
         return true;
     } catch (Exception $e) {
         error_log("Create password reset failed: " . $e->getMessage());
         return false;
     }
-}  
-
+}
 
 function validatePasswordResetToken($token, $email) {
     try {
@@ -511,7 +623,7 @@ function updateUserPassword($userId, $newPassword) {
 }
 
 // ============================================================
-// 9. EMAIL TEMPLATE FUNCTIONS
+// 10. EMAIL TEMPLATE FUNCTIONS
 // ============================================================
 
 function sendPasswordResetEmail($email, $resetLink, $name = '') {
@@ -600,7 +712,7 @@ function sendOTPEmail($email, $otp, $name = '') {
 }
 
 // ============================================================
-// 10. BROADCAST FUNCTIONS
+// 11. BROADCAST FUNCTIONS
 // ============================================================
 
 function sendBroadcastEmails($recipients, $subject, $message, $sender_name = '') {
@@ -716,5 +828,33 @@ function getBroadcastRecipients($tenant_id, $target_audience, $target_ids = []) 
     }
     
     return $recipients;
+}
+
+// ============================================================
+// 12. UTILITY FUNCTIONS
+// ============================================================
+
+/**
+ * Get current server time with timezone
+ */
+function getCurrentTime() {
+    return date('Y-m-d H:i:s');
+}
+
+/**
+ * Check if a timestamp is expired
+ */
+function isExpired($timestamp) {
+    return strtotime($timestamp) < time();
+}
+
+/**
+ * Get time difference in seconds
+ */
+function getTimeDifference($from, $to = null) {
+    if ($to === null) {
+        $to = date('Y-m-d H:i:s');
+    }
+    return strtotime($to) - strtotime($from);
 }
 ?>
