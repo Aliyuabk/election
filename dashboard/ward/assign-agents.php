@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// WARD COORDINATOR - ASSIGN AGENTS TO POLLING UNITS
+// WARD COORDINATOR - ASSIGN AGENTS TO POLLING UNITS (FIXED)
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -63,7 +63,7 @@ try {
 }
 
 // ============================================================
-// HANDLE AGENT ASSIGNMENT
+// HANDLE AGENT ASSIGNMENT (FIXED)
 // ============================================================
 $success_message = '';
 $error_message = '';
@@ -85,58 +85,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $current = $stmt->fetch(PDO::FETCH_ASSOC);
             
             if ($current && !empty($current['pu_id'])) {
-                // Agent already assigned - update instead
-                $stmt = $db->prepare("UPDATE users SET pu_id = ?, updated_at = NOW() WHERE id = ? AND tenant_id = ?");
+                // Agent already assigned - update user's PU
+                $stmt = $db->prepare("UPDATE users SET pu_id = ? WHERE id = ? AND tenant_id = ?");
                 $stmt->execute([$pu_id, $agent_id, $tenant_id]);
                 
-                // Update agent assignment
+                // Update existing assignment - set status to 'reassigned' and create new one
                 $stmt = $db->prepare("
                     UPDATE agent_assignments 
-                    SET pu_id = ?, status = 'active', updated_at = NOW() 
+                    SET status = 'reassigned' 
                     WHERE user_id = ? AND status = 'active'
                 ");
-                $stmt->execute([$pu_id, $agent_id]);
+                $stmt->execute([$agent_id]);
                 
                 $success_message = "Agent reassigned to polling unit successfully.";
             } else {
                 // Assign agent to PU
-                $stmt = $db->prepare("UPDATE users SET pu_id = ?, updated_at = NOW() WHERE id = ? AND tenant_id = ?");
+                $stmt = $db->prepare("UPDATE users SET pu_id = ? WHERE id = ? AND tenant_id = ?");
                 $stmt->execute([$pu_id, $agent_id, $tenant_id]);
-                
-                // Create assignment record
-                $stmt = $db->prepare("
-                    INSERT INTO agent_assignments (
-                        tenant_id, election_id, user_id, pu_id, ward_id, lga_id, state_id,
-                        assignment_type, status, assigned_by, notes, assigned_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, NOW())
-                ");
-                
-                // Get current election
-                $election_stmt = $db->prepare("
-                    SELECT id FROM elections 
-                    WHERE tenant_id = ? AND status = 'active' 
-                    AND JSON_CONTAINS(wards_json, JSON_QUOTE(?))
-                    LIMIT 1
-                ");
-                $election_stmt->execute([$tenant_id, $ward_id]);
-                $election = $election_stmt->fetch(PDO::FETCH_ASSOC);
-                $election_id = $election ? $election['id'] : null;
-                
-                $stmt->execute([
-                    $tenant_id,
-                    $election_id,
-                    $agent_id,
-                    $pu_id,
-                    $ward_id,
-                    $lga_id,
-                    $state_id,
-                    $assignment_type,
-                    $user_id,
-                    $notes
-                ]);
                 
                 $success_message = "Agent assigned to polling unit successfully.";
             }
+            
+            // Get current election
+            $election_stmt = $db->prepare("
+                SELECT id FROM elections 
+                WHERE tenant_id = ? AND status = 'active' 
+                AND JSON_CONTAINS(wards_json, JSON_QUOTE(?))
+                LIMIT 1
+            ");
+            $election_stmt->execute([$tenant_id, $ward_id]);
+            $election = $election_stmt->fetch(PDO::FETCH_ASSOC);
+            $election_id = $election ? $election['id'] : null;
+            
+            // Create NEW assignment record (always insert new)
+            $stmt = $db->prepare("
+                INSERT INTO agent_assignments (
+                    tenant_id, election_id, user_id, pu_id, ward_id, lga_id, state_id,
+                    assignment_type, status, assigned_by, notes, assigned_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, NOW())
+            ");
+            
+            $stmt->execute([
+                $tenant_id,
+                $election_id,
+                $agent_id,
+                $pu_id,
+                $ward_id,
+                $lga_id,
+                $state_id,
+                $assignment_type,
+                $user_id,
+                $notes
+            ]);
             
             // Log activity
             logActivity($user_id, 'agent_assigned', "Assigned agent ID: $agent_id to PU: $pu_id", 'user', $agent_id);

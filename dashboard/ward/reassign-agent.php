@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// WARD COORDINATOR - REASSIGN AGENT
+// WARD COORDINATOR - REASSIGN AGENT (FIXED)
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -100,7 +100,7 @@ if ($agent_id > 0) {
 }
 
 // ============================================================
-// HANDLE REASSIGNMENT
+// HANDLE REASSIGNMENT (FIXED)
 // ============================================================
 $success_message = '';
 $error_message = '';
@@ -118,32 +118,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Update user's PU assignment
             $stmt = $db->prepare("
                 UPDATE users 
-                SET pu_id = ?, updated_at = NOW() 
+                SET pu_id = ? 
                 WHERE id = ? AND tenant_id = ? AND ward_id = ?
             ");
             $stmt->execute([$new_pu_id, $agent_id, $tenant_id, $ward_id]);
             
-            // Update agent assignment
+            // Update existing assignment to 'reassigned'
             $stmt = $db->prepare("
                 UPDATE agent_assignments 
-                SET pu_id = ?, status = 'reassigned', updated_at = NOW() 
+                SET status = 'reassigned' 
                 WHERE user_id = ? AND status = 'active'
             ");
-            $stmt->execute([$new_pu_id, $agent_id]);
+            $stmt->execute([$agent_id]);
+            
+            // Get current election
+            $election_stmt = $db->prepare("
+                SELECT id FROM elections 
+                WHERE tenant_id = ? AND status = 'active' 
+                AND JSON_CONTAINS(wards_json, JSON_QUOTE(?))
+                LIMIT 1
+            ");
+            $election_stmt->execute([$tenant_id, $ward_id]);
+            $election = $election_stmt->fetch(PDO::FETCH_ASSOC);
+            $election_id = $election ? $election['id'] : null;
             
             // Create new assignment record
             $stmt = $db->prepare("
                 INSERT INTO agent_assignments (
                     tenant_id, election_id, user_id, pu_id, ward_id, lga_id, state_id,
                     assignment_type, status, assigned_by, notes, assigned_at
-                ) SELECT 
-                    ?, election_id, user_id, ?, ward_id, lga_id, state_id,
-                    assignment_type, 'active', ?, ?, NOW()
-                FROM agent_assignments 
-                WHERE user_id = ? AND status = 'reassigned'
-                ORDER BY id DESC LIMIT 1
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, NOW())
             ");
-            $stmt->execute([$tenant_id, $new_pu_id, $user_id, $reason, $agent_id]);
+            
+            // Get assignment type from existing assignment
+            $type_stmt = $db->prepare("
+                SELECT assignment_type FROM agent_assignments 
+                WHERE user_id = ? ORDER BY id DESC LIMIT 1
+            ");
+            $type_stmt->execute([$agent_id]);
+            $type_result = $type_stmt->fetch(PDO::FETCH_ASSOC);
+            $assignment_type = $type_result ? $type_result['assignment_type'] : 'data_agent';
+            
+            $stmt->execute([
+                $tenant_id,
+                $election_id,
+                $agent_id,
+                $new_pu_id,
+                $ward_id,
+                $lga_id,
+                $state_id,
+                $assignment_type,
+                $user_id,
+                $reason
+            ]);
             
             // Log activity
             logActivity($user_id, 'agent_reassigned', "Reassigned agent ID: $agent_id to PU: $new_pu_id", 'user', $agent_id);
