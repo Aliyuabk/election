@@ -6,6 +6,7 @@ require_once '../../config/config.php';
 require_once '../../includes/session.php';
 require_once '../../includes/functions.php';
 
+// Start session
 SessionManager::start();
 
 if (!SessionManager::isLoggedIn()) {
@@ -13,16 +14,20 @@ if (!SessionManager::isLoggedIn()) {
     exit();
 }
 
+// Only Ward coordinator can access
 if (SessionManager::get('role_level') !== 'ward') {
     header('Location: ../client-admin/');
     exit();
 }
 
-$user_name = SessionManager::get('user_name', 'Ward Coordinator');
+$user_name = SessionManager::get('user_name', 'Coordinator');
 $user_id = SessionManager::get('user_id');
-$tenant_id = SessionManager::get('tenant_id');
 $ward_id = SessionManager::get('ward_id');
+$lga_id = SessionManager::get('lga_id');
+$state_id = SessionManager::get('state_id');
+$tenant_id = SessionManager::get('tenant_id');
 
+// If ward_id is not set in session, try to get it from user record
 if (empty($ward_id)) {
     $db = getDB();
     try {
@@ -40,7 +45,9 @@ if (empty($ward_id)) {
 
 $db = getDB();
 
-// Get ward name
+// ============================================================
+// FETCH WARD NAME
+// ============================================================
 $ward_name = 'Ward';
 try {
     if ($ward_id) {
@@ -52,70 +59,210 @@ try {
         }
     }
 } catch (Exception $e) {
-    error_log("Error fetching ward: " . $e->getMessage());
+    error_log("Error fetching ward name: " . $e->getMessage());
 }
 
-// Get PU agents for this ward
+// ============================================================
+// HANDLE AGENT ACTIONS (Suspend, Activate, Delete)
+// ============================================================
+$action_message = '';
+$action_type = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $agent_id = isset($_POST['agent_id']) ? (int)$_POST['agent_id'] : 0;
+    $action = isset($_POST['action']) ? $_POST['action'] : '';
+    
+    if ($agent_id > 0 && !empty($action)) {
+        try {
+            switch ($action) {
+                case 'suspend':
+                    $stmt = $db->prepare("UPDATE users SET status = 'suspended', updated_at = NOW() WHERE id = ? AND tenant_id = ? AND ward_id = ?");
+                    $stmt->execute([$agent_id, $tenant_id, $ward_id]);
+                    if ($stmt->rowCount() > 0) {
+                        $action_message = "Agent suspended successfully.";
+                        $action_type = 'success';
+                        logActivity($user_id, 'agent_suspended', "Suspended agent ID: $agent_id", 'user', $agent_id);
+                    }
+                    break;
+                    
+                case 'activate':
+                    $stmt = $db->prepare("UPDATE users SET status = 'active', updated_at = NOW() WHERE id = ? AND tenant_id = ? AND ward_id = ?");
+                    $stmt->execute([$agent_id, $tenant_id, $ward_id]);
+                    if ($stmt->rowCount() > 0) {
+                        $action_message = "Agent activated successfully.";
+                        $action_type = 'success';
+                        logActivity($user_id, 'agent_activated', "Activated agent ID: $agent_id", 'user', $agent_id);
+                    }
+                    break;
+                    
+                case 'delete':
+                    // Soft delete
+                    $stmt = $db->prepare("UPDATE users SET deleted_at = NOW(), status = 'archived', updated_at = NOW() WHERE id = ? AND tenant_id = ? AND ward_id = ?");
+                    $stmt->execute([$agent_id, $tenant_id, $ward_id]);
+                    if ($stmt->rowCount() > 0) {
+                        $action_message = "Agent deleted successfully.";
+                        $action_type = 'success';
+                        logActivity($user_id, 'agent_deleted', "Deleted agent ID: $agent_id", 'user', $agent_id);
+                    }
+                    break;
+                    
+                default:
+                    $action_message = "Invalid action.";
+                    $action_type = 'error';
+            }
+        } catch (Exception $e) {
+            $action_message = "Error performing action: " . $e->getMessage();
+            $action_type = 'error';
+            error_log("Agent action error: " . $e->getMessage());
+        }
+    }
+}
+
+// ============================================================
+// FETCH AGENTS WITH PAGINATION AND FILTERS
+// ============================================================
+$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+$limit = 20;
+$offset = ($page - 1) * $limit;
+
+$search = isset($_GET['search']) ? trim($_GET['search']) : '';
+$status_filter = isset($_GET['status']) ? $_GET['status'] : 'all';
+$pu_filter = isset($_GET['pu_id']) ? (int)$_GET['pu_id'] : 0;
+
 $agents = [];
-$stats = [
-    'total' => 0,
-    'active' => 0,
-    'suspended' => 0,
-    'pending' => 0,
-    'online' => 0,
-    'by_pu' => []
-];
+$total_agents = 0;
 
 try {
+    // Build query conditions
+    $conditions = "u.tenant_id = ? AND u.ward_id = ? AND u.deleted_at IS NULL";
+    $params = [$tenant_id, $ward_id];
+    
+    // Role condition - PU Agents only
+    $conditions .= " AND EXISTS (SELECT 1 FROM roles r WHERE r.id = u.role_id AND r.level = 'pu_agent')";
+    
+    if (!empty($search)) {
+        $conditions .= " AND (u.full_name LIKE ? OR u.email LIKE ? OR u.phone LIKE ?)";
+        $search_param = "%$search%";
+        $params[] = $search_param;
+        $params[] = $search_param;
+        $params[] = $search_param;
+    }
+    
+    if ($status_filter !== 'all') {
+        $conditions .= " AND u.status = ?";
+        $params[] = $status_filter;
+    }
+    
+    if ($pu_filter > 0) {
+        $conditions .= " AND u.pu_id = ?";
+        $params[] = $pu_filter;
+    }
+    
+    // Get total count
+    $count_stmt = $db->prepare("SELECT COUNT(*) as total FROM users u WHERE $conditions");
+    $count_stmt->execute($params);
+    $total_agents = (int)$count_stmt->fetchColumn();
+    
+    // Get agents with pagination
     $stmt = $db->prepare("
         SELECT 
             u.id,
             u.user_code,
-            u.first_name,
-            u.last_name,
+            u.full_name,
             u.email,
             u.phone,
             u.status,
             u.created_at,
             u.last_login_at,
-            pu.id as pu_id,
+            u.photograph_url,
+            u.pu_id,
             pu.name as pu_name,
             pu.code as pu_code,
-            (SELECT COUNT(*) FROM user_sessions us WHERE us.user_id = u.id AND us.is_active = 1 AND us.last_activity_at > DATE_SUB(NOW(), INTERVAL 15 MINUTE)) as is_online,
-            (SELECT COUNT(*) FROM results_ec8a ra WHERE ra.agent_id = u.id AND ra.status IN ('verified', 'approved')) as verified_results,
-            (SELECT COUNT(*) FROM results_ec8a ra WHERE ra.agent_id = u.id AND ra.status = 'pending') as pending_results,
-            (SELECT COUNT(*) FROM incidents i WHERE i.reporter_id = u.id) as incidents_reported
+            (SELECT COUNT(*) FROM results_ec8a r WHERE r.agent_id = u.id) as total_submissions,
+            (SELECT COUNT(*) FROM results_ec8a r WHERE r.agent_id = u.id AND r.status = 'verified') as verified_submissions,
+            (SELECT COUNT(*) FROM results_ec8a r WHERE r.agent_id = u.id AND r.status = 'pending') as pending_submissions,
+            (SELECT COUNT(*) FROM agent_assignments aa WHERE aa.user_id = u.id AND aa.status = 'active') as active_assignments,
+            (SELECT COUNT(*) FROM user_sessions us WHERE us.user_id = u.id AND us.is_active = 1 AND us.last_activity_at > DATE_SUB(NOW(), INTERVAL 15 MINUTE)) as is_online
         FROM users u
-        JOIN roles r ON u.role_id = r.id
         LEFT JOIN polling_units pu ON u.pu_id = pu.id
-        WHERE u.tenant_id = ? 
-        AND u.ward_id = ? 
-        AND r.level = 'pu_agent'
-        AND u.deleted_at IS NULL
-        ORDER BY pu.name ASC, u.first_name ASC
+        WHERE $conditions
+        ORDER BY u.full_name ASC
+        LIMIT ? OFFSET ?
     ");
-    $stmt->execute([$tenant_id, $ward_id]);
+    
+    $params[] = $limit;
+    $params[] = $offset;
+    $stmt->execute($params);
     $agents = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    foreach ($agents as $agent) {
-        $stats['total']++;
-        $stats[$agent['status']] = ($stats[$agent['status']] ?? 0) + 1;
-        if ($agent['is_online'] > 0) {
-            $stats['online']++;
-        }
-        if ($agent['pu_id']) {
-            $pu_key = $agent['pu_id'];
-            if (!isset($stats['by_pu'][$pu_key])) {
-                $stats['by_pu'][$pu_key] = [
-                    'name' => $agent['pu_name'],
-                    'count' => 0
-                ];
-            }
-            $stats['by_pu'][$pu_key]['count']++;
-        }
-    }
 } catch (Exception $e) {
     error_log("Error fetching agents: " . $e->getMessage());
+}
+
+// ============================================================
+// FETCH POLLING UNITS FOR FILTER
+// ============================================================
+$polling_units = [];
+try {
+    $stmt = $db->prepare("
+        SELECT id, name, code FROM polling_units 
+        WHERE ward_id = ? AND is_active = 1 
+        ORDER BY name ASC
+    ");
+    $stmt->execute([$ward_id]);
+    $polling_units = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    error_log("Error fetching polling units: " . $e->getMessage());
+}
+
+// ============================================================
+// FETCH AGENT STATISTICS
+// ============================================================
+$agent_stats = [
+    'total' => 0,
+    'active' => 0,
+    'suspended' => 0,
+    'online' => 0,
+    'assigned' => 0,
+    'unassigned' => 0
+];
+
+try {
+    $stmt = $db->prepare("
+        SELECT 
+            COUNT(*) as total,
+            SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active,
+            SUM(CASE WHEN status = 'suspended' THEN 1 ELSE 0 END) as suspended,
+            SUM(CASE WHEN pu_id IS NOT NULL THEN 1 ELSE 0 END) as assigned,
+            SUM(CASE WHEN pu_id IS NULL THEN 1 ELSE 0 END) as unassigned
+        FROM users 
+        WHERE tenant_id = ? AND ward_id = ? AND deleted_at IS NULL
+        AND EXISTS (SELECT 1 FROM roles r WHERE r.id = users.role_id AND r.level = 'pu_agent')
+    ");
+    $stmt->execute([$tenant_id, $ward_id]);
+    $stats_result = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    $agent_stats['total'] = (int)($stats_result['total'] ?? 0);
+    $agent_stats['active'] = (int)($stats_result['active'] ?? 0);
+    $agent_stats['suspended'] = (int)($stats_result['suspended'] ?? 0);
+    $agent_stats['assigned'] = (int)($stats_result['assigned'] ?? 0);
+    $agent_stats['unassigned'] = (int)($stats_result['unassigned'] ?? 0);
+    
+    // Online agents
+    $stmt = $db->prepare("
+        SELECT COUNT(DISTINCT u.id) as online
+        FROM users u
+        INNER JOIN user_sessions us ON u.id = us.user_id
+        WHERE u.tenant_id = ? AND u.ward_id = ? AND u.deleted_at IS NULL
+        AND us.is_active = 1 
+        AND us.last_activity_at > DATE_SUB(NOW(), INTERVAL 15 MINUTE)
+        AND EXISTS (SELECT 1 FROM roles r WHERE r.id = u.role_id AND r.level = 'pu_agent')
+    ");
+    $stmt->execute([$tenant_id, $ward_id]);
+    $agent_stats['online'] = (int)$stmt->fetchColumn();
+    
+} catch (Exception $e) {
+    error_log("Error fetching agent stats: " . $e->getMessage());
 }
 
 $page_title = 'Manage PU Agents';
@@ -124,250 +271,266 @@ include '../includes/sidebar.php';
 ?>
 
 <style>
-.agent-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 16px;
-    margin-top: 16px;
+.agents-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+.agents-header h2 {
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin: 0;
+}
+.agents-header h2 i {
+    color: var(--primary);
+}
+.agents-header .actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
 }
 
-.agent-card {
+.stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+}
+.stat-mini {
+    background: white;
+    padding: 12px 16px;
+    border-radius: var(--radius);
+    border: 1px solid var(--gray-200);
+    text-align: center;
+}
+.stat-mini .number {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--gray-800);
+}
+.stat-mini .label {
+    font-size: 0.65rem;
+    color: var(--gray-500);
+    font-weight: 500;
+}
+.stat-mini .number.green { color: #10B981; }
+.stat-mini .number.red { color: #EF4444; }
+.stat-mini .number.blue { color: #3B82F6; }
+.stat-mini .number.purple { color: #8B5CF6; }
+.stat-mini .number.orange { color: #F59E0B; }
+
+.filter-bar {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+    align-items: center;
+}
+.filter-bar .search-box {
+    flex: 1;
+    min-width: 200px;
+    position: relative;
+}
+.filter-bar .search-box input {
+    width: 100%;
+    padding: 8px 12px 8px 36px;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius);
+    font-size: 0.85rem;
+    background: white;
+}
+.filter-bar .search-box i {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--gray-400);
+}
+.filter-bar select {
+    padding: 8px 12px;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius);
+    font-size: 0.85rem;
+    background: white;
+    min-width: 140px;
+}
+
+.agents-table {
+    width: 100%;
     background: white;
     border-radius: var(--radius);
     border: 1px solid var(--gray-200);
-    padding: 16px 18px;
-    transition: var(--transition);
+    overflow: hidden;
+}
+.agents-table table {
+    width: 100%;
+    border-collapse: collapse;
+}
+.agents-table th {
+    background: var(--gray-50);
+    padding: 10px 14px;
+    text-align: left;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--gray-600);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    border-bottom: 1px solid var(--gray-200);
+}
+.agents-table td {
+    padding: 10px 14px;
+    font-size: 0.82rem;
+    border-bottom: 1px solid var(--gray-100);
+    vertical-align: middle;
+}
+.agents-table tr:last-child td {
+    border-bottom: none;
+}
+.agents-table tr:hover {
+    background: var(--gray-50);
 }
 
-.agent-card:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-hover);
-}
-
-.agent-card .card-top {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.agent-card .avatar {
-    width: 44px;
-    height: 44px;
+.agent-avatar {
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
-    background: linear-gradient(135deg, var(--primary), var(--primary-light));
-    color: white;
+    background: var(--gray-200);
     display: flex;
     align-items: center;
     justify-content: center;
     font-weight: 700;
-    font-size: 0.9rem;
+    font-size: 0.8rem;
+    color: var(--gray-600);
     flex-shrink: 0;
 }
-
-.agent-card .info .name {
-    font-weight: 600;
-    font-size: 0.85rem;
-    color: var(--gray-800);
+.agent-avatar img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
 }
-
-.agent-card .info .pu {
-    font-size: 0.7rem;
-    color: var(--primary);
-    font-weight: 500;
+.agent-avatar.online {
+    border: 2px solid #10B981;
 }
-
-.agent-card .info .pu i {
-    margin-right: 4px;
-}
-
-.agent-card .badges {
-    display: flex;
-    gap: 4px;
-    margin: 6px 0;
-    flex-wrap: wrap;
+.agent-avatar.offline {
+    border: 2px solid var(--gray-300);
 }
 
 .status-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 0.65rem;
+    font-weight: 500;
+}
+.status-badge.active { background: #ECFDF5; color: #10B981; }
+.status-badge.suspended { background: #FEF2F2; color: #EF4444; }
+.status-badge.pending { background: #FFFBEB; color: #F59E0B; }
+.status-badge.archived { background: var(--gray-100); color: var(--gray-500); }
+
+.agent-actions {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+.agent-actions .btn-sm {
+    padding: 4px 8px;
+    font-size: 0.7rem;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    text-decoration: none;
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    font-size: 0.5rem;
-    padding: 2px 8px;
-    border-radius: 8px;
-    font-weight: 600;
 }
+.agent-actions .btn-sm.view { background: #EFF6FF; color: #3B82F6; }
+.agent-actions .btn-sm.view:hover { background: #DBEAFE; }
+.agent-actions .btn-sm.assign { background: #ECFDF5; color: #10B981; }
+.agent-actions .btn-sm.assign:hover { background: #D1FAE5; }
+.agent-actions .btn-sm.suspend { background: #FEF2F2; color: #EF4444; }
+.agent-actions .btn-sm.suspend:hover { background: #FEE2E2; }
+.agent-actions .btn-sm.activate { background: #FFFBEB; color: #F59E0B; }
+.agent-actions .btn-sm.activate:hover { background: #FEF3C7; }
+.agent-actions .btn-sm.delete { background: #FEF2F2; color: #DC2626; }
+.agent-actions .btn-sm.delete:hover { background: #FEE2E2; }
 
-.status-badge .dot {
-    width: 4px;
-    height: 4px;
-    border-radius: 50%;
-    display: inline-block;
-}
-
-.status-badge.active { background: #ECFDF5; color: #065F46; }
-.status-badge.active .dot { background: #10B981; }
-.status-badge.suspended { background: #FEF2F2; color: #991B1B; }
-.status-badge.suspended .dot { background: #EF4444; }
-.status-badge.pending { background: #FFFBEB; color: #92400E; }
-.status-badge.pending .dot { background: #F59E0B; }
-
-.status-badge.online { background: #ECFDF5; color: #065F46; }
-.status-badge.online .dot { background: #10B981; animation: pulse-dot 1.5s ease-in-out infinite; }
-.status-badge.offline { background: #F3F4F6; color: #6B7280; }
-.status-badge.offline .dot { background: #9CA3AF; }
-
-@keyframes pulse-dot {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.5; transform: scale(0.8); }
-}
-
-.agent-card .stats {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 4px;
-    margin: 8px 0;
-    padding: 6px 0;
-    border-top: 1px solid var(--gray-100);
-    border-bottom: 1px solid var(--gray-100);
-}
-
-.agent-card .stats .stat-item {
-    text-align: center;
-}
-
-.agent-card .stats .stat-item .number {
-    font-size: 0.9rem;
-    font-weight: 700;
-    color: var(--gray-800);
-}
-
-.agent-card .stats .stat-item .label {
-    font-size: 0.5rem;
-    color: var(--gray-500);
-}
-
-.agent-card .actions {
+.pagination {
     display: flex;
-    gap: 4px;
-    margin-top: 8px;
-    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+    padding: 16px 0;
 }
-
-.agent-card .actions a {
-    padding: 3px 10px;
+.pagination a, .pagination span {
+    padding: 6px 12px;
     border-radius: 4px;
-    font-size: 0.6rem;
-    font-weight: 500;
+    font-size: 0.8rem;
     text-decoration: none;
-    transition: var(--transition);
+    color: var(--gray-600);
+    border: 1px solid var(--gray-200);
 }
-
-.agent-card .actions .btn-profile {
+.pagination a:hover {
+    background: var(--gray-50);
+    border-color: var(--gray-300);
+}
+.pagination .active {
     background: var(--primary);
     color: white;
+    border-color: var(--primary);
 }
-
-.agent-card .actions .btn-profile:hover {
-    background: var(--primary-dark);
-}
-
-.agent-card .actions .btn-assign {
-    background: #EFF6FF;
-    color: #3B82F6;
-}
-
-.agent-card .actions .btn-assign:hover {
-    background: #DBEAFE;
-}
-
-.agent-card .actions .btn-suspend {
-    background: #FEF2F2;
-    color: #DC2626;
-}
-
-.agent-card .actions .btn-suspend:hover {
-    background: #FEE2E2;
-}
-
-.agent-card .actions .btn-activate {
-    background: #ECFDF5;
-    color: #10B981;
-}
-
-.agent-card .actions .btn-activate:hover {
-    background: #D1FAE5;
-}
-
-.agent-card .actions .btn-reset {
-    background: #FFFBEB;
-    color: #D97706;
-}
-
-.agent-card .actions .btn-reset:hover {
-    background: #FEF3C7;
+.pagination .disabled {
+    opacity: 0.5;
+    pointer-events: none;
 }
 
 .empty-state {
-    grid-column: 1/-1;
     text-align: center;
-    padding: 60px 20px;
-    background: white;
-    border-radius: var(--radius);
-    border: 1px solid var(--gray-200);
+    padding: 40px 20px;
+    color: var(--gray-500);
 }
-
 .empty-state i {
     font-size: 3rem;
     color: var(--gray-300);
-    display: block;
-    margin-bottom: 12px;
+    margin-bottom: 16px;
 }
-
-.empty-state h3 {
-    color: var(--gray-600);
-    margin: 0;
+.empty-state h4 {
+    margin: 0 0 8px;
+    color: var(--gray-700);
 }
-
 .empty-state p {
-    color: var(--gray-400);
-    margin-top: 6px;
-}
-
-.summary-stats {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-    gap: 10px;
-    margin-bottom: 20px;
-}
-
-.summary-stat {
-    background: white;
-    border-radius: 10px;
-    padding: 10px 12px;
-    border: 1px solid var(--gray-200);
-    text-align: center;
-}
-
-.summary-stat .number {
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: var(--gray-800);
-}
-
-.summary-stat .label {
-    font-size: 0.6rem;
-    color: var(--gray-500);
+    margin: 0;
+    font-size: 0.9rem;
 }
 
 @media (max-width: 768px) {
-    .agent-grid {
-        grid-template-columns: 1fr;
-    }
-    .summary-stats {
+    .stats-row {
         grid-template-columns: repeat(3, 1fr);
     }
-    .agent-card .stats {
-        grid-template-columns: 1fr 1fr 1fr;
+    .filter-bar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .filter-bar .search-box {
+        min-width: unset;
+    }
+    .agents-table {
+        overflow-x: auto;
+    }
+    .agents-table table {
+        min-width: 800px;
+    }
+    .agents-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}
+
+@media (max-width: 480px) {
+    .stats-row {
+        grid-template-columns: repeat(2, 1fr);
     }
 }
 </style>
@@ -377,12 +540,11 @@ include '../includes/sidebar.php';
     
     <div class="main-content-inner">
         <!-- Page Header -->
-        <div class="welcome-section">
+        <div class="agents-header">
             <div>
-                <h1><i class="fas fa-user-tie"></i> Manage PU Agents</h1>
-                <p class="subtitle">
-                    <i class="fas fa-layer-group"></i> 
-                    <?php echo htmlspecialchars($ward_name); ?> Ward - Manage Polling Unit Agents
+                <h2><i class="fas fa-user-tie"></i> Manage PU Agents</h2>
+                <p style="color: var(--gray-500); margin: 2px 0 0; font-size: 0.85rem;">
+                    <?php echo htmlspecialchars($ward_name); ?> Ward - <?php echo number_format($agent_stats['total']); ?> Agents
                 </p>
             </div>
             <div class="actions">
@@ -395,130 +557,225 @@ include '../includes/sidebar.php';
             </div>
         </div>
 
-        <!-- Summary Stats -->
-        <div class="summary-stats">
-            <div class="summary-stat">
-                <div class="number"><?php echo number_format($stats['total']); ?></div>
+        <!-- Action Message -->
+        <?php if (!empty($action_message)): ?>
+            <div class="alert alert-<?php echo $action_type === 'success' ? 'success' : 'danger'; ?>" style="margin-bottom:16px;">
+                <i class="fas fa-<?php echo $action_type === 'success' ? 'check-circle' : 'exclamation-circle'; ?>"></i>
+                <?php echo htmlspecialchars($action_message); ?>
+            </div>
+        <?php endif; ?>
+
+        <!-- Statistics -->
+        <div class="stats-row">
+            <div class="stat-mini">
+                <div class="number blue"><?php echo number_format($agent_stats['total']); ?></div>
                 <div class="label">Total Agents</div>
             </div>
-            <div class="summary-stat">
-                <div class="number" style="color:#10B981;"><?php echo number_format($stats['active']); ?></div>
+            <div class="stat-mini">
+                <div class="number green"><?php echo number_format($agent_stats['active']); ?></div>
                 <div class="label">Active</div>
             </div>
-            <div class="summary-stat">
-                <div class="number" style="color:#EF4444;"><?php echo number_format($stats['suspended']); ?></div>
+            <div class="stat-mini">
+                <div class="number red"><?php echo number_format($agent_stats['suspended']); ?></div>
                 <div class="label">Suspended</div>
             </div>
-            <div class="summary-stat">
-                <div class="number" style="color:#F59E0B;"><?php echo number_format($stats['pending']); ?></div>
-                <div class="label">Pending</div>
+            <div class="stat-mini">
+                <div class="number purple"><?php echo number_format($agent_stats['online']); ?></div>
+                <div class="label">Online Now</div>
             </div>
-            <div class="summary-stat">
-                <div class="number" style="color:#3B82F6;"><?php echo number_format($stats['online']); ?></div>
-                <div class="label">Online</div>
+            <div class="stat-mini">
+                <div class="number blue"><?php echo number_format($agent_stats['assigned']); ?></div>
+                <div class="label">Assigned to PU</div>
             </div>
-            <div class="summary-stat">
-                <div class="number" style="color:#8B5CF6;"><?php echo number_format(count($stats['by_pu'])); ?></div>
-                <div class="label">PUs Covered</div>
+            <div class="stat-mini">
+                <div class="number orange"><?php echo number_format($agent_stats['unassigned']); ?></div>
+                <div class="label">Unassigned</div>
             </div>
         </div>
 
-        <!-- Agents Grid -->
-        <div class="agent-grid">
-            <?php foreach ($agents as $agent): 
-                $full_name = $agent['first_name'] . ' ' . $agent['last_name'];
-                $initials = strtoupper(substr($agent['first_name'], 0, 1) . substr($agent['last_name'], 0, 1));
-                $online_status = $agent['is_online'] > 0 ? 'online' : 'offline';
-                $online_label = $agent['is_online'] > 0 ? 'Online' : 'Offline';
-            ?>
-                <div class="agent-card">
-                    <div class="card-top">
-                        <div class="avatar"><?php echo $initials; ?></div>
-                        <div class="info">
-                            <div class="name"><?php echo htmlspecialchars($full_name); ?></div>
-                            <div class="pu">
-                                <?php if ($agent['pu_id']): ?>
-                                    <i class="fas fa-flag-checkered"></i> <?php echo htmlspecialchars($agent['pu_name']); ?>
-                                    <span style="font-size:0.6rem;color:var(--gray-400);">(<?php echo htmlspecialchars($agent['pu_code']); ?>)</span>
-                                <?php else: ?>
-                                    <span style="color:var(--gray-400);">Unassigned</span>
-                                <?php endif; ?>
-                            </div>
-                            <div style="font-size:0.6rem;color:var(--gray-400);">
-                                <?php echo htmlspecialchars($agent['user_code']); ?>
-                            </div>
-                        </div>
-                    </div>
+        <!-- Filter Bar -->
+        <div class="filter-bar">
+            <div class="search-box">
+                <i class="fas fa-search"></i>
+                <input type="text" id="searchInput" placeholder="Search by name, email or phone..." 
+                       value="<?php echo htmlspecialchars($search); ?>">
+            </div>
+            <select id="statusFilter">
+                <option value="all" <?php echo $status_filter === 'all' ? 'selected' : ''; ?>>All Status</option>
+                <option value="active" <?php echo $status_filter === 'active' ? 'selected' : ''; ?>>Active</option>
+                <option value="suspended" <?php echo $status_filter === 'suspended' ? 'selected' : ''; ?>>Suspended</option>
+                <option value="pending" <?php echo $status_filter === 'pending' ? 'selected' : ''; ?>>Pending</option>
+            </select>
+            <select id="puFilter">
+                <option value="0" <?php echo $pu_filter === 0 ? 'selected' : ''; ?>>All Polling Units</option>
+                <?php foreach ($polling_units as $pu): ?>
+                    <option value="<?php echo $pu['id']; ?>" <?php echo $pu_filter === (int)$pu['id'] ? 'selected' : ''; ?>>
+                        <?php echo htmlspecialchars($pu['name']); ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+            <button onclick="applyFilters()" class="btn-secondary-sm">
+                <i class="fas fa-filter"></i> Apply
+            </button>
+            <button onclick="resetFilters()" class="btn-secondary-sm" style="background: var(--gray-100);">
+                <i class="fas fa-undo"></i> Reset
+            </button>
+        </div>
 
-                    <div class="badges">
-                        <span class="status-badge <?php echo $agent['status']; ?>">
-                            <span class="dot"></span> <?php echo ucfirst($agent['status']); ?>
-                        </span>
-                        <span class="status-badge <?php echo $online_status; ?>">
-                            <span class="dot"></span> <?php echo $online_label; ?>
-                        </span>
-                    </div>
-
-                    <div class="stats">
-                        <div class="stat-item">
-                            <div class="number" style="color:#10B981;"><?php echo number_format($agent['verified_results']); ?></div>
-                            <div class="label">Verified</div>
-                        </div>
-                        <div class="stat-item">
-                            <div class="number" style="color:#F59E0B;"><?php echo number_format($agent['pending_results']); ?></div>
-                            <div class="label">Pending</div>
-                        </div>
-                        <div class="stat-item">
-                            <div class="number" style="color:#EF4444;"><?php echo number_format($agent['incidents_reported']); ?></div>
-                            <div class="label">Incidents</div>
-                        </div>
-                    </div>
-
-                    <div style="font-size:0.65rem;color:var(--gray-400);margin:4px 0;">
-                        <?php if (!empty($agent['email'])): ?>
-                            <i class="fas fa-envelope"></i> <?php echo htmlspecialchars($agent['email']); ?>
-                        <?php endif; ?>
-                        <?php if (!empty($agent['phone'])): ?>
-                            <span style="margin-left:6px;"><i class="fas fa-phone"></i> <?php echo htmlspecialchars($agent['phone']); ?></span>
-                        <?php endif; ?>
-                    </div>
-
-                    <div class="actions">
-                        <a href="agent-profile.php?id=<?php echo $agent['id']; ?>" class="btn-profile">
-                            <i class="fas fa-id-card"></i> Profile
+        <!-- Agents Table -->
+        <div class="agents-table">
+            <?php if (count($agents) > 0): ?>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width:50px;">Avatar</th>
+                            <th>Agent</th>
+                            <th>Contact</th>
+                            <th>Polling Unit</th>
+                            <th>Submissions</th>
+                            <th>Status</th>
+                            <th style="width:180px;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($agents as $agent): 
+                            $is_online = (int)($agent['is_online'] ?? 0) > 0;
+                            $initial = strtoupper(substr($agent['full_name'] ?? 'U', 0, 2));
+                            $avatar = !empty($agent['photograph_url']) ? $agent['photograph_url'] : '';
+                        ?>
+                            <tr>
+                                <td>
+                                    <div class="agent-avatar <?php echo $is_online ? 'online' : 'offline'; ?>">
+                                        <?php if ($avatar): ?>
+                                            <img src="<?php echo htmlspecialchars($avatar); ?>" alt="<?php echo htmlspecialchars($agent['full_name']); ?>">
+                                        <?php else: ?>
+                                            <?php echo $initial; ?>
+                                        <?php endif; ?>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div style="font-weight:500;"><?php echo htmlspecialchars($agent['full_name'] ?? 'N/A'); ?></div>
+                                    <div style="font-size:0.65rem;color:var(--gray-400);">
+                                        <?php echo htmlspecialchars($agent['user_code'] ?? ''); ?>
+                                        <?php if ($is_online): ?>
+                                            <span style="color:#10B981;margin-left:6px;">
+                                                <i class="fas fa-circle" style="font-size:0.4rem;"></i> Online
+                                            </span>
+                                        <?php else: ?>
+                                            <span style="color:var(--gray-400);margin-left:6px;">
+                                                <i class="fas fa-circle" style="font-size:0.4rem;"></i> Offline
+                                            </span>
+                                        <?php endif; ?>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div style="font-size:0.78rem;">
+                                        <?php if (!empty($agent['email'])): ?>
+                                            <div><i class="fas fa-envelope" style="font-size:0.6rem;color:var(--gray-400);width:16px;"></i> <?php echo htmlspecialchars($agent['email']); ?></div>
+                                        <?php endif; ?>
+                                        <?php if (!empty($agent['phone'])): ?>
+                                            <div><i class="fas fa-phone" style="font-size:0.6rem;color:var(--gray-400);width:16px;"></i> <?php echo htmlspecialchars($agent['phone']); ?></div>
+                                        <?php endif; ?>
+                                    </div>
+                                </td>
+                                <td>
+                                    <?php if (!empty($agent['pu_name'])): ?>
+                                        <div style="font-size:0.78rem;">
+                                            <strong><?php echo htmlspecialchars($agent['pu_name']); ?></strong>
+                                            <div style="font-size:0.6rem;color:var(--gray-400);"><?php echo htmlspecialchars($agent['pu_code'] ?? ''); ?></div>
+                                        </div>
+                                    <?php else: ?>
+                                        <span style="color:var(--gray-400);font-size:0.75rem;">Not Assigned</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td style="font-size:0.78rem;">
+                                    <div>Total: <?php echo number_format($agent['total_submissions'] ?? 0); ?></div>
+                                    <div style="font-size:0.65rem;">
+                                        <span style="color:#10B981;">✓ <?php echo number_format($agent['verified_submissions'] ?? 0); ?></span>
+                                        <span style="color:#F59E0B;">⏳ <?php echo number_format($agent['pending_submissions'] ?? 0); ?></span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="status-badge <?php echo $agent['status'] ?? 'pending'; ?>">
+                                        <?php echo ucfirst($agent['status'] ?? 'Pending'); ?>
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="agent-actions">
+                                        <a href="agent-profile.php?id=<?php echo $agent['id']; ?>" class="btn-sm view" title="View Profile">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        <?php if (empty($agent['pu_id'])): ?>
+                                            <a href="assign-agents.php?agent_id=<?php echo $agent['id']; ?>" class="btn-sm assign" title="Assign to PU">
+                                                <i class="fas fa-user-plus"></i>
+                                            </a>
+                                        <?php else: ?>
+                                            <a href="reassign-agent.php?agent_id=<?php echo $agent['id']; ?>" class="btn-sm assign" title="Reassign">
+                                                <i class="fas fa-exchange-alt"></i>
+                                            </a>
+                                        <?php endif; ?>
+                                        
+                                        <?php if (($agent['status'] ?? '') === 'active'): ?>
+                                            <button onclick="confirmAction(<?php echo $agent['id']; ?>, 'suspend')" class="btn-sm suspend" title="Suspend">
+                                                <i class="fas fa-pause"></i>
+                                            </button>
+                                        <?php elseif (($agent['status'] ?? '') === 'suspended'): ?>
+                                            <button onclick="confirmAction(<?php echo $agent['id']; ?>, 'activate')" class="btn-sm activate" title="Activate">
+                                                <i class="fas fa-play"></i>
+                                            </button>
+                                        <?php endif; ?>
+                                        
+                                        <button onclick="confirmAction(<?php echo $agent['id']; ?>, 'delete')" class="btn-sm delete" title="Delete">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+                
+                <!-- Pagination -->
+                <?php 
+                $total_pages = ceil($total_agents / $limit);
+                if ($total_pages > 1): 
+                ?>
+                <div class="pagination">
+                    <?php if ($page > 1): ?>
+                        <a href="?page=<?php echo $page - 1; ?>&search=<?php echo urlencode($search); ?>&status=<?php echo $status_filter; ?>&pu_id=<?php echo $pu_filter; ?>">
+                            <i class="fas fa-chevron-left"></i>
                         </a>
-                        <?php if (!$agent['pu_id']): ?>
-                            <a href="assign-agents.php?agent_id=<?php echo $agent['id']; ?>" class="btn-assign">
-                                <i class="fas fa-user-plus"></i> Assign
-                            </a>
+                    <?php else: ?>
+                        <span class="disabled"><i class="fas fa-chevron-left"></i></span>
+                    <?php endif; ?>
+                    
+                    <?php for ($i = 1; $i <= $total_pages; $i++): ?>
+                        <?php if ($i == $page): ?>
+                            <span class="active"><?php echo $i; ?></span>
                         <?php else: ?>
-                            <a href="reassign-agent.php?agent_id=<?php echo $agent['id']; ?>" class="btn-assign">
-                                <i class="fas fa-exchange-alt"></i> Reassign
+                            <a href="?page=<?php echo $i; ?>&search=<?php echo urlencode($search); ?>&status=<?php echo $status_filter; ?>&pu_id=<?php echo $pu_filter; ?>">
+                                <?php echo $i; ?>
                             </a>
                         <?php endif; ?>
-                        <?php if ($agent['status'] === 'active'): ?>
-                            <a href="suspend-agent.php?id=<?php echo $agent['id']; ?>" class="btn-suspend" onclick="return confirm('Suspend this agent?')">
-                                <i class="fas fa-pause"></i> Suspend
-                            </a>
-                        <?php elseif ($agent['status'] === 'suspended'): ?>
-                            <a href="activate-agent.php?id=<?php echo $agent['id']; ?>" class="btn-activate">
-                                <i class="fas fa-play"></i> Activate
-                            </a>
-                        <?php endif; ?>
-                        <a href="reset-agent-password.php?id=<?php echo $agent['id']; ?>" class="btn-reset">
-                            <i class="fas fa-key"></i> Reset
+                    <?php endfor; ?>
+                    
+                    <?php if ($page < $total_pages): ?>
+                        <a href="?page=<?php echo $page + 1; ?>&search=<?php echo urlencode($search); ?>&status=<?php echo $status_filter; ?>&pu_id=<?php echo $pu_filter; ?>">
+                            <i class="fas fa-chevron-right"></i>
                         </a>
-                    </div>
+                    <?php else: ?>
+                        <span class="disabled"><i class="fas fa-chevron-right"></i></span>
+                    <?php endif; ?>
                 </div>
-            <?php endforeach; ?>
-
-            <?php if (empty($agents)): ?>
+                <?php endif; ?>
+                
+            <?php else: ?>
                 <div class="empty-state">
                     <i class="fas fa-user-tie"></i>
-                    <h3>No Agents Found</h3>
-                    <p>No PU agents have been assigned to <?php echo htmlspecialchars($ward_name); ?> yet.</p>
-                    <a href="assign-agents.php" class="btn-primary-sm" style="margin-top:12px;">
-                        <i class="fas fa-user-plus"></i> Assign Agent
+                    <h4>No Agents Found</h4>
+                    <p>No PU agents have been assigned to this ward yet.</p>
+                    <a href="assign-agents.php" class="btn-primary-sm" style="display:inline-block;margin-top:12px;">
+                        <i class="fas fa-user-plus"></i> Assign First Agent
                     </a>
                 </div>
             <?php endif; ?>
@@ -527,7 +784,66 @@ include '../includes/sidebar.php';
 </main>
 
 <script>
-// Same sidebar scripts as index.php
+// Apply filters
+function applyFilters() {
+    const search = document.getElementById('searchInput').value;
+    const status = document.getElementById('statusFilter').value;
+    const pu = document.getElementById('puFilter').value;
+    window.location.href = `?search=${encodeURIComponent(search)}&status=${status}&pu_id=${pu}`;
+}
+
+// Reset filters
+function resetFilters() {
+    document.getElementById('searchInput').value = '';
+    document.getElementById('statusFilter').value = 'all';
+    document.getElementById('puFilter').value = '0';
+    window.location.href = '?';
+}
+
+// Confirm action (Suspend/Activate/Delete)
+function confirmAction(agentId, action) {
+    const actionLabels = {
+        'suspend': 'suspend',
+        'activate': 'activate',
+        'delete': 'delete'
+    };
+    
+    const confirmMessages = {
+        'suspend': 'Are you sure you want to suspend this agent? They will not be able to access the system.',
+        'activate': 'Are you sure you want to activate this agent? They will regain access to the system.',
+        'delete': 'Are you sure you want to delete this agent? This action can be reversed.'
+    };
+    
+    if (confirm(confirmMessages[action] || 'Are you sure?')) {
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.style.display = 'none';
+        
+        const agentInput = document.createElement('input');
+        agentInput.type = 'hidden';
+        agentInput.name = 'agent_id';
+        agentInput.value = agentId;
+        
+        const actionInput = document.createElement('input');
+        actionInput.type = 'hidden';
+        actionInput.name = 'action';
+        actionInput.value = action;
+        
+        form.appendChild(agentInput);
+        form.appendChild(actionInput);
+        document.body.appendChild(form);
+        form.submit();
+    }
+}
+
+// Enter key on search
+document.getElementById('searchInput').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        applyFilters();
+    }
+});
+
+// Preloader
 window.addEventListener('load', function() {
     var preloader = document.getElementById('preloader');
     if (preloader) {
@@ -536,6 +852,7 @@ window.addEventListener('load', function() {
     }
 });
 
+// Sidebar toggle
 var sidebar = document.getElementById('sidebar');
 var sidebarToggle = document.getElementById('sidebarToggle');
 var sidebarOverlay = document.getElementById('sidebarOverlay');
@@ -574,6 +891,7 @@ window.addEventListener('resize', function() {
     }
 });
 
+// Sidebar dropdowns
 document.querySelectorAll('.dropdown-toggle').forEach(function(toggle) {
     toggle.addEventListener('click', function(e) {
         e.preventDefault();
@@ -587,6 +905,7 @@ document.querySelectorAll('.dropdown-toggle').forEach(function(toggle) {
     });
 });
 
+// Profile dropdown
 var profileBtn = document.getElementById('profileBtn');
 var profileMenu = document.getElementById('profileMenu');
 
