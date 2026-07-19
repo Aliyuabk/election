@@ -24,10 +24,7 @@ if (empty($email) || empty($password)) {
     exit;
 }
 
-$host = 'localhost';
-$db_name = 'utgoohwm_election';
-$username = 'utgoohwm_election'; // Your actual database username
-$password_db = 'Jiddaahh@1'; // Your actual database password
+include '../../config/config.php';
 
 try {
     $conn = new mysqli($host, $username, $password_db, $db_name);
