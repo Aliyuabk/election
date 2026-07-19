@@ -1,110 +1,132 @@
 <?php
-header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization');
+require_once __DIR__ . '/../../includes/cors.php';
+require_once __DIR__ . '/../../includes/response.php';
+require_once __DIR__ . '/../../includes/auth.php';
+require_once __DIR__ . '/../../config/database.php';
 
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    exit(0);
-}
-
+// Only POST method allowed
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['success' => false, 'message' => 'Method not allowed']);
-    exit;
+    sendError('Method not allowed', HTTP_METHOD_NOT_ALLOWED);
 }
 
+// Get input data
 $input = json_decode(file_get_contents('php://input'), true);
-$email = $input['email'] ?? '';
-$password = $input['password'] ?? '';
+$email = isset($input['email']) ? trim($input['email']) : '';
+$password = isset($input['password']) ? trim($input['password']) : '';
+$deviceId = isset($input['device_id']) ? trim($input['device_id']) : null;
 
+// Validate input
 if (empty($email) || empty($password)) {
-    http_response_code(400);
-    echo json_encode(['success' => false, 'message' => 'Email and password required']);
-    exit;
+    sendError('Email and password are required', HTTP_BAD_REQUEST);
 }
-
-include '../../config/config.php';
 
 try {
-    $conn = new mysqli($host, $username, $password_db, $db_name);
-    
-    if ($conn->connect_error) {
-        throw new Exception("Database connection failed");
-    }
-    
-    $conn->set_charset("utf8mb4");
+    $conn = getDBConnection();
     
     // Get user with role
     $stmt = $conn->prepare("
-        SELECT u.*, r.name as role_name, r.level as role_level, t.name as tenant_name
+        SELECT u.*, r.name as role_name, r.level as role_level, 
+               t.name as tenant_name
         FROM users u
         LEFT JOIN roles r ON u.role_id = r.id
         LEFT JOIN tenants t ON u.tenant_id = t.id
         WHERE u.email = ? AND u.status = 'active'
     ");
-    
     $stmt->bind_param("s", $email);
     $stmt->execute();
     $result = $stmt->get_result();
     
     if ($user = $result->fetch_assoc()) {
+        // Verify password
         if (password_verify($password, $user['password_hash'])) {
+            // Check if account is locked
+            if ($user['locked_until'] && strtotime($user['locked_until']) > time()) {
+                sendError('Account temporarily locked. Please try again later.', HTTP_UNAUTHORIZED);
+            }
+            
             // Generate token
             $token = bin2hex(random_bytes(32));
+            $expiresAt = date('Y-m-d H:i:s', strtotime('+7 days'));
             
             // Store session
-            $sessionStmt = $conn->prepare("
-                INSERT INTO user_sessions (user_id, token, device_type, ip_address, user_agent, is_active, created_at)
-                VALUES (?, ?, 'mobile', ?, ?, 1, NOW())
-            ");
             $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
             $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? 'unknown';
-            $sessionStmt->bind_param("isss", $user['id'], $token, $ip, $userAgent);
+            
+            $sessionStmt = $conn->prepare("
+                INSERT INTO user_sessions (user_id, token, device_type, device_id, ip_address, user_agent, is_active, expires_at)
+                VALUES (?, ?, 'mobile', ?, ?, ?, 1, ?)
+            ");
+            $sessionStmt->bind_param("isssss", $user['id'], $token, $deviceId, $ip, $userAgent, $expiresAt);
             $sessionStmt->execute();
             $sessionStmt->close();
             
             // Update last login
             $updateStmt = $conn->prepare("
-                UPDATE users SET last_login_at = NOW(), last_login_ip = ?, login_attempts = 0 WHERE id = ?
+                UPDATE users 
+                SET last_login_at = NOW(), last_login_ip = ?, login_attempts = 0, locked_until = NULL 
+                WHERE id = ?
             ");
             $updateStmt->bind_param("si", $ip, $user['id']);
             $updateStmt->execute();
             $updateStmt->close();
             
+            // Remove sensitive data
             unset($user['password_hash']);
             unset($user['remember_token']);
             unset($user['two_factor_secret']);
             $user['token'] = $token;
             
-            echo json_encode([
-                'success' => true,
-                'message' => 'Login successful',
+            // Log activity
+            $logStmt = $conn->prepare("
+                INSERT INTO activity_logs (user_id, tenant_id, activity_type, description, ip_address, created_at)
+                VALUES (?, ?, 'login', 'User logged in successfully', ?, NOW())
+            ");
+            $logStmt->bind_param("iis", $user['id'], $user['tenant_id'], $ip);
+            $logStmt->execute();
+            $logStmt->close();
+            
+            // Check if 2FA is enabled
+            $requires2FA = isset($user['two_factor_enabled']) && $user['two_factor_enabled'] == 1;
+            
+            sendSuccess('Login successful', [
                 'user' => $user,
-                'token' => $token
+                'token' => $token,
+                'requires_2fa' => $requires2FA
             ]);
+            
         } else {
             // Increment login attempts
             $updateStmt = $conn->prepare("
-                UPDATE users SET login_attempts = login_attempts + 1 WHERE id = ?
+                UPDATE users 
+                SET login_attempts = login_attempts + 1 
+                WHERE id = ?
             ");
             $updateStmt->bind_param("i", $user['id']);
             $updateStmt->execute();
             $updateStmt->close();
             
-            http_response_code(401);
-            echo json_encode(['success' => false, 'message' => 'Invalid password']);
+            // Check if should lock account
+            $attempts = $user['login_attempts'] + 1;
+            if ($attempts >= 10) {
+                $lockUntil = date('Y-m-d H:i:s', strtotime('+15 minutes'));
+                $lockStmt = $conn->prepare("
+                    UPDATE users SET locked_until = ? WHERE id = ?
+                ");
+                $lockStmt->bind_param("si", $lockUntil, $user['id']);
+                $lockStmt->execute();
+                $lockStmt->close();
+                sendError('Too many failed attempts. Account locked for 15 minutes.', HTTP_UNAUTHORIZED);
+            }
+            
+            sendError('Invalid password', HTTP_UNAUTHORIZED);
         }
     } else {
-        http_response_code(401);
-        echo json_encode(['success' => false, 'message' => 'User not found']);
+        sendError('User not found', HTTP_UNAUTHORIZED);
     }
     
     $stmt->close();
     $conn->close();
     
 } catch (Exception $e) {
-    http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Server error: ' . $e->getMessage()]);
+    sendError('Server error: ' . $e->getMessage(), HTTP_INTERNAL_ERROR);
 }
-?>
