@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// WARD COORDINATOR - SEND BROADCAST
+// WARD COORDINATOR - DUPLICATE BROADCAST
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -57,24 +57,18 @@ if ($broadcast_id <= 0) {
 // FETCH BROADCAST DETAILS
 // ============================================================
 $broadcast = null;
-$success_message = '';
 $error_message = '';
 
 try {
     $stmt = $db->prepare("
         SELECT * FROM broadcasts 
-        WHERE id = ? AND tenant_id = ? AND sender_id = ?
+        WHERE id = ? AND tenant_id = ?
     ");
-    $stmt->execute([$broadcast_id, $tenant_id, $user_id]);
+    $stmt->execute([$broadcast_id, $tenant_id]);
     $broadcast = $stmt->fetch(PDO::FETCH_ASSOC);
     
     if (!$broadcast) {
         header('Location: broadcasts.php?error=notfound');
-        exit();
-    }
-    
-    if ($broadcast['status'] === 'sent') {
-        header('Location: broadcasts.php?error=already_sent');
         exit();
     }
     
@@ -85,115 +79,59 @@ try {
 }
 
 // ============================================================
-// FETCH WARD NAME
+// HANDLE DUPLICATION
 // ============================================================
-$ward_name = 'Ward';
-try {
-    if ($ward_id) {
-        $stmt = $db->prepare("SELECT name FROM wards WHERE id = ?");
-        $stmt->execute([$ward_id]);
-        $result = $stmt->fetch(PDO::FETCH_ASSOC);
-        if ($result) {
-            $ward_name = $result['name'];
-        }
-    }
-} catch (Exception $e) {
-    error_log("Error fetching ward name: " . $e->getMessage());
-}
+$success_message = '';
 
-// ============================================================
-// HANDLE SEND
-// ============================================================
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'send') {
-    try {
-        // Get target_ids from broadcast
-        $target_ids = json_decode($broadcast['target_ids_json'] ?? '[]', true);
-        
-        // Get recipients using existing function
-        $recipients = getBroadcastRecipients($tenant_id, $broadcast['target_audience'], $target_ids);
-        
-        // Prepare email recipients
-        $email_recipients = [];
-        foreach ($recipients as $recipient) {
-            if (!empty($recipient['email'])) {
-                $email_recipients[] = [
-                    'email' => $recipient['email'],
-                    'full_name' => $recipient['full_name'] ?? 'User'
-                ];
-            }
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'duplicate') {
+    $new_title = isset($_POST['title']) ? trim($_POST['title']) : '';
+    
+    if (empty($new_title)) {
+        $error_message = "Please enter a title for the duplicated broadcast.";
+    } else {
+        try {
+            // Insert duplicate broadcast
+            $stmt = $db->prepare("
+                INSERT INTO broadcasts (
+                    tenant_id, sender_id, title, message, target_audience, 
+                    target_ids_json, send_via, status, total_recipients, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, NOW())
+            ");
+            
+            $stmt->execute([
+                $tenant_id,
+                $user_id,
+                $new_title,
+                $broadcast['message'],
+                $broadcast['target_audience'],
+                $broadcast['target_ids_json'],
+                $broadcast['send_via'],
+                $broadcast['total_recipients']
+            ]);
+            
+            $new_broadcast_id = $db->lastInsertId();
+            
+            // Log activity
+            logActivity($user_id, 'broadcast_duplicated', "Duplicated broadcast: {$broadcast['title']} (New ID: $new_broadcast_id)", 'broadcasts', $new_broadcast_id);
+            
+            $success_message = "Broadcast duplicated successfully!";
+            header('Location: broadcasts-edit.php?id=' . $new_broadcast_id . '&success=' . urlencode($success_message));
+            exit();
+            
+        } catch (Exception $e) {
+            $error_message = "Error duplicating broadcast: " . $e->getMessage();
+            error_log("Broadcast duplicate error: " . $e->getMessage());
         }
-        
-        // Get send channels
-        $send_via = json_decode($broadcast['send_via'] ?? '["email"]', true);
-        
-        // Send via email
-        if (in_array('email', $send_via) && !empty($email_recipients)) {
-            $email_result = sendBroadcastEmails($email_recipients, $broadcast['title'], $broadcast['message']);
-        }
-        
-        // Send via In-App
-        if (in_array('in_app', $send_via)) {
-            $sent = 0;
-            foreach ($recipients as $recipient) {
-                // Get user_id from recipient
-                $user_id_recipient = isset($recipient['id']) ? $recipient['id'] : 0;
-                
-                // If no id in recipient array, try to get from database
-                if (!$user_id_recipient && !empty($recipient['email'])) {
-                    $stmt = $db->prepare("SELECT id FROM users WHERE email = ? AND tenant_id = ?");
-                    $stmt->execute([$recipient['email'], $tenant_id]);
-                    $user = $stmt->fetch(PDO::FETCH_ASSOC);
-                    if ($user) {
-                        $user_id_recipient = $user['id'];
-                    }
-                }
-                
-                if ($user_id_recipient > 0) {
-                    $stmt = $db->prepare("
-                        INSERT INTO notifications (user_id, type, title, message, data_json, created_at) 
-                        VALUES (?, 'broadcast', ?, ?, ?, NOW())
-                    ");
-                    $stmt->execute([
-                        $user_id_recipient,
-                        $broadcast['title'],
-                        $broadcast['message'],
-                        json_encode(['broadcast_id' => $broadcast_id])
-                    ]);
-                    $sent++;
-                }
-            }
-        }
-        
-        // Update broadcast status
-        $stmt = $db->prepare("
-            UPDATE broadcasts 
-            SET status = 'sent', sent_at = NOW() 
-            WHERE id = ?
-        ");
-        $stmt->execute([$broadcast_id]);
-        
-        // Log activity
-        logActivity($user_id, 'broadcast_sent', "Sent broadcast: {$broadcast['title']} (ID: $broadcast_id)", 'broadcasts', $broadcast_id);
-        
-        $success_message = "Broadcast sent successfully to " . count($recipients) . " recipients!";
-        
-        // Redirect
-        header('Location: broadcasts.php?success=' . urlencode($success_message));
-        exit();
-        
-    } catch (Exception $e) {
-        $error_message = "Error sending broadcast: " . $e->getMessage();
-        error_log("Broadcast send error: " . $e->getMessage());
     }
 }
 
-$page_title = 'Send Broadcast';
+$page_title = 'Duplicate Broadcast';
 include '../includes/base.php';
 include '../includes/sidebar.php';
 ?>
 
 <style>
-.send-header {
+.duplicate-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -201,12 +139,12 @@ include '../includes/sidebar.php';
     gap: 12px;
     margin-bottom: 20px;
 }
-.send-header h2 {
+.duplicate-header h2 {
     font-size: 1.3rem;
     font-weight: 700;
     margin: 0;
 }
-.send-header h2 i {
+.duplicate-header h2 i {
     color: var(--primary);
 }
 
@@ -214,59 +152,61 @@ include '../includes/sidebar.php';
     background: white;
     border-radius: var(--radius);
     border: 1px solid var(--gray-200);
-    padding: 20px;
+    padding: 16px;
     margin-bottom: 20px;
 }
 .broadcast-preview .preview-title {
-    font-size: 1.1rem;
-    font-weight: 700;
-    margin-bottom: 8px;
+    font-weight: 600;
+    font-size: 0.95rem;
 }
 .broadcast-preview .preview-meta {
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     color: var(--gray-500);
-    margin-bottom: 12px;
+    margin: 4px 0 8px;
 }
 .broadcast-preview .preview-message {
-    font-size: 0.95rem;
-    color: var(--gray-700);
-    padding: 12px 16px;
-    background: var(--gray-50);
-    border-radius: 6px;
-    white-space: pre-wrap;
-    max-height: 300px;
-    overflow-y: auto;
-}
-.broadcast-preview .preview-recipients {
-    margin-top: 12px;
-    padding-top: 12px;
-    border-top: 1px solid var(--gray-200);
     font-size: 0.85rem;
     color: var(--gray-600);
+    padding: 8px 12px;
+    background: var(--gray-50);
+    border-radius: 6px;
+    max-height: 150px;
+    overflow-y: auto;
+    white-space: pre-wrap;
 }
 
-.confirm-box {
-    background: #FEF2F2;
-    border: 1px solid #FEE2E2;
+.duplicate-form {
+    background: white;
     border-radius: var(--radius);
-    padding: 16px;
+    border: 1px solid var(--gray-200);
+    padding: 20px;
+}
+.duplicate-form .form-group {
     margin-bottom: 16px;
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
 }
-.confirm-box i {
-    color: #EF4444;
-    font-size: 1.2rem;
-    margin-top: 2px;
-}
-.confirm-box .text {
-    font-size: 0.9rem;
-    color: #991B1B;
-}
-.confirm-box .text strong {
+.duplicate-form .form-group label {
     display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--gray-700);
     margin-bottom: 4px;
+}
+.duplicate-form .form-group label .required {
+    color: #EF4444;
+}
+.duplicate-form .form-group input[type="text"] {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius);
+    font-size: 0.85rem;
+    background: white;
+}
+
+.form-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 16px;
 }
 
 .alert {
@@ -297,22 +237,7 @@ include '../includes/sidebar.php';
     border-radius: 20px;
     font-weight: 500;
 }
-.badge.draft { background: #E5E7EB; color: #374151; }
-.badge.scheduled { background: #DBEAFE; color: #1E40AF; }
-
-.form-actions {
-    display: flex;
-    gap: 12px;
-}
-.form-actions .btn-send {
-    background: #EF4444;
-    color: white;
-    border-color: #EF4444;
-}
-.form-actions .btn-send:hover {
-    background: #DC2626;
-    border-color: #DC2626;
-}
+.badge.sent { background: #D1FAE5; color: #065F46; }
 
 @media (max-width: 768px) {
     .form-actions {
@@ -331,11 +256,11 @@ include '../includes/sidebar.php';
     
     <div class="main-content-inner">
         <!-- Page Header -->
-        <div class="send-header">
+        <div class="duplicate-header">
             <div>
-                <h2><i class="fas fa-paper-plane"></i> Send Broadcast</h2>
+                <h2><i class="fas fa-copy"></i> Duplicate Broadcast</h2>
                 <p style="color: var(--gray-500); margin: 2px 0 0; font-size: 0.85rem;">
-                    <?php echo htmlspecialchars($ward_name); ?> Ward
+                    Create a copy of an existing broadcast
                 </p>
             </div>
             <div>
@@ -352,60 +277,54 @@ include '../includes/sidebar.php';
         <?php endif; ?>
 
         <?php if ($broadcast): ?>
-            <!-- Broadcast Preview -->
+            <!-- Original Broadcast Preview -->
             <div class="broadcast-preview">
                 <div class="preview-title">
                     <i class="fas fa-bullhorn" style="color:var(--primary);"></i>
-                    <?php echo htmlspecialchars($broadcast['title']); ?>
+                    Original: <?php echo htmlspecialchars($broadcast['title']); ?>
+                    <span class="badge sent" style="margin-left:12px;"><?php echo ucfirst($broadcast['status']); ?></span>
                 </div>
                 <div class="preview-meta">
-                    <span><i class="fas fa-tag"></i> Status: <span class="badge <?php echo $broadcast['status']; ?>"><?php echo ucfirst($broadcast['status']); ?></span></span>
-                    <span style="margin-left:12px;"><i class="fas fa-clock"></i> Created: <?php echo date('M d, Y H:i', strtotime($broadcast['created_at'])); ?></span>
+                    <span><i class="fas fa-clock"></i> Created: <?php echo date('M d, Y H:i', strtotime($broadcast['created_at'])); ?></span>
+                    <span style="margin-left:12px;"><i class="fas fa-users"></i> <?php echo number_format($broadcast['total_recipients'] ?? 0); ?> recipients</span>
                 </div>
                 <div class="preview-message">
-                    <?php echo nl2br(htmlspecialchars($broadcast['message'])); ?>
-                </div>
-                <div class="preview-recipients">
-                    <i class="fas fa-users"></i> 
-                    Target Audience: <?php echo ucfirst(str_replace('_', ' ', $broadcast['target_audience'])); ?>
-                    <?php if ($broadcast['total_recipients'] > 0): ?>
-                        • <?php echo number_format($broadcast['total_recipients']); ?> recipients
-                    <?php endif; ?>
+                    <?php echo nl2br(htmlspecialchars(substr($broadcast['message'], 0, 300))); ?>
+                    <?php if (strlen($broadcast['message']) > 300): ?>...<?php endif; ?>
                 </div>
             </div>
 
-            <!-- Send Confirmation -->
-            <div class="confirm-box">
-                <i class="fas fa-exclamation-triangle"></i>
-                <div class="text">
-                    <strong>⚠️ Confirm Send</strong>
-                    Are you sure you want to send this broadcast to all selected recipients?
-                    This action cannot be undone.
-                </div>
+            <!-- Duplicate Form -->
+            <div class="duplicate-form">
+                <form method="POST" action="">
+                    <input type="hidden" name="action" value="duplicate">
+                    
+                    <div class="form-group">
+                        <label>New Broadcast Title <span class="required">*</span></label>
+                        <input type="text" name="title" id="title" 
+                               value="<?php echo htmlspecialchars($broadcast['title'] . ' (Copy)'); ?>" 
+                               required autofocus>
+                        <div style="font-size:0.7rem;color:var(--gray-400);margin-top:4px;">
+                            <i class="fas fa-info-circle"></i> Give your duplicated broadcast a new title
+                        </div>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="submit" class="btn-primary">
+                            <i class="fas fa-copy"></i> Duplicate Broadcast
+                        </button>
+                        <a href="broadcasts.php" class="btn-secondary">
+                            <i class="fas fa-times"></i> Cancel
+                        </a>
+                    </div>
+                </form>
             </div>
-
-            <!-- Send Form -->
-            <form method="POST" action="">
-                <input type="hidden" name="action" value="send">
-                
-                <div class="form-actions">
-                    <button type="submit" class="btn-send" onclick="return confirm('Are you sure you want to send this broadcast? This action cannot be undone.')">
-                        <i class="fas fa-paper-plane"></i> Send Broadcast
-                    </button>
-                    <a href="broadcasts-edit.php?id=<?php echo $broadcast_id; ?>" class="btn-secondary">
-                        <i class="fas fa-edit"></i> Edit Before Sending
-                    </a>
-                    <a href="broadcasts.php" class="btn-secondary">
-                        <i class="fas fa-times"></i> Cancel
-                    </a>
-                </div>
-            </form>
 
         <?php else: ?>
             <div style="text-align:center;padding:60px 20px;background:white;border-radius:var(--radius);border:1px solid var(--gray-200);">
                 <i class="fas fa-bullhorn" style="font-size:4rem;color:var(--gray-300);"></i>
                 <h4 style="margin:16px 0 8px;">Broadcast Not Found</h4>
-                <p style="color:var(--gray-500);">The broadcast you're trying to send does not exist.</p>
+                <p style="color:var(--gray-500);">The broadcast you're trying to duplicate does not exist.</p>
                 <a href="broadcasts.php" class="btn-primary-sm" style="display:inline-block;margin-top:12px;">
                     <i class="fas fa-arrow-left"></i> Back to Broadcasts
                 </a>

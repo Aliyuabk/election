@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// WARD COORDINATOR - SEND BROADCAST
+// WARD COORDINATOR - CANCEL SCHEDULED BROADCAST
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -73,8 +73,8 @@ try {
         exit();
     }
     
-    if ($broadcast['status'] === 'sent') {
-        header('Location: broadcasts.php?error=already_sent');
+    if ($broadcast['status'] !== 'scheduled') {
+        header('Location: broadcasts.php?error=not_scheduled');
         exit();
     }
     
@@ -85,115 +85,39 @@ try {
 }
 
 // ============================================================
-// FETCH WARD NAME
+// HANDLE CANCELLATION
 // ============================================================
-$ward_name = 'Ward';
-try {
-    if ($ward_id) {
-        $stmt = $db->prepare("SELECT name FROM wards WHERE id = ?");
-        $stmt->execute([$ward_id]);
-        $result = $stmt->fetch(PDO::FETCH_ASSOC);
-        if ($result) {
-            $ward_name = $result['name'];
-        }
-    }
-} catch (Exception $e) {
-    error_log("Error fetching ward name: " . $e->getMessage());
-}
-
-// ============================================================
-// HANDLE SEND
-// ============================================================
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'send') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'cancel') {
+    $reason = isset($_POST['reason']) ? trim($_POST['reason']) : '';
+    
     try {
-        // Get target_ids from broadcast
-        $target_ids = json_decode($broadcast['target_ids_json'] ?? '[]', true);
-        
-        // Get recipients using existing function
-        $recipients = getBroadcastRecipients($tenant_id, $broadcast['target_audience'], $target_ids);
-        
-        // Prepare email recipients
-        $email_recipients = [];
-        foreach ($recipients as $recipient) {
-            if (!empty($recipient['email'])) {
-                $email_recipients[] = [
-                    'email' => $recipient['email'],
-                    'full_name' => $recipient['full_name'] ?? 'User'
-                ];
-            }
-        }
-        
-        // Get send channels
-        $send_via = json_decode($broadcast['send_via'] ?? '["email"]', true);
-        
-        // Send via email
-        if (in_array('email', $send_via) && !empty($email_recipients)) {
-            $email_result = sendBroadcastEmails($email_recipients, $broadcast['title'], $broadcast['message']);
-        }
-        
-        // Send via In-App
-        if (in_array('in_app', $send_via)) {
-            $sent = 0;
-            foreach ($recipients as $recipient) {
-                // Get user_id from recipient
-                $user_id_recipient = isset($recipient['id']) ? $recipient['id'] : 0;
-                
-                // If no id in recipient array, try to get from database
-                if (!$user_id_recipient && !empty($recipient['email'])) {
-                    $stmt = $db->prepare("SELECT id FROM users WHERE email = ? AND tenant_id = ?");
-                    $stmt->execute([$recipient['email'], $tenant_id]);
-                    $user = $stmt->fetch(PDO::FETCH_ASSOC);
-                    if ($user) {
-                        $user_id_recipient = $user['id'];
-                    }
-                }
-                
-                if ($user_id_recipient > 0) {
-                    $stmt = $db->prepare("
-                        INSERT INTO notifications (user_id, type, title, message, data_json, created_at) 
-                        VALUES (?, 'broadcast', ?, ?, ?, NOW())
-                    ");
-                    $stmt->execute([
-                        $user_id_recipient,
-                        $broadcast['title'],
-                        $broadcast['message'],
-                        json_encode(['broadcast_id' => $broadcast_id])
-                    ]);
-                    $sent++;
-                }
-            }
-        }
-        
-        // Update broadcast status
         $stmt = $db->prepare("
             UPDATE broadcasts 
-            SET status = 'sent', sent_at = NOW() 
-            WHERE id = ?
+            SET status = 'cancelled' 
+            WHERE id = ? AND tenant_id = ? AND sender_id = ?
         ");
-        $stmt->execute([$broadcast_id]);
+        $stmt->execute([$broadcast_id, $tenant_id, $user_id]);
         
         // Log activity
-        logActivity($user_id, 'broadcast_sent', "Sent broadcast: {$broadcast['title']} (ID: $broadcast_id)", 'broadcasts', $broadcast_id);
+        logActivity($user_id, 'broadcast_cancelled', "Cancelled scheduled broadcast: {$broadcast['title']} (ID: $broadcast_id) - Reason: $reason", 'broadcasts', $broadcast_id);
         
-        $success_message = "Broadcast sent successfully to " . count($recipients) . " recipients!";
-        
-        // Redirect
+        $success_message = "Broadcast cancelled successfully!";
         header('Location: broadcasts.php?success=' . urlencode($success_message));
         exit();
         
     } catch (Exception $e) {
-        $error_message = "Error sending broadcast: " . $e->getMessage();
-        error_log("Broadcast send error: " . $e->getMessage());
+        $error_message = "Error cancelling broadcast: " . $e->getMessage();
+        error_log("Broadcast cancel error: " . $e->getMessage());
     }
 }
 
-$page_title = 'Send Broadcast';
+$page_title = 'Cancel Broadcast';
 include '../includes/base.php';
 include '../includes/sidebar.php';
 ?>
 
 <style>
-.send-header {
+.cancel-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -201,72 +125,105 @@ include '../includes/sidebar.php';
     gap: 12px;
     margin-bottom: 20px;
 }
-.send-header h2 {
+.cancel-header h2 {
     font-size: 1.3rem;
     font-weight: 700;
     margin: 0;
 }
-.send-header h2 i {
-    color: var(--primary);
-}
-
-.broadcast-preview {
-    background: white;
-    border-radius: var(--radius);
-    border: 1px solid var(--gray-200);
-    padding: 20px;
-    margin-bottom: 20px;
-}
-.broadcast-preview .preview-title {
-    font-size: 1.1rem;
-    font-weight: 700;
-    margin-bottom: 8px;
-}
-.broadcast-preview .preview-meta {
-    font-size: 0.8rem;
-    color: var(--gray-500);
-    margin-bottom: 12px;
-}
-.broadcast-preview .preview-message {
-    font-size: 0.95rem;
-    color: var(--gray-700);
-    padding: 12px 16px;
-    background: var(--gray-50);
-    border-radius: 6px;
-    white-space: pre-wrap;
-    max-height: 300px;
-    overflow-y: auto;
-}
-.broadcast-preview .preview-recipients {
-    margin-top: 12px;
-    padding-top: 12px;
-    border-top: 1px solid var(--gray-200);
-    font-size: 0.85rem;
-    color: var(--gray-600);
+.cancel-header h2 i {
+    color: #EF4444;
 }
 
 .confirm-box {
     background: #FEF2F2;
     border: 1px solid #FEE2E2;
     border-radius: var(--radius);
-    padding: 16px;
-    margin-bottom: 16px;
-    display: flex;
-    align-items: flex-start;
-    gap: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+    text-align: center;
 }
-.confirm-box i {
+.confirm-box .icon {
+    font-size: 3rem;
     color: #EF4444;
-    font-size: 1.2rem;
-    margin-top: 2px;
+    margin-bottom: 12px;
 }
-.confirm-box .text {
-    font-size: 0.9rem;
+.confirm-box h3 {
     color: #991B1B;
+    margin: 0 0 8px;
 }
-.confirm-box .text strong {
+.confirm-box p {
+    color: #7F1D1D;
+    font-size: 0.95rem;
+    margin: 0;
+}
+
+.broadcast-preview {
+    background: white;
+    border-radius: var(--radius);
+    border: 1px solid var(--gray-200);
+    padding: 16px;
+    margin-bottom: 20px;
+}
+.broadcast-preview .preview-title {
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+.broadcast-preview .preview-meta {
+    font-size: 0.75rem;
+    color: var(--gray-500);
+    margin: 4px 0 8px;
+}
+.broadcast-preview .preview-message {
+    font-size: 0.85rem;
+    color: var(--gray-600);
+    padding: 8px 12px;
+    background: var(--gray-50);
+    border-radius: 6px;
+    max-height: 150px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+}
+
+.cancel-form {
+    background: white;
+    border-radius: var(--radius);
+    border: 1px solid var(--gray-200);
+    padding: 20px;
+}
+.cancel-form .form-group {
+    margin-bottom: 16px;
+}
+.cancel-form .form-group label {
     display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--gray-700);
     margin-bottom: 4px;
+}
+.cancel-form .form-group textarea {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--gray-200);
+    border-radius: var(--radius);
+    font-size: 0.85rem;
+    resize: vertical;
+    min-height: 80px;
+    font-family: inherit;
+}
+
+.form-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 16px;
+}
+.form-actions .btn-danger {
+    background: #EF4444;
+    color: white;
+    border-color: #EF4444;
+}
+.form-actions .btn-danger:hover {
+    background: #DC2626;
+    border-color: #DC2626;
 }
 
 .alert {
@@ -276,11 +233,6 @@ include '../includes/sidebar.php';
     display: flex;
     align-items: center;
     gap: 10px;
-}
-.alert-success {
-    background: #ECFDF5;
-    border: 1px solid #D1FAE5;
-    color: #065F46;
 }
 .alert-danger {
     background: #FEF2F2;
@@ -297,22 +249,7 @@ include '../includes/sidebar.php';
     border-radius: 20px;
     font-weight: 500;
 }
-.badge.draft { background: #E5E7EB; color: #374151; }
 .badge.scheduled { background: #DBEAFE; color: #1E40AF; }
-
-.form-actions {
-    display: flex;
-    gap: 12px;
-}
-.form-actions .btn-send {
-    background: #EF4444;
-    color: white;
-    border-color: #EF4444;
-}
-.form-actions .btn-send:hover {
-    background: #DC2626;
-    border-color: #DC2626;
-}
 
 @media (max-width: 768px) {
     .form-actions {
@@ -331,9 +268,9 @@ include '../includes/sidebar.php';
     
     <div class="main-content-inner">
         <!-- Page Header -->
-        <div class="send-header">
+        <div class="cancel-header">
             <div>
-                <h2><i class="fas fa-paper-plane"></i> Send Broadcast</h2>
+                <h2><i class="fas fa-times-circle"></i> Cancel Scheduled Broadcast</h2>
                 <p style="color: var(--gray-500); margin: 2px 0 0; font-size: 0.85rem;">
                     <?php echo htmlspecialchars($ward_name); ?> Ward
                 </p>
@@ -352,60 +289,58 @@ include '../includes/sidebar.php';
         <?php endif; ?>
 
         <?php if ($broadcast): ?>
+            <!-- Confirmation -->
+            <div class="confirm-box">
+                <div class="icon">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <h3>⚠️ Cancel Scheduled Broadcast</h3>
+                <p>Are you sure you want to cancel this scheduled broadcast? This action cannot be undone.</p>
+            </div>
+
             <!-- Broadcast Preview -->
             <div class="broadcast-preview">
                 <div class="preview-title">
                     <i class="fas fa-bullhorn" style="color:var(--primary);"></i>
                     <?php echo htmlspecialchars($broadcast['title']); ?>
+                    <span class="badge scheduled" style="margin-left:12px;">Scheduled</span>
                 </div>
                 <div class="preview-meta">
-                    <span><i class="fas fa-tag"></i> Status: <span class="badge <?php echo $broadcast['status']; ?>"><?php echo ucfirst($broadcast['status']); ?></span></span>
-                    <span style="margin-left:12px;"><i class="fas fa-clock"></i> Created: <?php echo date('M d, Y H:i', strtotime($broadcast['created_at'])); ?></span>
+                    <span><i class="fas fa-calendar"></i> Scheduled: <?php echo date('M d, Y H:i', strtotime($broadcast['scheduled_at'])); ?></span>
+                    <span style="margin-left:12px;"><i class="fas fa-users"></i> <?php echo number_format($broadcast['total_recipients'] ?? 0); ?> recipients</span>
                 </div>
                 <div class="preview-message">
-                    <?php echo nl2br(htmlspecialchars($broadcast['message'])); ?>
-                </div>
-                <div class="preview-recipients">
-                    <i class="fas fa-users"></i> 
-                    Target Audience: <?php echo ucfirst(str_replace('_', ' ', $broadcast['target_audience'])); ?>
-                    <?php if ($broadcast['total_recipients'] > 0): ?>
-                        • <?php echo number_format($broadcast['total_recipients']); ?> recipients
-                    <?php endif; ?>
+                    <?php echo nl2br(htmlspecialchars(substr($broadcast['message'], 0, 300))); ?>
+                    <?php if (strlen($broadcast['message']) > 300): ?>...<?php endif; ?>
                 </div>
             </div>
 
-            <!-- Send Confirmation -->
-            <div class="confirm-box">
-                <i class="fas fa-exclamation-triangle"></i>
-                <div class="text">
-                    <strong>⚠️ Confirm Send</strong>
-                    Are you sure you want to send this broadcast to all selected recipients?
-                    This action cannot be undone.
-                </div>
+            <!-- Cancel Form -->
+            <div class="cancel-form">
+                <form method="POST" action="">
+                    <input type="hidden" name="action" value="cancel">
+                    
+                    <div class="form-group">
+                        <label>Reason for Cancellation (Optional)</label>
+                        <textarea name="reason" id="reason" placeholder="Please provide a reason for cancelling this broadcast..." rows="3"></textarea>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="submit" class="btn-danger" onclick="return confirm('Are you sure you want to cancel this scheduled broadcast?')">
+                            <i class="fas fa-times"></i> Cancel Broadcast
+                        </button>
+                        <a href="broadcasts.php" class="btn-secondary">
+                            <i class="fas fa-arrow-left"></i> Back
+                        </a>
+                    </div>
+                </form>
             </div>
-
-            <!-- Send Form -->
-            <form method="POST" action="">
-                <input type="hidden" name="action" value="send">
-                
-                <div class="form-actions">
-                    <button type="submit" class="btn-send" onclick="return confirm('Are you sure you want to send this broadcast? This action cannot be undone.')">
-                        <i class="fas fa-paper-plane"></i> Send Broadcast
-                    </button>
-                    <a href="broadcasts-edit.php?id=<?php echo $broadcast_id; ?>" class="btn-secondary">
-                        <i class="fas fa-edit"></i> Edit Before Sending
-                    </a>
-                    <a href="broadcasts.php" class="btn-secondary">
-                        <i class="fas fa-times"></i> Cancel
-                    </a>
-                </div>
-            </form>
 
         <?php else: ?>
             <div style="text-align:center;padding:60px 20px;background:white;border-radius:var(--radius);border:1px solid var(--gray-200);">
                 <i class="fas fa-bullhorn" style="font-size:4rem;color:var(--gray-300);"></i>
                 <h4 style="margin:16px 0 8px;">Broadcast Not Found</h4>
-                <p style="color:var(--gray-500);">The broadcast you're trying to send does not exist.</p>
+                <p style="color:var(--gray-500);">The broadcast you're trying to cancel does not exist or is not scheduled.</p>
                 <a href="broadcasts.php" class="btn-primary-sm" style="display:inline-block;margin-top:12px;">
                     <i class="fas fa-arrow-left"></i> Back to Broadcasts
                 </a>
