@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// WARD COORDINATOR - VIEW BROADCASTS
+// WARD COORDINATOR - APPROVAL HISTORY
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -61,103 +61,129 @@ try {
 }
 
 // ============================================================
-// FETCH BROADCASTS
+// FETCH APPROVAL HISTORY
 // ============================================================
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-$limit = 20;
+$limit = 30;
 $offset = ($page - 1) * $limit;
 
-$status_filter = isset($_GET['status']) ? $_GET['status'] : 'all';
+$action_filter = isset($_GET['action']) ? $_GET['action'] : 'all';
+$date_from = isset($_GET['date_from']) ? $_GET['date_from'] : date('Y-m-d', strtotime('-30 days'));
+$date_to = isset($_GET['date_to']) ? $_GET['date_to'] : date('Y-m-d');
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 
-$broadcasts = [];
-$total_broadcasts = 0;
+$approvals = [];
+$total_approvals = 0;
 
 try {
     // Build query conditions
-    $conditions = "b.tenant_id = ? AND b.sender_id = ?";
-    $params = [$tenant_id, $user_id];
+    $conditions = "a.tenant_id = ? AND pu.ward_id = ?";
+    $params = [$tenant_id, $ward_id];
     
-    if ($status_filter !== 'all') {
-        $conditions .= " AND b.status = ?";
-        $params[] = $status_filter;
+    if ($action_filter !== 'all') {
+        $conditions .= " AND a.status = ?";
+        $params[] = $action_filter;
+    }
+    
+    if (!empty($date_from)) {
+        $conditions .= " AND DATE(a.verified_at) >= ?";
+        $params[] = $date_from;
+    }
+    
+    if (!empty($date_to)) {
+        $conditions .= " AND DATE(a.verified_at) <= ?";
+        $params[] = $date_to;
     }
     
     if (!empty($search)) {
-        $conditions .= " AND (b.title LIKE ? OR b.message LIKE ?)";
+        $conditions .= " AND (a.pu_name LIKE ? OR a.pu_code LIKE ? OR u.full_name LIKE ?)";
         $search_param = "%$search%";
+        $params[] = $search_param;
         $params[] = $search_param;
         $params[] = $search_param;
     }
     
     // Get total count
-    $count_stmt = $db->prepare("SELECT COUNT(*) as total FROM broadcasts b WHERE $conditions");
+    $count_stmt = $db->prepare("
+        SELECT COUNT(*) as total 
+        FROM results_ec8a a
+        JOIN polling_units pu ON a.pu_id = pu.id
+        WHERE $conditions
+        AND a.status IN ('verified', 'rejected', 'flagged')
+    ");
     $count_stmt->execute($params);
-    $total_broadcasts = (int)$count_stmt->fetchColumn();
+    $total_approvals = (int)$count_stmt->fetchColumn();
     
-    // Get broadcasts
+    // Get approvals
     $stmt = $db->prepare("
         SELECT 
-            b.*,
-            u.full_name as sender_name
-        FROM broadcasts b
-        LEFT JOIN users u ON b.sender_id = u.id
+            a.*,
+            u.full_name as agent_name,
+            u.user_code as agent_code,
+            verified_user.full_name as verified_by_name,
+            verified_user.user_code as verified_by_code,
+            pu.name as pu_name,
+            pu.code as pu_code
+        FROM results_ec8a a
+        JOIN polling_units pu ON a.pu_id = pu.id
+        JOIN users u ON a.agent_id = u.id
+        LEFT JOIN users verified_user ON a.verified_by = verified_user.id
         WHERE $conditions
-        ORDER BY b.created_at DESC
+        AND a.status IN ('verified', 'rejected', 'flagged')
+        ORDER BY a.verified_at DESC
         LIMIT ? OFFSET ?
     ");
     
     $params[] = $limit;
     $params[] = $offset;
     $stmt->execute($params);
-    $broadcasts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $approvals = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
 } catch (Exception $e) {
-    error_log("Error fetching broadcasts: " . $e->getMessage());
+    error_log("Error fetching approval history: " . $e->getMessage());
 }
 
 // ============================================================
-// FETCH BROADCAST STATISTICS
+// FETCH STATISTICS
 // ============================================================
-$broadcast_stats = [
-    'total' => 0,
-    'draft' => 0,
-    'scheduled' => 0,
-    'sent' => 0,
-    'failed' => 0
+$stats = [
+    'verified' => 0,
+    'rejected' => 0,
+    'flagged' => 0,
+    'total' => 0
 ];
 
 try {
     $stmt = $db->prepare("
         SELECT 
             COUNT(*) as total,
-            SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END) as draft,
-            SUM(CASE WHEN status = 'scheduled' THEN 1 ELSE 0 END) as scheduled,
-            SUM(CASE WHEN status = 'sent' THEN 1 ELSE 0 END) as sent,
-            SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed
-        FROM broadcasts 
-        WHERE tenant_id = ? AND sender_id = ?
+            SUM(CASE WHEN status = 'verified' THEN 1 ELSE 0 END) as verified,
+            SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected,
+            SUM(CASE WHEN status = 'flagged' THEN 1 ELSE 0 END) as flagged
+        FROM results_ec8a a
+        JOIN polling_units pu ON a.pu_id = pu.id
+        WHERE a.tenant_id = ? AND pu.ward_id = ?
+        AND a.status IN ('verified', 'rejected', 'flagged')
     ");
-    $stmt->execute([$tenant_id, $user_id]);
-    $stats = $stmt->fetch(PDO::FETCH_ASSOC);
+    $stmt->execute([$tenant_id, $ward_id]);
+    $stats_result = $stmt->fetch(PDO::FETCH_ASSOC);
     
-    $broadcast_stats['total'] = (int)($stats['total'] ?? 0);
-    $broadcast_stats['draft'] = (int)($stats['draft'] ?? 0);
-    $broadcast_stats['scheduled'] = (int)($stats['scheduled'] ?? 0);
-    $broadcast_stats['sent'] = (int)($stats['sent'] ?? 0);
-    $broadcast_stats['failed'] = (int)($stats['failed'] ?? 0);
+    $stats['total'] = (int)($stats_result['total'] ?? 0);
+    $stats['verified'] = (int)($stats_result['verified'] ?? 0);
+    $stats['rejected'] = (int)($stats_result['rejected'] ?? 0);
+    $stats['flagged'] = (int)($stats_result['flagged'] ?? 0);
     
 } catch (Exception $e) {
-    error_log("Error fetching broadcast stats: " . $e->getMessage());
+    error_log("Error fetching approval stats: " . $e->getMessage());
 }
 
-$page_title = 'Broadcasts';
+$page_title = 'Approval History';
 include '../includes/base.php';
 include '../includes/sidebar.php';
 ?>
 
 <style>
-.broadcast-header {
+.approval-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -165,18 +191,18 @@ include '../includes/sidebar.php';
     gap: 12px;
     margin-bottom: 20px;
 }
-.broadcast-header h2 {
+.approval-header h2 {
     font-size: 1.3rem;
     font-weight: 700;
     margin: 0;
 }
-.broadcast-header h2 i {
+.approval-header h2 i {
     color: var(--primary);
 }
 
 .stats-row {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
     gap: 10px;
     margin-bottom: 20px;
 }
@@ -191,10 +217,10 @@ include '../includes/sidebar.php';
     font-size: 1.2rem;
     font-weight: 700;
 }
-.stat-mini .number.blue { color: #3B82F6; }
 .stat-mini .number.green { color: #10B981; }
-.stat-mini .number.yellow { color: #F59E0B; }
 .stat-mini .number.red { color: #EF4444; }
+.stat-mini .number.orange { color: #F59E0B; }
+.stat-mini .number.blue { color: #3B82F6; }
 .stat-mini .label {
     font-size: 0.6rem;
     color: var(--gray-500);
@@ -210,7 +236,7 @@ include '../includes/sidebar.php';
 }
 .filter-bar .search-box {
     flex: 1;
-    min-width: 200px;
+    min-width: 180px;
     position: relative;
 }
 .filter-bar .search-box input {
@@ -228,59 +254,77 @@ include '../includes/sidebar.php';
     transform: translateY(-50%);
     color: var(--gray-400);
 }
-.filter-bar select {
+.filter-bar select,
+.filter-bar input[type="date"] {
     padding: 8px 12px;
     border: 1px solid var(--gray-200);
     border-radius: var(--radius);
     font-size: 0.85rem;
     background: white;
-    min-width: 140px;
+    min-width: 130px;
 }
 
-.broadcast-card {
+.approval-item {
     background: white;
     border-radius: var(--radius);
     border: 1px solid var(--gray-200);
-    padding: 16px;
-    margin-bottom: 12px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
     transition: var(--transition);
 }
-.broadcast-card:hover {
+.approval-item:hover {
     box-shadow: var(--shadow-hover);
 }
-.broadcast-card .broadcast-top {
+.approval-item .item-top {
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
     flex-wrap: wrap;
     gap: 8px;
-    margin-bottom: 8px;
 }
-.broadcast-card .broadcast-title {
+.approval-item .item-title {
     font-weight: 600;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
 }
-.broadcast-card .broadcast-meta {
+.approval-item .item-title .pu-code {
+    font-weight: 400;
+    font-size: 0.7rem;
+    color: var(--gray-400);
+}
+.approval-item .item-meta {
     display: flex;
     gap: 12px;
     flex-wrap: wrap;
     font-size: 0.75rem;
     color: var(--gray-500);
+    margin-top: 4px;
 }
-.broadcast-card .broadcast-meta i {
+.approval-item .item-meta i {
     width: 14px;
 }
-.broadcast-card .broadcast-message {
-    font-size: 0.85rem;
+.approval-item .item-details {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 4px 12px;
+    font-size: 0.82rem;
     color: var(--gray-600);
     margin: 8px 0;
     padding: 8px 12px;
     background: var(--gray-50);
     border-radius: 6px;
-    max-height: 80px;
-    overflow: hidden;
 }
-.broadcast-card .broadcast-actions {
+.approval-item .item-details .field {
+    display: flex;
+    justify-content: space-between;
+    padding: 2px 0;
+}
+.approval-item .item-details .field .label {
+    color: var(--gray-500);
+}
+.approval-item .item-details .field .value {
+    font-weight: 500;
+}
+.approval-item .item-actions {
     display: flex;
     gap: 6px;
     flex-wrap: wrap;
@@ -288,7 +332,7 @@ include '../includes/sidebar.php';
     padding-top: 8px;
     border-top: 1px solid var(--gray-100);
 }
-.broadcast-card .broadcast-actions .btn-sm {
+.approval-item .item-actions .btn-sm {
     padding: 4px 12px;
     font-size: 0.7rem;
     border-radius: 4px;
@@ -299,24 +343,18 @@ include '../includes/sidebar.php';
     align-items: center;
     gap: 4px;
 }
-.broadcast-card .broadcast-actions .btn-sm.view { background: #EFF6FF; color: #3B82F6; }
-.broadcast-card .broadcast-actions .btn-sm.edit { background: #FEF3C7; color: #92400E; }
-.broadcast-card .broadcast-actions .btn-sm.send { background: #D1FAE5; color: #065F46; }
-.broadcast-card .broadcast-actions .btn-sm.delete { background: #FEE2E2; color: #991B1B; }
-.broadcast-card .broadcast-actions .btn-sm.duplicate { background: #F5F3FF; color: #6D28D9; }
-.broadcast-card .broadcast-actions .btn-sm.stats { background: #EFF6FF; color: #3B82F6; }
+.approval-item .item-actions .btn-sm.view { background: #EFF6FF; color: #3B82F6; }
+.approval-item .item-actions .btn-sm.undo { background: #FEF3C7; color: #92400E; }
 
-.badge {
+.status-badge {
     font-size: 0.6rem;
     padding: 2px 10px;
     border-radius: 20px;
     font-weight: 500;
 }
-.badge.draft { background: #E5E7EB; color: #374151; }
-.badge.scheduled { background: #DBEAFE; color: #1E40AF; }
-.badge.sent { background: #D1FAE5; color: #065F46; }
-.badge.failed { background: #FEE2E2; color: #991B1B; }
-.badge.cancelled { background: #E5E7EB; color: #374151; }
+.status-badge.verified { background: #D1FAE5; color: #065F46; }
+.status-badge.rejected { background: #FEE2E2; color: #991B1B; }
+.status-badge.flagged { background: #FEF3C7; color: #92400E; }
 
 .pagination {
     display: flex;
@@ -365,31 +403,9 @@ include '../includes/sidebar.php';
     font-size: 0.9rem;
 }
 
-.alert {
-    padding: 12px 16px;
-    border-radius: var(--radius);
-    margin-bottom: 16px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-.alert-success {
-    background: #ECFDF5;
-    border: 1px solid #D1FAE5;
-    color: #065F46;
-}
-.alert-danger {
-    background: #FEF2F2;
-    border: 1px solid #FEE2E2;
-    color: #991B1B;
-}
-.alert i {
-    font-size: 1.1rem;
-}
-
 @media (max-width: 768px) {
     .stats-row {
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(2, 1fr);
     }
     .filter-bar {
         flex-direction: column;
@@ -398,14 +414,14 @@ include '../includes/sidebar.php';
     .filter-bar .search-box {
         min-width: unset;
     }
-    .broadcast-card .broadcast-top {
-        flex-direction: column;
+    .approval-item .item-details {
+        grid-template-columns: 1fr;
     }
 }
 
 @media (max-width: 480px) {
     .stats-row {
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: 1fr 1fr;
     }
 }
 </style>
@@ -415,62 +431,38 @@ include '../includes/sidebar.php';
     
     <div class="main-content-inner">
         <!-- Page Header -->
-        <div class="broadcast-header">
+        <div class="approval-header">
             <div>
-                <h2><i class="fas fa-bullhorn"></i> Broadcasts</h2>
+                <h2><i class="fas fa-history"></i> Approval History</h2>
                 <p style="color: var(--gray-500); margin: 2px 0 0; font-size: 0.85rem;">
                     <?php echo htmlspecialchars($ward_name); ?> Ward • 
-                    <?php echo number_format($broadcast_stats['total']); ?> broadcasts
+                    <?php echo number_format($stats['total']); ?> total approvals
                 </p>
             </div>
             <div>
-                <a href="broadcasts-create.php" class="btn-primary-sm">
-                    <i class="fas fa-plus"></i> Create Broadcast
+                <a href="verify-results.php" class="btn-secondary-sm">
+                    <i class="fas fa-check-double"></i> Verify Results
                 </a>
             </div>
         </div>
 
-        <!-- Success/Error Messages -->
-        <?php if (isset($_GET['success'])): ?>
-            <div class="alert alert-success">
-                <i class="fas fa-check-circle"></i> <?php echo htmlspecialchars($_GET['success']); ?>
-            </div>
-        <?php endif; ?>
-        <?php if (isset($_GET['error'])): ?>
-            <div class="alert alert-danger">
-                <i class="fas fa-exclamation-circle"></i> 
-                <?php 
-                    $errors = [
-                        'notfound' => 'Broadcast not found.',
-                        'already_sent' => 'This broadcast has already been sent and cannot be modified.',
-                        'db' => 'Database error occurred.'
-                    ];
-                    echo htmlspecialchars($errors[$_GET['error']] ?? 'An error occurred.');
-                ?>
-            </div>
-        <?php endif; ?>
-
         <!-- Statistics -->
         <div class="stats-row">
             <div class="stat-mini">
-                <div class="number blue"><?php echo number_format($broadcast_stats['total']); ?></div>
+                <div class="number blue"><?php echo number_format($stats['total']); ?></div>
                 <div class="label">Total</div>
             </div>
             <div class="stat-mini">
-                <div class="number yellow"><?php echo number_format($broadcast_stats['draft']); ?></div>
-                <div class="label">Drafts</div>
+                <div class="number green"><?php echo number_format($stats['verified']); ?></div>
+                <div class="label">Verified</div>
             </div>
             <div class="stat-mini">
-                <div class="number blue"><?php echo number_format($broadcast_stats['scheduled']); ?></div>
-                <div class="label">Scheduled</div>
+                <div class="number red"><?php echo number_format($stats['rejected']); ?></div>
+                <div class="label">Rejected</div>
             </div>
             <div class="stat-mini">
-                <div class="number green"><?php echo number_format($broadcast_stats['sent']); ?></div>
-                <div class="label">Sent</div>
-            </div>
-            <div class="stat-mini">
-                <div class="number red"><?php echo number_format($broadcast_stats['failed']); ?></div>
-                <div class="label">Failed</div>
+                <div class="number orange"><?php echo number_format($stats['flagged']); ?></div>
+                <div class="label">Flagged</div>
             </div>
         </div>
 
@@ -478,17 +470,17 @@ include '../includes/sidebar.php';
         <div class="filter-bar">
             <div class="search-box">
                 <i class="fas fa-search"></i>
-                <input type="text" id="searchInput" placeholder="Search broadcasts..." 
+                <input type="text" id="searchInput" placeholder="Search by PU, agent or code..." 
                        value="<?php echo htmlspecialchars($search); ?>">
             </div>
-            <select id="statusFilter">
-                <option value="all" <?php echo $status_filter === 'all' ? 'selected' : ''; ?>>All Status</option>
-                <option value="draft" <?php echo $status_filter === 'draft' ? 'selected' : ''; ?>>Draft</option>
-                <option value="scheduled" <?php echo $status_filter === 'scheduled' ? 'selected' : ''; ?>>Scheduled</option>
-                <option value="sent" <?php echo $status_filter === 'sent' ? 'selected' : ''; ?>>Sent</option>
-                <option value="failed" <?php echo $status_filter === 'failed' ? 'selected' : ''; ?>>Failed</option>
-                <option value="cancelled" <?php echo $status_filter === 'cancelled' ? 'selected' : ''; ?>>Cancelled</option>
+            <select id="actionFilter">
+                <option value="all" <?php echo $action_filter === 'all' ? 'selected' : ''; ?>>All Actions</option>
+                <option value="verified" <?php echo $action_filter === 'verified' ? 'selected' : ''; ?>>Verified</option>
+                <option value="rejected" <?php echo $action_filter === 'rejected' ? 'selected' : ''; ?>>Rejected</option>
+                <option value="flagged" <?php echo $action_filter === 'flagged' ? 'selected' : ''; ?>>Flagged</option>
             </select>
+            <input type="date" id="dateFrom" value="<?php echo htmlspecialchars($date_from); ?>">
+            <input type="date" id="dateTo" value="<?php echo htmlspecialchars($date_to); ?>">
             <button onclick="applyFilters()" class="btn-secondary-sm">
                 <i class="fas fa-filter"></i> Apply
             </button>
@@ -497,74 +489,58 @@ include '../includes/sidebar.php';
             </button>
         </div>
 
-        <!-- Broadcast List -->
-        <?php if (count($broadcasts) > 0): ?>
-            <?php foreach ($broadcasts as $broadcast): 
-                $is_scheduled = $broadcast['status'] === 'scheduled';
-                $is_draft = $broadcast['status'] === 'draft';
-                $is_sent = $broadcast['status'] === 'sent';
+        <!-- Approval List -->
+        <?php if (count($approvals) > 0): ?>
+            <?php foreach ($approvals as $approval): 
+                $party_votes = json_decode($approval['party_votes_json'] ?? '{}', true);
+                $total_votes = array_sum($party_votes);
             ?>
-                <div class="broadcast-card">
-                    <div class="broadcast-top">
+                <div class="approval-item">
+                    <div class="item-top">
                         <div>
-                            <div class="broadcast-title"><?php echo htmlspecialchars($broadcast['title']); ?></div>
-                            <div class="broadcast-meta">
-                                <span><i class="fas fa-user"></i> <?php echo htmlspecialchars($broadcast['sender_name'] ?? 'You'); ?></span>
-                                <span><i class="fas fa-clock"></i> <?php echo date('M d, Y H:i', strtotime($broadcast['created_at'])); ?></span>
-                                <?php if ($broadcast['sent_at']): ?>
-                                    <span><i class="fas fa-check-circle" style="color:#10B981;"></i> <?php echo date('M d, Y H:i', strtotime($broadcast['sent_at'])); ?></span>
-                                <?php endif; ?>
-                                <?php if ($broadcast['scheduled_at']): ?>
-                                    <span><i class="fas fa-calendar"></i> <?php echo date('M d, Y H:i', strtotime($broadcast['scheduled_at'])); ?></span>
-                                <?php endif; ?>
-                                <span><i class="fas fa-users"></i> <?php echo number_format($broadcast['total_recipients'] ?? 0); ?> recipients</span>
-                                <span><i class="fas fa-eye"></i> <?php echo number_format($broadcast['read_count'] ?? 0); ?> read</span>
+                            <div class="item-title">
+                                <?php echo htmlspecialchars($approval['pu_name']); ?>
+                                <span class="pu-code">(<?php echo htmlspecialchars($approval['pu_code']); ?>)</span>
+                            </div>
+                            <div class="item-meta">
+                                <span><i class="fas fa-user"></i> Agent: <?php echo htmlspecialchars($approval['agent_name']); ?></span>
+                                <span><i class="fas fa-user-check"></i> Verified by: <?php echo htmlspecialchars($approval['verified_by_name'] ?? 'N/A'); ?></span>
+                                <span><i class="fas fa-clock"></i> <?php echo date('M d, Y H:i', strtotime($approval['verified_at'] ?? $approval['created_at'])); ?></span>
                             </div>
                         </div>
-                        <span class="badge <?php echo $broadcast['status']; ?>">
-                            <?php echo ucfirst($broadcast['status'] ?? 'Unknown'); ?>
+                        <span class="status-badge <?php echo $approval['status']; ?>">
+                            <?php echo ucfirst($approval['status']); ?>
                         </span>
                     </div>
 
-                    <?php if (!empty($broadcast['message'])): ?>
-                        <div class="broadcast-message">
-                            <?php echo nl2br(htmlspecialchars(substr($broadcast['message'], 0, 300))); ?>
-                            <?php if (strlen($broadcast['message']) > 300): ?>...<?php endif; ?>
+                    <div class="item-details">
+                        <div class="field">
+                            <span class="label">Valid Votes</span>
+                            <span class="value"><?php echo number_format($approval['valid_votes'] ?? 0); ?></span>
                         </div>
-                    <?php endif; ?>
+                        <div class="field">
+                            <span class="label">Rejected Votes</span>
+                            <span class="value"><?php echo number_format($approval['rejected_votes'] ?? 0); ?></span>
+                        </div>
+                        <div class="field">
+                            <span class="label">Total Votes</span>
+                            <span class="value"><?php echo number_format($approval['total_votes_cast'] ?? 0); ?></span>
+                        </div>
+                        <?php if (!empty($approval['rejection_reason'])): ?>
+                            <div class="field" style="grid-column:1/-1;color:#EF4444;">
+                                <span class="label">Note</span>
+                                <span class="value"><?php echo htmlspecialchars($approval['rejection_reason']); ?></span>
+                            </div>
+                        <?php endif; ?>
+                    </div>
 
-                    <div class="broadcast-actions">
-                        <a href="broadcasts-view.php?id=<?php echo $broadcast['id']; ?>" class="btn-sm view">
-                            <i class="fas fa-eye"></i> View
+                    <div class="item-actions">
+                        <a href="result-details.php?id=<?php echo $approval['id']; ?>" class="btn-sm view">
+                            <i class="fas fa-eye"></i> View Details
                         </a>
-                        
-                        <?php if ($is_draft): ?>
-                            <a href="broadcasts-edit.php?id=<?php echo $broadcast['id']; ?>" class="btn-sm edit">
-                                <i class="fas fa-edit"></i> Edit
-                            </a>
-                            <a href="broadcasts-send.php?id=<?php echo $broadcast['id']; ?>" class="btn-sm send">
-                                <i class="fas fa-paper-plane"></i> Send
-                            </a>
-                            <a href="broadcasts-delete.php?id=<?php echo $broadcast['id']; ?>" class="btn-sm delete" onclick="return confirmDelete()">
-                                <i class="fas fa-trash"></i> Delete
-                            </a>
-                        <?php endif; ?>
-                        
-                        <?php if ($is_scheduled): ?>
-                            <a href="broadcasts-edit.php?id=<?php echo $broadcast['id']; ?>" class="btn-sm edit">
-                                <i class="fas fa-edit"></i> Edit
-                            </a>
-                            <a href="broadcasts-cancel.php?id=<?php echo $broadcast['id']; ?>" class="btn-sm delete" onclick="return confirm('Cancel this scheduled broadcast?')">
-                                <i class="fas fa-times"></i> Cancel
-                            </a>
-                        <?php endif; ?>
-                        
-                        <?php if ($is_sent): ?>
-                            <a href="broadcasts-duplicate.php?id=<?php echo $broadcast['id']; ?>" class="btn-sm duplicate">
-                                <i class="fas fa-copy"></i> Duplicate
-                            </a>
-                            <a href="broadcasts-stats.php?id=<?php echo $broadcast['id']; ?>" class="btn-sm stats">
-                                <i class="fas fa-chart-bar"></i> Stats
+                        <?php if ($approval['status'] === 'rejected' || $approval['status'] === 'flagged'): ?>
+                            <a href="verify-results.php?result_id=<?php echo $approval['id']; ?>" class="btn-sm undo">
+                                <i class="fas fa-undo"></i> Review Again
                             </a>
                         <?php endif; ?>
                     </div>
@@ -573,12 +549,12 @@ include '../includes/sidebar.php';
 
             <!-- Pagination -->
             <?php 
-            $total_pages = ceil($total_broadcasts / $limit);
+            $total_pages = ceil($total_approvals / $limit);
             if ($total_pages > 1): 
             ?>
             <div class="pagination">
                 <?php if ($page > 1): ?>
-                    <a href="?page=<?php echo $page - 1; ?>&search=<?php echo urlencode($search); ?>&status=<?php echo $status_filter; ?>">
+                    <a href="?page=<?php echo $page - 1; ?>&action=<?php echo $action_filter; ?>&date_from=<?php echo $date_from; ?>&date_to=<?php echo $date_to; ?>&search=<?php echo urlencode($search); ?>">
                         <i class="fas fa-chevron-left"></i>
                     </a>
                 <?php else: ?>
@@ -589,14 +565,14 @@ include '../includes/sidebar.php';
                     <?php if ($i == $page): ?>
                         <span class="active"><?php echo $i; ?></span>
                     <?php else: ?>
-                        <a href="?page=<?php echo $i; ?>&search=<?php echo urlencode($search); ?>&status=<?php echo $status_filter; ?>">
+                        <a href="?page=<?php echo $i; ?>&action=<?php echo $action_filter; ?>&date_from=<?php echo $date_from; ?>&date_to=<?php echo $date_to; ?>&search=<?php echo urlencode($search); ?>">
                             <?php echo $i; ?>
                         </a>
                     <?php endif; ?>
                 <?php endfor; ?>
                 
                 <?php if ($page < $total_pages): ?>
-                    <a href="?page=<?php echo $page + 1; ?>&search=<?php echo urlencode($search); ?>&status=<?php echo $status_filter; ?>">
+                    <a href="?page=<?php echo $page + 1; ?>&action=<?php echo $action_filter; ?>&date_from=<?php echo $date_from; ?>&date_to=<?php echo $date_to; ?>&search=<?php echo urlencode($search); ?>">
                         <i class="fas fa-chevron-right"></i>
                     </a>
                 <?php else: ?>
@@ -607,11 +583,11 @@ include '../includes/sidebar.php';
 
         <?php else: ?>
             <div class="empty-state">
-                <i class="fas fa-bullhorn"></i>
-                <h4>No Broadcasts Found</h4>
-                <p>You haven't created any broadcasts yet.</p>
-                <a href="broadcasts-create.php" class="btn-primary-sm" style="display:inline-block;margin-top:12px;">
-                    <i class="fas fa-plus"></i> Create Your First Broadcast
+                <i class="fas fa-history"></i>
+                <h4>No Approval History</h4>
+                <p>No results have been verified, rejected, or flagged yet.</p>
+                <a href="verify-results.php" class="btn-primary-sm" style="display:inline-block;margin-top:12px;">
+                    <i class="fas fa-check-double"></i> Start Verifying
                 </a>
             </div>
         <?php endif; ?>
@@ -622,14 +598,18 @@ include '../includes/sidebar.php';
 // Apply filters
 function applyFilters() {
     const search = document.getElementById('searchInput').value;
-    const status = document.getElementById('statusFilter').value;
-    window.location.href = `?search=${encodeURIComponent(search)}&status=${status}`;
+    const action = document.getElementById('actionFilter').value;
+    const dateFrom = document.getElementById('dateFrom').value;
+    const dateTo = document.getElementById('dateTo').value;
+    window.location.href = `?search=${encodeURIComponent(search)}&action=${action}&date_from=${dateFrom}&date_to=${dateTo}`;
 }
 
 // Reset filters
 function resetFilters() {
     document.getElementById('searchInput').value = '';
-    document.getElementById('statusFilter').value = 'all';
+    document.getElementById('actionFilter').value = 'all';
+    document.getElementById('dateFrom').value = '<?php echo date('Y-m-d', strtotime('-30 days')); ?>';
+    document.getElementById('dateTo').value = '<?php echo date('Y-m-d'); ?>';
     window.location.href = '?';
 }
 
@@ -639,11 +619,6 @@ document.getElementById('searchInput').addEventListener('keypress', function(e) 
         applyFilters();
     }
 });
-
-// Confirm delete
-function confirmDelete() {
-    return confirm('Are you sure you want to delete this broadcast? This action cannot be undone.');
-}
 
 // Preloader
 window.addEventListener('load', function() {
