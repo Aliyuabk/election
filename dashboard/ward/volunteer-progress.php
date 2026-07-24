@@ -1100,41 +1100,44 @@ include '../includes/sidebar.php';
                     <span class="count"><?php echo count($volunteers); ?></span>
                 </div>
                 <div class="list-body">
-                    <?php if (count($volunteers) > 0): ?>
-                        <?php foreach ($volunteers as $vol): 
-                            $total = $vol['total_tasks'] ?? 0;
-                            $completed = $vol['completed_tasks'] ?? 0;
-                            $percent = $total > 0 ? round(($completed / $total) * 100) : 0;
-                            $is_active = ($volunteer_id == $vol['id']) || ($volunteer_id == 0 && $loop->first && $volunteer_id == 0);
-                        ?>
-                            <a href="?volunteer_id=<?php echo $vol['id']; ?>&status=<?php echo $status_filter; ?>&date_from=<?php echo $date_from; ?>&date_to=<?php echo $date_to; ?>" 
-                               class="list-item <?php echo $is_active ? 'active' : ''; ?>">
-                                <div class="volunteer-info">
-                                    <div class="avatar">
-                                        <?php if (!empty($vol['photograph_url'])): ?>
-                                            <img src="<?php echo htmlspecialchars($vol['photograph_url']); ?>" alt="">
-                                        <?php else: ?>
-                                            <?php echo strtoupper(substr($vol['full_name'] ?? 'U', 0, 2)); ?>
-                                        <?php endif; ?>
-                                    </div>
-                                    <div style="flex:1;min-width:0;">
-                                        <div class="name"><?php echo htmlspecialchars($vol['full_name']); ?></div>
-                                        <div class="sub">
-                                            <span class="code"><?php echo htmlspecialchars($vol['user_code']); ?></span>
-                                            <?php if (!empty($vol['pu_name'])): ?>
-                                                • <?php echo htmlspecialchars($vol['pu_name']); ?>
+                     <?php if (count($volunteers) > 0): ?>
+                            <?php 
+                            $first_volunteer = true;
+                            foreach ($volunteers as $vol): 
+                                $total = $vol['total_tasks'] ?? 0;
+                                $completed = $vol['completed_tasks'] ?? 0;
+                                $percent = $total > 0 ? round(($completed / $total) * 100) : 0;
+                                $is_active = ($volunteer_id == $vol['id']) || ($volunteer_id == 0 && $first_volunteer);
+                                if ($first_volunteer) $first_volunteer = false;
+                            ?>
+                                <a href="?volunteer_id=<?php echo $vol['id']; ?>&status=<?php echo $status_filter; ?>&date_from=<?php echo $date_from; ?>&date_to=<?php echo $date_to; ?>" 
+                                class="list-item <?php echo $is_active ? 'active' : ''; ?>">
+                                    <div class="volunteer-info">
+                                        <div class="avatar">
+                                            <?php if (!empty($vol['photograph_url'])): ?>
+                                                <img src="<?php echo htmlspecialchars($vol['photograph_url']); ?>" alt="">
+                                            <?php else: ?>
+                                                <?php echo strtoupper(substr($vol['full_name'] ?? 'U', 0, 2)); ?>
                                             <?php endif; ?>
-                                            • <?php echo number_format($completed); ?>/<?php echo number_format($total); ?>
                                         </div>
+                                        <div style="flex:1;min-width:0;">
+                                            <div class="name"><?php echo htmlspecialchars($vol['full_name']); ?></div>
+                                            <div class="sub">
+                                                <span class="code"><?php echo htmlspecialchars($vol['user_code']); ?></span>
+                                                <?php if (!empty($vol['pu_name'])): ?>
+                                                    • <?php echo htmlspecialchars($vol['pu_name']); ?>
+                                                <?php endif; ?>
+                                                • <?php echo number_format($completed); ?>/<?php echo number_format($total); ?>
+                                            </div>
+                                        </div>
+                                        <span style="font-size:0.7rem;font-weight:600;color:var(--gray-400);"><?php echo $percent; ?>%</span>
                                     </div>
-                                    <span style="font-size:0.7rem;font-weight:600;color:var(--gray-400);"><?php echo $percent; ?>%</span>
-                                </div>
-                                <div class="progress-bar">
-                                    <div class="fill" style="width: <?php echo $percent; ?>%;"></div>
-                                </div>
-                            </a>
-                        <?php endforeach; ?>
-                    <?php else: ?>
+                                    <div class="progress-bar">
+                                        <div class="fill" style="width: <?php echo $percent; ?>%;"></div>
+                                    </div>
+                                </a>
+                            <?php endforeach; ?>
+                        <?php else: ?>
                         <div class="empty-state">
                             <i class="fas fa-users"></i>
                             <p>No volunteers found in this ward.</p>
@@ -1157,12 +1160,14 @@ include '../includes/sidebar.php';
                                 <div class="task-header">
                                     <div class="task-title">
                                         <?php echo htmlspecialchars($task['title']); ?>
-                                        <?php if ($task['priority'] === 'high'): ?>
+                                        <?php if (isset($task['priority']) && $task['priority'] === 'high'): ?>
                                             <span class="priority-badge high"><i class="fas fa-exclamation-circle"></i> High</span>
-                                        <?php elseif ($task['priority'] === 'normal'): ?>
+                                        <?php elseif (isset($task['priority']) && $task['priority'] === 'normal'): ?>
                                             <span class="priority-badge normal">Normal</span>
-                                        <?php else: ?>
+                                        <?php elseif (isset($task['priority']) && $task['priority'] === 'low'): ?>
                                             <span class="priority-badge low">Low</span>
+                                        <?php else: ?>
+                                            <span class="priority-badge normal">Normal</span>
                                         <?php endif; ?>
                                     </div>
                                     <span class="status-badge <?php echo $task['status']; ?>">

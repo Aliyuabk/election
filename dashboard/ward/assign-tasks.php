@@ -1093,8 +1093,13 @@ include '../includes/sidebar.php';
                             <div class="task-info">
                                 <div class="task-title">
                                     <?php echo htmlspecialchars($task['title']); ?>
-                                    <?php if ($task['priority'] === 'high'): ?>
-                                        <span class="priority-high"><i class="fas fa-exclamation-circle"></i></span>
+                                   // Replace lines around 1096 with this:
+                                    <?php if (isset($task['priority']) && $task['priority'] === 'high'): ?>
+                                        <span class="priority-badge high"><i class="fas fa-exclamation-circle"></i> High</span>
+                                    <?php elseif (isset($task['priority']) && $task['priority'] === 'normal'): ?>
+                                        <span class="priority-badge normal">Normal</span>
+                                    <?php elseif (isset($task['priority']) && $task['priority'] === 'low'): ?>
+                                        <span class="priority-badge low">Low</span>
                                     <?php endif; ?>
                                 </div>
                                 <div class="task-description">
