@@ -1080,20 +1080,20 @@ include '../includes/sidebar.php';
                 <div class="chat-contact-list" id="contactList">
                     <?php if (count($contacts) > 0): ?>
                         <?php foreach ($contacts as $contact): 
-                            $is_online = (int)($contact['is_online'] ?? 0) > 0;
-                            $unread = (int)($contact['unread_count'] ?? 0);
+                            $is_online = isset($contact['is_online']) ? (int)$contact['is_online'] > 0 : false;
+                            $unread = isset($contact['unread_count']) ? (int)$contact['unread_count'] : 0;
                             $initial = strtoupper(substr($contact['full_name'] ?? 'U', 0, 2));
                             $avatar = !empty($contact['photograph_url']) ? $contact['photograph_url'] : '';
-                            $last_msg = $contact['last_message'] ?? 'No messages yet';
-                            $last_time = $contact['last_message_time'] ? date('M d, H:i', strtotime($contact['last_message_time'])) : '';
+                            $last_msg = isset($contact['last_message']) ? $contact['last_message'] : 'No messages yet';
+                            $last_time = isset($contact['last_message_time']) && $contact['last_message_time'] ? date('M d, H:i', strtotime($contact['last_message_time'])) : '';
                             $role_info = isset($role_definitions[$contact['role_id']]) ? $role_definitions[$contact['role_id']] : null;
                             $role_color = $role_info ? $role_info['color'] : '#6B7280';
                             $role_name = $role_info ? $role_info['name'] : 'Agent';
                         ?>
                             <a href="?role=<?php echo $selected_role; ?>&contact_id=<?php echo $contact['id']; ?>" 
-                               class="chat-contact-item <?php echo $selected_contact_id == $contact['id'] ? 'active' : ''; ?>"
-                               data-name="<?php echo strtolower($contact['full_name']); ?>"
-                               data-id="<?php echo $contact['id']; ?>">
+                            class="chat-contact-item <?php echo $selected_contact_id == $contact['id'] ? 'active' : ''; ?>"
+                            data-name="<?php echo strtolower($contact['full_name']); ?>"
+                            data-id="<?php echo $contact['id']; ?>">
                                 <div class="avatar">
                                     <?php if ($avatar): ?>
                                         <img src="<?php echo htmlspecialchars($avatar); ?>" alt="<?php echo htmlspecialchars($contact['full_name']); ?>">
@@ -1110,7 +1110,7 @@ include '../includes/sidebar.php';
                                         </span>
                                     </div>
                                     <div class="last-msg">
-                                        <?php if ($last_msg): ?>
+                                        <?php if ($last_msg && $last_msg !== 'No messages yet'): ?>
                                             <?php echo htmlspecialchars(substr($last_msg, 0, 50)) . (strlen($last_msg) > 50 ? '...' : ''); ?>
                                         <?php else: ?>
                                             <span style="color:var(--gray-400);">No messages yet</span>
