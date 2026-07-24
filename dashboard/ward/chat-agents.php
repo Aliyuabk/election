@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// WARD COORDINATOR - CHAT WITH PU AGENTS (COMPLETE REWRITE)
+// WARD COORDINATOR - CHAT WITH AGENTS (MULTI-ROLE)
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -27,6 +27,8 @@ $user_name = SessionManager::get('user_name', 'Coordinator');
 $user_id = SessionManager::get('user_id');
 $tenant_id = SessionManager::get('tenant_id');
 $ward_id = SessionManager::get('ward_id');
+$lga_id = SessionManager::get('lga_id');
+$state_id = SessionManager::get('state_id');
 
 // Get database connection
 $db = getDB();
@@ -36,12 +38,16 @@ $db = getDB();
 // ============================================================
 if (empty($ward_id)) {
     try {
-        $stmt = $db->prepare("SELECT ward_id FROM users WHERE id = ? AND tenant_id = ?");
+        $stmt = $db->prepare("SELECT ward_id, lga_id, state_id FROM users WHERE id = ? AND tenant_id = ?");
         $stmt->execute([$user_id, $tenant_id]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         if ($user && !empty($user['ward_id'])) {
             $ward_id = $user['ward_id'];
+            $lga_id = $user['lga_id'] ?? $lga_id;
+            $state_id = $user['state_id'] ?? $state_id;
             SessionManager::set('ward_id', $ward_id);
+            SessionManager::set('lga_id', $lga_id);
+            SessionManager::set('state_id', $state_id);
         }
     } catch (Exception $e) {
         error_log("Error fetching ward_id: " . $e->getMessage());
@@ -66,15 +72,26 @@ try {
 }
 
 // ============================================================
-// GET SELECTED CONTACT
+// ROLE DEFINITIONS
 // ============================================================
+$role_definitions = [
+    9 => ['name' => 'PU Agent', 'icon' => 'fa-user-check', 'color' => '#3B82F6', 'level' => 'pu_agent'],
+    10 => ['name' => 'Party Agent', 'icon' => 'fa-flag', 'color' => '#8B5CF6', 'level' => 'party_agent'],
+    11 => ['name' => 'Observer', 'icon' => 'fa-eye', 'color' => '#10B981', 'level' => 'observer'],
+    15 => ['name' => 'Volunteer', 'icon' => 'fa-hands-helping', 'color' => '#F59E0B', 'level' => 'volunteer']
+];
+
+// ============================================================
+// GET SELECTED ROLE AND CONTACT
+// ============================================================
+$selected_role = isset($_GET['role']) ? (int)$_GET['role'] : 9; // Default to PU Agents
 $selected_contact_id = isset($_GET['contact_id']) ? (int)$_GET['contact_id'] : 0;
 $selected_contact = null;
 $messages = [];
 $contacts = [];
 
 // ============================================================
-// FETCH CONTACTS (PU AGENTS - role_id = 9)
+// FETCH CONTACTS BY ROLE
 // ============================================================
 try {
     $stmt = $db->prepare("
@@ -88,6 +105,7 @@ try {
             u.photograph_url,
             u.last_login_at,
             u.pu_id,
+            u.role_id,
             pu.name as pu_name,
             pu.code as pu_code,
             r.level as role_level,
@@ -112,10 +130,10 @@ try {
         AND u.deleted_at IS NULL
         AND u.status = 'active'
         AND u.id != ?
-        AND u.role_id = 9
+        AND u.role_id = ?
         ORDER BY last_message_time DESC, u.full_name ASC
     ");
-    $stmt->execute([$user_id, $user_id, $user_id, $user_id, $user_id, $tenant_id, $ward_id, $user_id]);
+    $stmt->execute([$user_id, $user_id, $user_id, $user_id, $user_id, $tenant_id, $ward_id, $user_id, $selected_role]);
     $contacts = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
     // If a contact is selected, get their details and messages
@@ -172,6 +190,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $message = isset($_POST['message']) ? trim($_POST['message']) : '';
     $message_type = isset($_POST['message_type']) ? $_POST['message_type'] : 'text';
     $media_url = isset($_POST['media_url']) ? trim($_POST['media_url']) : '';
+    $role_id = isset($_POST['role_id']) ? (int)$_POST['role_id'] : 9;
     
     // CSRF Protection
     $csrf_token = isset($_POST['csrf_token']) ? $_POST['csrf_token'] : '';
@@ -187,16 +206,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         try {
             $db->beginTransaction();
             
-            // Verify receiver exists and is in the same ward
+            // Verify receiver exists and is in the same ward with correct role
             $stmt = $db->prepare("
-                SELECT id, full_name FROM users 
-                WHERE id = ? AND tenant_id = ? AND ward_id = ? AND role_id = 9 AND status = 'active'
+                SELECT id, full_name, role_id FROM users 
+                WHERE id = ? AND tenant_id = ? AND ward_id = ? AND role_id = ? AND status = 'active'
             ");
-            $stmt->execute([$receiver_id, $tenant_id, $ward_id]);
+            $stmt->execute([$receiver_id, $tenant_id, $ward_id, $role_id]);
             $receiver = $stmt->fetch(PDO::FETCH_ASSOC);
             
             if (!$receiver) {
-                throw new Exception('Recipient not found or not a PU agent in your ward.');
+                throw new Exception('Recipient not found or not in your ward.');
             }
             
             // Check if chat room exists, create if not
@@ -236,16 +255,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 ) VALUES (?, ?, ?, ?, ?, ?, NOW())
             ");
             $stmt->execute([$room_id, $user_id, $receiver_id, $message_type, $message, $media_url]);
-            $message_id = $db->lastInsertId();
             
-            logActivity($user_id, 'chat_message', "Sent message to PU Agent: {$receiver['full_name']} (ID: $receiver_id)", 'chat', $room_id);
+            logActivity($user_id, 'chat_message', "Sent message to {$receiver['full_name']} (ID: $receiver_id)", 'chat', $room_id);
             
             $db->commit();
             $success_message = 'Message sent successfully!';
             $show_success = true;
             
             // Redirect to refresh chat
-            header('Location: chat-agents.php?contact_id=' . $receiver_id . '&sent=1');
+            header('Location: chat-agents.php?role=' . $role_id . '&contact_id=' . $receiver_id . '&sent=1');
             exit();
             
         } catch (Exception $e) {
@@ -260,7 +278,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 $csrf_token = bin2hex(random_bytes(32));
 SessionManager::set('csrf_token', $csrf_token);
 
-$page_title = 'Chat with PU Agents';
+// Count contacts per role
+$role_counts = [];
+foreach ($role_definitions as $role_id => $role) {
+    try {
+        $stmt = $db->prepare("
+            SELECT COUNT(*) as count FROM users 
+            WHERE tenant_id = ? AND ward_id = ? AND role_id = ? AND status = 'active' AND deleted_at IS NULL
+        ");
+        $stmt->execute([$tenant_id, $ward_id, $role_id]);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        $role_counts[$role_id] = $result['count'] ?? 0;
+    } catch (Exception $e) {
+        $role_counts[$role_id] = 0;
+    }
+}
+
+$page_title = 'Chat with Agents';
 include '../includes/base.php';
 include '../includes/sidebar.php';
 ?>
@@ -313,28 +347,86 @@ include '../includes/sidebar.php';
     flex-shrink: 0;
 }
 
+/* Role Tabs */
+.role-tabs {
+    display: flex;
+    background: white;
+    border-bottom: 1px solid var(--chat-border);
+    padding: 4px;
+    gap: 2px;
+    flex-wrap: wrap;
+}
+.role-tab {
+    flex: 1;
+    min-width: 60px;
+    padding: 6px 8px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.65rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    background: transparent;
+    color: var(--gray-500);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    position: relative;
+}
+.role-tab i {
+    font-size: 0.9rem;
+}
+.role-tab .role-count {
+    font-size: 0.5rem;
+    background: var(--gray-200);
+    color: var(--gray-600);
+    padding: 1px 6px;
+    border-radius: 10px;
+    font-weight: 600;
+}
+.role-tab:hover {
+    background: var(--gray-100);
+    color: var(--gray-700);
+}
+.role-tab.active {
+    background: var(--chat-primary);
+    color: white;
+}
+.role-tab.active .role-count {
+    background: rgba(255,255,255,0.3);
+    color: white;
+}
+.role-tab .role-badge {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #EF4444;
+}
+
 .chat-sidebar-header {
-    padding: 16px 20px;
+    padding: 12px 16px;
     background: white;
     border-bottom: 1px solid var(--chat-border);
     display: flex;
     justify-content: space-between;
     align-items: center;
 }
-
 .chat-sidebar-header h3 {
-    font-size: 1rem;
+    font-size: 0.9rem;
     font-weight: 700;
     margin: 0;
     color: var(--gray-800);
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
 }
 .chat-sidebar-header h3 i {
     color: var(--chat-primary);
 }
-
 .chat-sidebar-header .badge {
     background: var(--chat-primary);
     color: white;
@@ -345,28 +437,27 @@ include '../includes/sidebar.php';
 }
 
 .chat-sidebar-search {
-    padding: 10px 16px;
+    padding: 8px 12px;
     background: white;
     border-bottom: 1px solid var(--chat-border);
 }
-
 .chat-sidebar-search .search-wrapper {
     position: relative;
 }
 .chat-sidebar-search .search-wrapper i {
     position: absolute;
-    left: 12px;
+    left: 10px;
     top: 50%;
     transform: translateY(-50%);
     color: var(--gray-400);
-    font-size: 0.85rem;
+    font-size: 0.8rem;
 }
 .chat-sidebar-search input {
     width: 100%;
-    padding: 8px 12px 8px 36px;
+    padding: 6px 10px 6px 32px;
     border: 1px solid var(--chat-border);
     border-radius: 20px;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
     background: #F1F5F9;
     transition: all 0.3s ease;
 }
@@ -396,8 +487,8 @@ include '../includes/sidebar.php';
 .chat-contact-item {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 10px 16px;
+    gap: 10px;
+    padding: 8px 12px;
     cursor: pointer;
     transition: all 0.2s ease;
     border-left: 3px solid transparent;
@@ -414,15 +505,15 @@ include '../includes/sidebar.php';
 }
 
 .chat-contact-item .avatar {
-    width: 44px;
-    height: 44px;
+    width: 38px;
+    height: 38px;
     border-radius: 50%;
     background: var(--gray-200);
     display: flex;
     align-items: center;
     justify-content: center;
     font-weight: 700;
-    font-size: 1rem;
+    font-size: 0.8rem;
     color: var(--gray-600);
     flex-shrink: 0;
     position: relative;
@@ -437,8 +528,8 @@ include '../includes/sidebar.php';
     position: absolute;
     bottom: 1px;
     right: 1px;
-    width: 12px;
-    height: 12px;
+    width: 10px;
+    height: 10px;
     border-radius: 50%;
     border: 2px solid white;
 }
@@ -455,32 +546,26 @@ include '../includes/sidebar.php';
 }
 .chat-contact-item .contact-info .name {
     font-weight: 600;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     color: var(--gray-800);
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
     flex-wrap: wrap;
 }
-.chat-contact-item .contact-info .name .role {
-    font-size: 0.55rem;
-    color: var(--chat-primary);
-    background: var(--chat-primary-light);
-    padding: 1px 8px;
-    border-radius: 10px;
+.chat-contact-item .contact-info .name .role-tag {
+    font-size: 0.5rem;
+    padding: 1px 6px;
+    border-radius: 8px;
     font-weight: 500;
 }
 .chat-contact-item .contact-info .last-msg {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     color: var(--gray-500);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    margin-top: 2px;
-}
-.chat-contact-item .contact-info .last-msg .sender {
-    font-weight: 500;
-    color: var(--gray-600);
+    margin-top: 1px;
 }
 
 .chat-contact-item .contact-meta {
@@ -488,27 +573,23 @@ include '../includes/sidebar.php';
     flex-shrink: 0;
 }
 .chat-contact-item .contact-meta .time {
-    font-size: 0.6rem;
+    font-size: 0.55rem;
     color: var(--gray-400);
 }
 .chat-contact-item .contact-meta .unread {
     background: var(--chat-unread-bg);
     color: var(--chat-unread-text);
-    font-size: 0.55rem;
-    padding: 2px 8px;
-    border-radius: 12px;
+    font-size: 0.5rem;
+    padding: 1px 6px;
+    border-radius: 10px;
     font-weight: 600;
-    margin-top: 4px;
+    margin-top: 2px;
     display: inline-block;
 }
 .chat-contact-item .contact-meta .online-status {
-    font-size: 0.55rem;
+    font-size: 0.5rem;
     color: var(--chat-online);
     font-weight: 500;
-}
-.chat-contact-item .contact-meta .offline-status {
-    font-size: 0.55rem;
-    color: var(--gray-400);
 }
 
 /* ============================================================
@@ -524,24 +605,24 @@ include '../includes/sidebar.php';
 
 /* Chat Header */
 .chat-content-header {
-    padding: 12px 20px;
+    padding: 10px 16px;
     background: white;
     border-bottom: 1px solid var(--chat-border);
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     flex-shrink: 0;
 }
 .chat-content-header .avatar {
-    width: 40px;
-    height: 40px;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
     background: var(--gray-200);
     display: flex;
     align-items: center;
     justify-content: center;
     font-weight: 700;
-    font-size: 0.9rem;
+    font-size: 0.8rem;
     color: var(--gray-600);
     flex-shrink: 0;
 }
@@ -557,11 +638,11 @@ include '../includes/sidebar.php';
 }
 .chat-content-header .header-info .name {
     font-weight: 600;
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     color: var(--gray-800);
 }
 .chat-content-header .header-info .status {
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     color: var(--gray-500);
 }
 .chat-content-header .header-info .status.online {
@@ -569,15 +650,15 @@ include '../includes/sidebar.php';
 }
 .chat-content-header .header-actions {
     display: flex;
-    gap: 4px;
+    gap: 2px;
 }
 .chat-content-header .header-actions button {
-    padding: 6px 10px;
+    padding: 4px 8px;
     border: none;
     background: none;
     cursor: pointer;
     color: var(--gray-500);
-    border-radius: 6px;
+    border-radius: 4px;
     transition: all 0.2s ease;
 }
 .chat-content-header .header-actions button:hover {
@@ -585,17 +666,17 @@ include '../includes/sidebar.php';
     color: var(--gray-700);
 }
 .chat-content-header .header-actions button i {
-    font-size: 1rem;
+    font-size: 0.9rem;
 }
 
 /* Chat Messages */
 .chat-messages {
     flex: 1;
     overflow-y: auto;
-    padding: 16px 20px;
+    padding: 12px 16px;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 2px;
 }
 .chat-messages::-webkit-scrollbar {
     width: 4px;
@@ -621,21 +702,15 @@ include '../includes/sidebar.php';
 }
 
 @keyframes messageIn {
-    from {
-        opacity: 0;
-        transform: translateY(10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
 .message-bubble {
     max-width: 70%;
-    padding: 8px 14px;
-    border-radius: 12px;
-    font-size: 0.9rem;
+    padding: 6px 12px;
+    border-radius: 10px;
+    font-size: 0.85rem;
     line-height: 1.5;
     word-wrap: break-word;
     position: relative;
@@ -644,17 +719,17 @@ include '../includes/sidebar.php';
 .message-row.sent .message-bubble {
     background: var(--chat-sent-bg);
     color: var(--chat-sent-text);
-    border-bottom-right-radius: 4px;
+    border-bottom-right-radius: 3px;
 }
 .message-row.received .message-bubble {
     background: var(--chat-received-bg);
     color: var(--chat-received-text);
     border: 1px solid var(--chat-border);
-    border-bottom-left-radius: 4px;
+    border-bottom-left-radius: 3px;
 }
 
 .message-bubble .message-time {
-    font-size: 0.55rem;
+    font-size: 0.5rem;
     opacity: 0.7;
     margin-top: 2px;
     display: block;
@@ -668,7 +743,7 @@ include '../includes/sidebar.php';
 }
 
 .message-bubble .message-sender {
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     font-weight: 600;
     margin-bottom: 2px;
     display: block;
@@ -681,81 +756,30 @@ include '../includes/sidebar.php';
     display: none;
 }
 
-.message-bubble .message-type-icon {
-    margin-right: 4px;
-}
-.message-bubble .message-media {
-    max-width: 250px;
-    border-radius: 8px;
-    margin: 4px 0;
-}
-.message-bubble .message-media img {
-    max-width: 100%;
-    border-radius: 8px;
-    cursor: pointer;
-}
-.message-bubble .message-media video {
-    max-width: 100%;
-    border-radius: 8px;
-}
-.message-bubble .message-location {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: rgba(0,0,0,0.05);
-    padding: 6px 10px;
-    border-radius: 6px;
-    margin: 4px 0;
-}
-.message-bubble .message-location a {
-    color: inherit;
-    text-decoration: none;
-}
-.message-bubble .message-location a:hover {
-    text-decoration: underline;
-}
-
-.message-bubble .message-status {
-    display: inline-block;
-    margin-left: 4px;
-}
-.message-bubble .message-status i {
-    font-size: 0.55rem;
-}
-.message-bubble .message-status .read {
-    color: #34D399;
-}
-.message-bubble .message-status .sent {
-    color: rgba(255,255,255,0.5);
-}
-.message-row.received .message-bubble .message-status .sent {
-    color: var(--gray-400);
-}
-
 /* Date Divider */
 .date-divider {
     text-align: center;
-    padding: 8px 0;
+    padding: 6px 0;
     margin: 4px 0;
 }
 .date-divider span {
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     color: var(--gray-400);
     background: #F1F5F9;
-    padding: 4px 16px;
-    border-radius: 12px;
+    padding: 2px 12px;
+    border-radius: 10px;
 }
 
 /* Chat Input */
 .chat-input-area {
-    padding: 12px 16px;
+    padding: 8px 12px;
     background: white;
     border-top: 1px solid var(--chat-border);
     flex-shrink: 0;
 }
 .chat-input-area .input-row {
     display: flex;
-    gap: 8px;
+    gap: 6px;
     align-items: end;
 }
 .chat-input-area .input-row .input-tools {
@@ -763,32 +787,28 @@ include '../includes/sidebar.php';
     gap: 2px;
 }
 .chat-input-area .input-row .input-tools button {
-    padding: 6px 10px;
+    padding: 4px 8px;
     border: none;
     background: none;
     cursor: pointer;
     color: var(--gray-500);
-    border-radius: 6px;
+    border-radius: 4px;
     transition: all 0.2s ease;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
 }
 .chat-input-area .input-row .input-tools button:hover {
     background: var(--gray-100);
     color: var(--gray-700);
 }
-.chat-input-area .input-row .input-tools button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
 .chat-input-area .input-row textarea {
     flex: 1;
-    padding: 8px 14px;
+    padding: 6px 12px;
     border: 1px solid var(--chat-border);
-    border-radius: 20px;
-    font-size: 0.9rem;
+    border-radius: 16px;
+    font-size: 0.85rem;
     resize: none;
-    min-height: 40px;
-    max-height: 120px;
+    min-height: 34px;
+    max-height: 100px;
     font-family: inherit;
     background: #F1F5F9;
     transition: all 0.3s ease;
@@ -799,18 +819,14 @@ include '../includes/sidebar.php';
     background: white;
     box-shadow: 0 0 0 3px rgba(15, 76, 129, 0.1);
 }
-.chat-input-area .input-row textarea:disabled {
-    background: var(--gray-100);
-    cursor: not-allowed;
-}
 .chat-input-area .input-row .send-btn {
-    padding: 8px 16px;
+    padding: 6px 14px;
     border: none;
     background: var(--chat-primary);
     color: white;
-    border-radius: 20px;
+    border-radius: 16px;
     cursor: pointer;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     transition: all 0.3s ease;
     display: flex;
     align-items: center;
@@ -829,40 +845,6 @@ include '../includes/sidebar.php';
     box-shadow: none;
 }
 
-/* Typing Indicator */
-.typing-indicator {
-    padding: 4px 14px;
-    font-size: 0.75rem;
-    color: var(--gray-400);
-    display: none;
-    background: rgba(255,255,255,0.9);
-    border-radius: 8px;
-    margin: 0 20px 4px 20px;
-}
-.typing-indicator .dots {
-    display: inline-block;
-    animation: typingDots 1.4s infinite;
-}
-.typing-indicator .dots span {
-    display: inline-block;
-    width: 4px;
-    height: 4px;
-    border-radius: 50%;
-    background: var(--gray-400);
-    margin: 0 2px;
-    animation: typingDot 1.4s infinite;
-}
-.typing-indicator .dots span:nth-child(2) {
-    animation-delay: 0.2s;
-}
-.typing-indicator .dots span:nth-child(3) {
-    animation-delay: 0.4s;
-}
-@keyframes typingDot {
-    0%, 60%, 100% { opacity: 0.3; transform: scale(1); }
-    30% { opacity: 1; transform: scale(1.3); }
-}
-
 /* Empty State */
 .empty-chat {
     display: flex;
@@ -874,30 +856,31 @@ include '../includes/sidebar.php';
     padding: 40px;
 }
 .empty-chat i {
-    font-size: 4rem;
-    margin-bottom: 16px;
+    font-size: 3rem;
+    margin-bottom: 12px;
     color: var(--gray-300);
 }
 .empty-chat h4 {
-    margin: 0 0 8px;
+    margin: 0 0 6px;
     color: var(--gray-600);
 }
 .empty-chat p {
     margin: 0;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     text-align: center;
     max-width: 300px;
 }
 
 /* Alerts */
 .alert {
-    padding: 12px 16px;
+    padding: 10px 14px;
     border-radius: var(--radius);
-    margin-bottom: 12px;
+    margin-bottom: 10px;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
     border: 1px solid transparent;
+    font-size: 0.85rem;
 }
 .alert-success {
     background: #ECFDF5;
@@ -910,14 +893,14 @@ include '../includes/sidebar.php';
     color: #991B1B;
 }
 .alert i {
-    font-size: 1.1rem;
+    font-size: 1rem;
 }
 .alert .alert-close {
     margin-left: auto;
     background: none;
     border: none;
     cursor: pointer;
-    font-size: 1.2rem;
+    font-size: 1.1rem;
     opacity: 0.7;
     color: inherit;
 }
@@ -928,12 +911,12 @@ include '../includes/sidebar.php';
 /* Mobile Toggle */
 .mobile-toggle {
     display: none;
-    padding: 6px 14px;
+    padding: 4px 12px;
     border: 1px solid var(--chat-border);
     background: white;
-    border-radius: 6px;
+    border-radius: 4px;
     cursor: pointer;
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     color: var(--gray-600);
     transition: all 0.2s ease;
 }
@@ -944,8 +927,8 @@ include '../includes/sidebar.php';
 /* Responsive */
 @media (max-width: 1024px) {
     .chat-sidebar {
-        width: 300px;
-        min-width: 240px;
+        width: 280px;
+        min-width: 220px;
     }
 }
 
@@ -955,11 +938,10 @@ include '../includes/sidebar.php';
         flex-direction: column;
         border-radius: 8px;
     }
-    
     .chat-sidebar {
         width: 100%;
         min-width: unset;
-        max-height: 220px;
+        max-height: 200px;
         border-right: none;
         border-bottom: 1px solid var(--chat-border);
         transition: max-height 0.3s ease;
@@ -969,35 +951,34 @@ include '../includes/sidebar.php';
         overflow: hidden;
         border-bottom: none;
     }
-    
     .chat-content {
-        height: calc(100% - 220px);
+        height: calc(100% - 200px);
     }
-    .chat-content.mobile-expanded {
-        height: 100%;
-    }
-    
     .mobile-toggle {
         display: inline-flex;
         align-items: center;
-        gap: 6px;
+        gap: 4px;
     }
-    
-    .chat-sidebar-header {
-        padding: 12px 16px;
+    .role-tab {
+        padding: 4px 6px;
+        font-size: 0.55rem;
     }
-    .chat-contact-item {
-        padding: 8px 14px;
+    .role-tab i {
+        font-size: 0.7rem;
     }
-    .chat-messages {
-        padding: 12px 14px;
+    .chat-contact-item .avatar {
+        width: 32px;
+        height: 32px;
+        font-size: 0.7rem;
+    }
+    .chat-contact-item .avatar .online-dot {
+        width: 8px;
+        height: 8px;
     }
     .message-bubble {
         max-width: 85%;
-        font-size: 0.85rem;
-    }
-    .chat-input-area {
-        padding: 8px 12px;
+        font-size: 0.8rem;
+        padding: 5px 10px;
     }
 }
 
@@ -1006,51 +987,22 @@ include '../includes/sidebar.php';
         height: calc(100vh - 140px);
     }
     .chat-sidebar {
-        max-height: 180px;
+        max-height: 160px;
     }
     .chat-content {
-        height: calc(100% - 180px);
+        height: calc(100% - 160px);
     }
-    .chat-sidebar-header h3 {
-        font-size: 0.9rem;
+    .role-tab {
+        padding: 3px 4px;
+        font-size: 0.5rem;
+        min-width: 40px;
     }
-    .chat-contact-item .avatar {
-        width: 36px;
-        height: 36px;
-        font-size: 0.8rem;
+    .role-tab i {
+        font-size: 0.6rem;
     }
-    .chat-contact-item .avatar .online-dot {
-        width: 10px;
-        height: 10px;
-    }
-    .chat-content-header {
-        padding: 10px 14px;
-    }
-    .chat-content-header .avatar {
-        width: 32px;
-        height: 32px;
-        font-size: 0.7rem;
-    }
-    .chat-messages {
-        padding: 10px 12px;
-    }
-    .message-bubble {
-        max-width: 90%;
-        font-size: 0.8rem;
-        padding: 6px 10px;
-    }
-    .chat-input-area .input-row textarea {
-        font-size: 0.8rem;
-        min-height: 32px;
-        padding: 6px 10px;
-    }
-    .chat-input-area .input-row .send-btn {
-        padding: 6px 12px;
-        font-size: 0.8rem;
-    }
-    .chat-input-area .input-row .input-tools button {
-        padding: 4px 8px;
-        font-size: 0.8rem;
+    .role-tab .role-count {
+        font-size: 0.4rem;
+        padding: 0 4px;
     }
 }
 </style>
@@ -1060,24 +1012,23 @@ include '../includes/sidebar.php';
     
     <div class="main-content-inner">
         <!-- Page Header -->
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
             <div>
-                <h2 style="font-size:1.2rem;font-weight:700;margin:0;">
-                    <i class="fas fa-comment-dots" style="color:var(--chat-primary);"></i> Chat with PU Agents
+                <h2 style="font-size:1.1rem;font-weight:700;margin:0;">
+                    <i class="fas fa-comment-dots" style="color:var(--chat-primary);"></i> Chat with Agents
                 </h2>
-                <p style="color:var(--gray-500);font-size:0.8rem;margin:2px 0 0;">
+                <p style="color:var(--gray-500);font-size:0.75rem;margin:2px 0 0;">
                     <i class="fas fa-map-marker-alt" style="color:var(--gray-400);"></i> 
                     <?php echo htmlspecialchars($ward_name); ?> Ward
                     <span style="margin:0 6px;">•</span>
-                    <span id="contactCount"><?php echo count($contacts); ?></span> agents
-                    <span id="onlineCount" style="color:var(--chat-online);"></span>
+                    <?php echo isset($role_definitions[$selected_role]) ? $role_definitions[$selected_role]['name'] : 'Agents'; ?>
                 </p>
             </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <div style="display:flex;gap:6px;flex-wrap:wrap;">
                 <button class="mobile-toggle" onclick="toggleMobileSidebar()">
                     <i class="fas fa-users"></i> Contacts
                 </button>
-                <a href="manage-pu-agents.php" class="btn-secondary-sm" style="padding:6px 14px;border:1px solid var(--gray-200);border-radius:var(--radius);color:var(--gray-600);text-decoration:none;font-size:0.8rem;transition:all 0.2s ease;">
+                <a href="manage-pu-agents.php" class="btn-secondary-sm" style="padding:4px 12px;border:1px solid var(--gray-200);border-radius:var(--radius);color:var(--gray-600);text-decoration:none;font-size:0.75rem;transition:all 0.2s ease;">
                     <i class="fas fa-arrow-left"></i> Back
                 </a>
             </div>
@@ -1112,8 +1063,21 @@ include '../includes/sidebar.php';
         <div class="chat-container" id="chatContainer">
             <!-- Left Sidebar - Contacts -->
             <div class="chat-sidebar" id="chatSidebar">
+                <!-- Role Tabs -->
+                <div class="role-tabs">
+                    <?php foreach ($role_definitions as $role_id => $role): ?>
+                        <a href="?role=<?php echo $role_id; ?><?php echo $selected_contact_id > 0 ? '&contact_id=' . $selected_contact_id : ''; ?>" 
+                           class="role-tab <?php echo $selected_role == $role_id ? 'active' : ''; ?>"
+                           style="<?php echo $selected_role == $role_id ? 'border-bottom:2px solid ' . $role['color'] . ';' : ''; ?>">
+                            <i class="fas <?php echo $role['icon']; ?>" style="color:<?php echo $selected_role == $role_id ? $role['color'] : 'inherit'; ?>;"></i>
+                            <?php echo $role['name']; ?>
+                            <span class="role-count"><?php echo $role_counts[$role_id] ?? 0; ?></span>
+                        </a>
+                    <?php endforeach; ?>
+                </div>
+                
                 <div class="chat-sidebar-header">
-                    <h3><i class="fas fa-user-check"></i> PU Agents</h3>
+                    <h3><i class="fas fa-user-check"></i> Contacts</h3>
                     <span class="badge" id="contactBadge"><?php echo count($contacts); ?></span>
                 </div>
                 <div class="chat-sidebar-search">
@@ -1131,8 +1095,11 @@ include '../includes/sidebar.php';
                             $avatar = !empty($contact['photograph_url']) ? $contact['photograph_url'] : '';
                             $last_msg = $contact['last_message'] ?? 'No messages yet';
                             $last_time = $contact['last_message_time'] ? date('M d, H:i', strtotime($contact['last_message_time'])) : '';
+                            $role_info = isset($role_definitions[$contact['role_id']]) ? $role_definitions[$contact['role_id']] : null;
+                            $role_color = $role_info ? $role_info['color'] : '#6B7280';
+                            $role_name = $role_info ? $role_info['name'] : 'Agent';
                         ?>
-                            <a href="?contact_id=<?php echo $contact['id']; ?>" 
+                            <a href="?role=<?php echo $selected_role; ?>&contact_id=<?php echo $contact['id']; ?>" 
                                class="chat-contact-item <?php echo $selected_contact_id == $contact['id'] ? 'active' : ''; ?>"
                                data-name="<?php echo strtolower($contact['full_name']); ?>"
                                data-id="<?php echo $contact['id']; ?>">
@@ -1147,11 +1114,13 @@ include '../includes/sidebar.php';
                                 <div class="contact-info">
                                     <div class="name">
                                         <?php echo htmlspecialchars($contact['full_name']); ?>
-                                        <span class="role"><?php echo ucfirst(str_replace('_', ' ', $contact['role_level'] ?? '')); ?></span>
+                                        <span class="role-tag" style="background:<?php echo $role_color; ?>20;color:<?php echo $role_color; ?>;">
+                                            <?php echo $role_name; ?>
+                                        </span>
                                     </div>
                                     <div class="last-msg">
                                         <?php if ($last_msg): ?>
-                                            <span class="sender"><?php echo $last_msg; ?></span>
+                                            <?php echo htmlspecialchars(substr($last_msg, 0, 50)) . (strlen($last_msg) > 50 ? '...' : ''); ?>
                                         <?php else: ?>
                                             <span style="color:var(--gray-400);">No messages yet</span>
                                         <?php endif; ?>
@@ -1165,16 +1134,16 @@ include '../includes/sidebar.php';
                                         <div class="unread"><?php echo $unread; ?></div>
                                     <?php endif; ?>
                                     <?php if ($is_online): ?>
-                                        <div class="online-status"><i class="fas fa-circle" style="font-size:0.3rem;"></i> Online</div>
+                                        <div class="online-status"><i class="fas fa-circle" style="font-size:0.25rem;"></i> Online</div>
                                     <?php endif; ?>
                                 </div>
                             </a>
                         <?php endforeach; ?>
                     <?php else: ?>
-                        <div style="text-align:center;padding:40px 20px;color:var(--gray-400);">
-                            <i class="fas fa-users" style="font-size:2rem;display:block;margin-bottom:8px;"></i>
-                            <p>No PU agents available</p>
-                            <p style="font-size:0.7rem;margin-top:4px;">Agents will appear here once assigned.</p>
+                        <div style="text-align:center;padding:30px 16px;color:var(--gray-400);">
+                            <i class="fas fa-users" style="font-size:1.5rem;display:block;margin-bottom:6px;"></i>
+                            <p style="font-size:0.8rem;">No <?php echo isset($role_definitions[$selected_role]) ? strtolower($role_definitions[$selected_role]['name']) : 'agents'; ?> available</p>
+                            <p style="font-size:0.65rem;margin-top:4px;">Agents will appear here once assigned.</p>
                         </div>
                     <?php endif; ?>
                 </div>
@@ -1193,10 +1162,19 @@ include '../includes/sidebar.php';
                             <?php endif; ?>
                         </div>
                         <div class="header-info">
-                            <div class="name"><?php echo htmlspecialchars($selected_contact['full_name']); ?></div>
+                            <div class="name">
+                                <?php echo htmlspecialchars($selected_contact['full_name']); ?>
+                                <?php 
+                                $role_info = isset($role_definitions[$selected_contact['role_id']]) ? $role_definitions[$selected_contact['role_id']] : null;
+                                $role_color = $role_info ? $role_info['color'] : '#6B7280';
+                                ?>
+                                <span style="font-size:0.6rem;padding:1px 8px;border-radius:8px;background:<?php echo $role_color; ?>20;color:<?php echo $role_color; ?>;">
+                                    <?php echo $role_info ? $role_info['name'] : 'Agent'; ?>
+                                </span>
+                            </div>
                             <div class="status <?php echo ((int)($selected_contact['is_online'] ?? 0) > 0) ? 'online' : ''; ?>">
                                 <?php if ((int)($selected_contact['is_online'] ?? 0) > 0): ?>
-                                    <i class="fas fa-circle" style="font-size:0.3rem;"></i> Online
+                                    <i class="fas fa-circle" style="font-size:0.25rem;"></i> Online
                                 <?php else: ?>
                                     Last seen <?php echo $selected_contact['last_login_at'] ? date('M d, H:i', strtotime($selected_contact['last_login_at'])) : 'recently'; ?>
                                 <?php endif; ?>
@@ -1205,9 +1183,6 @@ include '../includes/sidebar.php';
                         <div class="header-actions">
                             <button onclick="window.location.href='agent-profile.php?id=<?php echo $selected_contact['id']; ?>'" title="View Profile">
                                 <i class="fas fa-user"></i>
-                            </button>
-                            <button onclick="window.location.href='agent-performance.php?id=<?php echo $selected_contact['id']; ?>'" title="View Performance">
-                                <i class="fas fa-chart-bar"></i>
                             </button>
                             <button onclick="refreshChat()" title="Refresh Chat">
                                 <i class="fas fa-sync-alt"></i>
@@ -1252,19 +1227,19 @@ include '../includes/sidebar.php';
                                         
                                         <?php if (!empty($msg['media_url'])): ?>
                                             <?php if ($msg['message_type'] === 'image'): ?>
-                                                <div class="message-media">
-                                                    <img src="<?php echo htmlspecialchars($msg['media_url']); ?>" alt="Image" onclick="window.open(this.src)">
+                                                <div style="margin:4px 0;">
+                                                    <img src="<?php echo htmlspecialchars($msg['media_url']); ?>" alt="Image" style="max-width:200px;border-radius:6px;cursor:pointer;" onclick="window.open(this.src)">
                                                 </div>
                                             <?php elseif ($msg['message_type'] === 'video'): ?>
-                                                <div class="message-media">
-                                                    <video controls>
+                                                <div style="margin:4px 0;">
+                                                    <video controls style="max-width:200px;border-radius:6px;">
                                                         <source src="<?php echo htmlspecialchars($msg['media_url']); ?>">
                                                     </video>
                                                 </div>
                                             <?php elseif ($msg['message_type'] === 'location'): ?>
-                                                <div class="message-location">
+                                                <div style="display:flex;align-items:center;gap:6px;background:rgba(0,0,0,0.05);padding:4px 8px;border-radius:4px;margin:4px 0;">
                                                     <i class="fas fa-map-marker-alt"></i>
-                                                    <a href="https://maps.google.com/?q=<?php echo urlencode($msg['content']); ?>" target="_blank">
+                                                    <a href="https://maps.google.com/?q=<?php echo urlencode($msg['content']); ?>" target="_blank" style="color:inherit;text-decoration:none;font-size:0.8rem;">
                                                         <?php echo htmlspecialchars($msg['content']); ?>
                                                     </a>
                                                 </div>
@@ -1277,15 +1252,13 @@ include '../includes/sidebar.php';
                                         
                                         <span class="message-time">
                                             <?php echo $time; ?>
-                                            <span class="message-status">
-                                                <?php if ($is_sent): ?>
-                                                    <?php if ($msg['is_read'] ?? 0): ?>
-                                                        <i class="fas fa-check-double read"></i>
-                                                    <?php else: ?>
-                                                        <i class="fas fa-check sent"></i>
-                                                    <?php endif; ?>
+                                            <?php if ($is_sent): ?>
+                                                <?php if ($msg['is_read'] ?? 0): ?>
+                                                    <i class="fas fa-check-double" style="margin-left:2px;color:#34D399;"></i>
+                                                <?php else: ?>
+                                                    <i class="fas fa-check" style="margin-left:2px;opacity:0.5;"></i>
                                                 <?php endif; ?>
-                                            </span>
+                                            <?php endif; ?>
                                         </span>
                                     </div>
                                 </div>
@@ -1299,22 +1272,13 @@ include '../includes/sidebar.php';
                         <?php endif; ?>
                     </div>
 
-                    <!-- Typing Indicator -->
-                    <div class="typing-indicator" id="typingIndicator">
-                        <span>Agent is typing</span>
-                        <span class="dots">
-                            <span></span>
-                            <span></span>
-                            <span></span>
-                        </span>
-                    </div>
-
                     <!-- Chat Input -->
                     <div class="chat-input-area">
                         <form method="POST" action="" id="chatForm" enctype="multipart/form-data">
                             <input type="hidden" name="action" value="send_message">
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
                             <input type="hidden" name="receiver_id" value="<?php echo $selected_contact['id']; ?>">
+                            <input type="hidden" name="role_id" value="<?php echo $selected_role; ?>">
                             <input type="hidden" name="message_type" id="messageType" value="text">
                             <input type="hidden" name="media_url" id="mediaUrl" value="">
                             
@@ -1349,10 +1313,10 @@ include '../includes/sidebar.php';
                     <!-- No Contact Selected -->
                     <div class="empty-chat" style="height:100%;">
                         <i class="fas fa-comment-dots" style="color:var(--gray-300);"></i>
-                        <h4 style="color:var(--gray-600);">Select a PU Agent</h4>
+                        <h4 style="color:var(--gray-600);">Select a Contact</h4>
                         <p style="color:var(--gray-400);">Choose an agent from the sidebar to start chatting</p>
                         <?php if (count($contacts) > 0): ?>
-                            <p style="font-size:0.7rem;color:var(--gray-400);margin-top:8px;">
+                            <p style="font-size:0.65rem;color:var(--gray-400);margin-top:6px;">
                                 <i class="fas fa-arrow-left"></i> Click on a contact on the left
                             </p>
                         <?php endif; ?>
@@ -1383,7 +1347,7 @@ document.addEventListener('DOMContentLoaded', function() {
     if (textarea) {
         textarea.addEventListener('input', function() {
             this.style.height = 'auto';
-            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+            this.style.height = Math.min(this.scrollHeight, 100) + 'px';
         });
     }
 });
@@ -1403,6 +1367,7 @@ function uploadFile(input, type) {
         const formData = new FormData();
         formData.append('attachment', file);
         formData.append('receiver_id', document.querySelector('input[name="receiver_id"]').value);
+        formData.append('role_id', document.querySelector('input[name="role_id"]').value);
         formData.append('action', 'upload_file');
         formData.append('csrf_token', document.querySelector('input[name="csrf_token"]').value);
         
@@ -1477,35 +1442,26 @@ function toggleMobileSidebar() {
 // Refresh chat
 function refreshChat() {
     const contactId = document.querySelector('input[name="receiver_id"]');
-    if (contactId && contactId.value) {
-        window.location.href = 'chat-agents.php?contact_id=' + contactId.value;
-    }
-}
-
-// Online count
-function updateOnlineCount() {
-    const onlineDots = document.querySelectorAll('.online-dot.online');
-    const onlineCount = document.getElementById('onlineCount');
-    if (onlineCount) {
-        onlineCount.textContent = '• ' + onlineDots.length + ' online';
+    const roleId = document.querySelector('input[name="role_id"]');
+    if (contactId && contactId.value && roleId && roleId.value) {
+        window.location.href = 'chat-agents.php?role=' + roleId.value + '&contact_id=' + contactId.value;
     }
 }
 
 // Auto-scroll on load
 document.addEventListener('DOMContentLoaded', function() {
     scrollToBottom();
-    updateOnlineCount();
     
     // Auto-refresh messages every 30 seconds
     const contactId = document.querySelector('input[name="receiver_id"]');
-    if (contactId && contactId.value) {
+    const roleId = document.querySelector('input[name="role_id"]');
+    if (contactId && contactId.value && roleId && roleId.value) {
         setInterval(function() {
             // Check for new messages
-            fetch('chat-agents.php?check_new=1&contact_id=' + contactId.value)
+            fetch('chat-agents.php?check_new=1&contact_id=' + contactId.value + '&role=' + roleId.value)
                 .then(response => response.json())
                 .then(data => {
                     if (data.new_messages > 0) {
-                        // Refresh to show new messages
                         window.location.reload();
                     }
                 })
