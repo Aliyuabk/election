@@ -32,7 +32,7 @@ $wardId = $userData['ward_id'] ?? 0;
 if (empty($wardId)) {
     try {
         $conn = getDBConnection();
-        $stmt = $conn->prepare("SELECT ward_id FROM users WHERE id = ?");
+        $stmt = $conn->prepare("SELECT ward_id, lga_id FROM users WHERE id = ?");
         $stmt->bind_param("i", $userId);
         $stmt->execute();
         $result = $stmt->get_result();
