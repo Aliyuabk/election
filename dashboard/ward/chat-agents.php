@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// WARD COORDINATOR - CHAT WITH AGENTS (MULTI-ROLE)
+// WARD COORDINATOR - CHAT WITH AGENTS (SIMPLIFIED FIXED)
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -84,16 +84,24 @@ $role_definitions = [
 // ============================================================
 // GET SELECTED ROLE AND CONTACT
 // ============================================================
-$selected_role = isset($_GET['role']) ? (int)$_GET['role'] : 9; // Default to PU Agents
+$selected_role = isset($_GET['role']) ? (int)$_GET['role'] : 9;
 $selected_contact_id = isset($_GET['contact_id']) ? (int)$_GET['contact_id'] : 0;
 $selected_contact = null;
 $messages = [];
 $contacts = [];
 
 // ============================================================
-// FETCH CONTACTS BY ROLE
+// DEBUG: Log what we're looking for
+// ============================================================
+error_log("=== CHAT DEBUG ===");
+error_log("Tenant ID: $tenant_id, Ward ID: $ward_id, User ID: $user_id");
+error_log("Selected Role: $selected_role (" . ($role_definitions[$selected_role]['name'] ?? 'Unknown') . ")");
+
+// ============================================================
+// FETCH CONTACTS BY ROLE - SIMPLIFIED
 // ============================================================
 try {
+    // First, let's just get all users in this ward with this role
     $stmt = $db->prepare("
         SELECT 
             u.id,
@@ -109,19 +117,7 @@ try {
             pu.name as pu_name,
             pu.code as pu_code,
             r.level as role_level,
-            r.name as role_name,
-            (SELECT COUNT(*) FROM chat_messages cm 
-             WHERE cm.sender_id = u.id AND cm.receiver_id = ? AND cm.is_read = 0 AND cm.is_deleted = 0) as unread_count,
-            (SELECT COUNT(*) FROM user_sessions us 
-             WHERE us.user_id = u.id AND us.is_active = 1 
-             AND us.last_activity_at > DATE_SUB(NOW(), INTERVAL 5 MINUTE)) as is_online,
-            (SELECT MAX(created_at) FROM chat_messages 
-             WHERE (sender_id = u.id AND receiver_id = ?) 
-                OR (sender_id = ? AND receiver_id = u.id)) as last_message_time,
-            (SELECT content FROM chat_messages 
-             WHERE (sender_id = u.id AND receiver_id = ?) 
-                OR (sender_id = ? AND receiver_id = u.id) 
-             ORDER BY created_at DESC LIMIT 1) as last_message
+            r.name as role_name
         FROM users u
         LEFT JOIN polling_units pu ON u.pu_id = pu.id
         LEFT JOIN roles r ON u.role_id = r.id
@@ -131,10 +127,15 @@ try {
         AND u.status = 'active'
         AND u.id != ?
         AND u.role_id = ?
-        ORDER BY last_message_time DESC, u.full_name ASC
+        ORDER BY u.full_name ASC
     ");
-    $stmt->execute([$user_id, $user_id, $user_id, $user_id, $user_id, $tenant_id, $ward_id, $user_id, $selected_role]);
+    $stmt->execute([$tenant_id, $ward_id, $user_id, $selected_role]);
     $contacts = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    error_log("Found " . count($contacts) . " contacts for role " . $selected_role);
+    foreach ($contacts as $c) {
+        error_log("  - Contact: " . $c['full_name'] . " (ID: " . $c['id'] . ", Role: " . $c['role_id'] . ")");
+    }
     
     // If a contact is selected, get their details and messages
     if ($selected_contact_id > 0) {
@@ -146,6 +147,8 @@ try {
         }
         
         if ($selected_contact) {
+            error_log("Selected contact found: " . $selected_contact['full_name']);
+            
             // Get messages between user and selected contact
             $stmt = $db->prepare("
                 SELECT 
@@ -171,6 +174,8 @@ try {
                 WHERE sender_id = ? AND receiver_id = ? AND is_read = 0
             ");
             $stmt->execute([$selected_contact_id, $user_id]);
+        } else {
+            error_log("Selected contact ID $selected_contact_id not found in contacts list");
         }
     }
     
@@ -373,6 +378,7 @@ include '../includes/sidebar.php';
     align-items: center;
     gap: 2px;
     position: relative;
+    text-decoration: none;
 }
 .role-tab i {
     font-size: 0.9rem;
@@ -396,15 +402,6 @@ include '../includes/sidebar.php';
 .role-tab.active .role-count {
     background: rgba(255,255,255,0.3);
     color: white;
-}
-.role-tab .role-badge {
-    position: absolute;
-    top: 2px;
-    right: 2px;
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: #EF4444;
 }
 
 .chat-sidebar-header {
@@ -748,12 +745,6 @@ include '../includes/sidebar.php';
     margin-bottom: 2px;
     display: block;
     color: var(--chat-primary);
-}
-.message-row.received .message-bubble .message-sender {
-    color: var(--chat-primary);
-}
-.message-row.sent .message-bubble .message-sender {
-    display: none;
 }
 
 /* Date Divider */
@@ -1214,39 +1205,7 @@ include '../includes/sidebar.php';
                                             <span class="message-sender"><?php echo htmlspecialchars($msg['sender_name']); ?></span>
                                         <?php endif; ?>
                                         
-                                        <?php if (($msg['message_type'] ?? 'text') !== 'text'): ?>
-                                            <span class="message-type-icon">
-                                                <?php if ($msg['message_type'] === 'image'): ?>📷
-                                                <?php elseif ($msg['message_type'] === 'video'): ?>🎬
-                                                <?php elseif ($msg['message_type'] === 'audio'): ?>🎵
-                                                <?php elseif ($msg['message_type'] === 'file'): ?>📄
-                                                <?php elseif ($msg['message_type'] === 'location'): ?>📍
-                                                <?php endif; ?>
-                                            </span>
-                                        <?php endif; ?>
-                                        
-                                        <?php if (!empty($msg['media_url'])): ?>
-                                            <?php if ($msg['message_type'] === 'image'): ?>
-                                                <div style="margin:4px 0;">
-                                                    <img src="<?php echo htmlspecialchars($msg['media_url']); ?>" alt="Image" style="max-width:200px;border-radius:6px;cursor:pointer;" onclick="window.open(this.src)">
-                                                </div>
-                                            <?php elseif ($msg['message_type'] === 'video'): ?>
-                                                <div style="margin:4px 0;">
-                                                    <video controls style="max-width:200px;border-radius:6px;">
-                                                        <source src="<?php echo htmlspecialchars($msg['media_url']); ?>">
-                                                    </video>
-                                                </div>
-                                            <?php elseif ($msg['message_type'] === 'location'): ?>
-                                                <div style="display:flex;align-items:center;gap:6px;background:rgba(0,0,0,0.05);padding:4px 8px;border-radius:4px;margin:4px 0;">
-                                                    <i class="fas fa-map-marker-alt"></i>
-                                                    <a href="https://maps.google.com/?q=<?php echo urlencode($msg['content']); ?>" target="_blank" style="color:inherit;text-decoration:none;font-size:0.8rem;">
-                                                        <?php echo htmlspecialchars($msg['content']); ?>
-                                                    </a>
-                                                </div>
-                                            <?php endif; ?>
-                                        <?php endif; ?>
-                                        
-                                        <?php if ($msg['message_type'] !== 'location' && !empty($msg['content'])): ?>
+                                        <?php if (!empty($msg['content'])): ?>
                                             <?php echo nl2br(htmlspecialchars($msg['content'])); ?>
                                         <?php endif; ?>
                                         
