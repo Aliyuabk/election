@@ -511,24 +511,7 @@ $role_menus['ward'] = [
                 ['label' => 'Schedule Broadcast', 'icon' => 'fa-calendar-plus', 'url' => 'broadcasts-schedule.php'],
             ]
         ],
-        ['label' => 'Chat', 'icon' => 'fa-comment-dots', 'dropdown' => true, 'id' => 'chat-dropdown',
-            'items' => [
-                ['label' => 'PU Data Agents', 'icon' => 'fa-user-check', 'url' => 'chat-agents.php'],
-                ['label' => 'Party Agents', 'icon' => 'fa-flag', 'url' => 'chat-party-agents.php'],
-                ['label' => 'Observers', 'icon' => 'fa-eye', 'url' => 'chat-observers.php'],
-                ['label' => 'Volunteers', 'icon' => 'fa-hands-helping', 'url' => 'chat-volunteers.php'],
-                ['label' => 'Send Text', 'icon' => 'fa-comment', 'url' => 'chat-send-text.php'],
-                ['label' => 'Receive Messages', 'icon' => 'fa-inbox', 'url' => 'chat-inbox.php'],
-                ['label' => 'Voice Messages', 'icon' => 'fa-microphone', 'url' => 'chat-voice.php'],
-                ['label' => 'Send Images', 'icon' => 'fa-image', 'url' => 'chat-images.php'],
-                ['label' => 'Send Videos', 'icon' => 'fa-video', 'url' => 'chat-videos.php'],
-                ['label' => 'Send Documents', 'icon' => 'fa-file-alt', 'url' => 'chat-documents.php'],
-                ['label' => 'Share Location', 'icon' => 'fa-location-dot', 'url' => 'chat-location.php'],
-                ['label' => 'Download Files', 'icon' => 'fa-download', 'url' => 'chat-download.php'],
-                ['label' => 'Search Messages', 'icon' => 'fa-search', 'url' => 'chat-search.php'],
-                ['label' => 'View Online Status', 'icon' => 'fa-circle', 'url' => 'chat-online.php'],
-            ]
-        ]
+        ['label' => 'Chat Agents', 'icon' => 'fa-comment-dots', 'url' => 'chat-agents.php', 'active' => 'chat-agents'], 
     ],
     'notifications' => [
         ['label' => 'Notifications', 'icon' => 'fa-bell', 'dropdown' => true, 'id' => 'notifications-dropdown',
