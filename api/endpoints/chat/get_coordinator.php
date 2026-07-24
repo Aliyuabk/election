@@ -51,6 +51,7 @@ try {
     $conn = getDBConnection();
     
     // Find ward coordinator (role_level = 'ward')
+    // Removed the is_read subquery to avoid errors
     $stmt = $conn->prepare("
         SELECT 
             u.id,
@@ -62,8 +63,6 @@ try {
             u.last_login_at,
             r.name as role_name,
             r.level as role_level,
-            (SELECT COUNT(*) FROM chat_messages 
-             WHERE sender_id = u.id AND receiver_id = ? AND is_read = 0) as unread_count,
             (SELECT 1 FROM user_sessions WHERE user_id = u.id AND is_active = 1 AND expires_at > NOW() LIMIT 1) as is_online
         FROM users u
         LEFT JOIN roles r ON u.role_id = r.id
@@ -75,7 +74,7 @@ try {
         AND r.level = 'ward'
         LIMIT 1
     ");
-    $stmt->bind_param("iiii", $tenantId, $wardId, $userId);
+    $stmt->bind_param("iii", $tenantId, $wardId, $userId);
     $stmt->execute();
     $result = $stmt->get_result();
     
@@ -101,8 +100,6 @@ try {
                 u.last_login_at,
                 r.name as role_name,
                 r.level as role_level,
-                (SELECT COUNT(*) FROM chat_messages 
-                 WHERE sender_id = u.id AND receiver_id = ? AND is_read = 0) as unread_count,
                 (SELECT 1 FROM user_sessions WHERE user_id = u.id AND is_active = 1 AND expires_at > NOW() LIMIT 1) as is_online
             FROM users u
             LEFT JOIN roles r ON u.role_id = r.id
@@ -114,7 +111,7 @@ try {
             AND r.level = 'lga'
             LIMIT 1
         ");
-        $stmt->bind_param("iiii", $tenantId, $lgaId, $userId);
+        $stmt->bind_param("iii", $tenantId, $lgaId, $userId);
         $stmt->execute();
         $result = $stmt->get_result();
         

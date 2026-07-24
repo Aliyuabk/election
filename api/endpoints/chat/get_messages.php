@@ -59,15 +59,20 @@ try {
     }
     $stmt->close();
     
-    // Mark unread messages as read
-    $stmt = $conn->prepare("
-        UPDATE chat_messages 
-        SET is_read = 1, read_at = NOW() 
-        WHERE sender_id = ? AND receiver_id = ? AND is_read = 0
-    ");
-    $stmt->bind_param("ii", $contactId, $userId);
-    $stmt->execute();
-    $stmt->close();
+    // Mark messages as read (only if column exists)
+    try {
+        $stmt = $conn->prepare("
+            UPDATE chat_messages 
+            SET is_read = 1, read_at = NOW() 
+            WHERE sender_id = ? AND receiver_id = ? AND is_read = 0
+        ");
+        $stmt->bind_param("ii", $contactId, $userId);
+        $stmt->execute();
+        $stmt->close();
+    } catch (Exception $e) {
+        // Column might not exist yet, ignore
+        error_log("Warning: Could not update is_read: " . $e->getMessage());
+    }
     
     $conn->close();
     

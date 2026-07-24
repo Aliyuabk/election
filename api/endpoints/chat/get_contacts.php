@@ -51,7 +51,7 @@ if (empty($wardId)) {
 try {
     $conn = getDBConnection();
     
-    // Get contacts with role
+    // Get contacts with role - removed is_read subquery
     $stmt = $conn->prepare("
         SELECT 
             u.id,
@@ -74,8 +74,6 @@ try {
              WHERE ((sender_id = u.id AND receiver_id = ?) OR (sender_id = ? AND receiver_id = u.id))
              AND is_deleted = 0
              ORDER BY created_at DESC LIMIT 1) as last_message_time,
-            (SELECT COUNT(*) FROM chat_messages 
-             WHERE sender_id = u.id AND receiver_id = ? AND is_read = 0) as unread_count,
             (SELECT 1 FROM user_sessions WHERE user_id = u.id AND is_active = 1 AND expires_at > NOW() LIMIT 1) as is_online
         FROM users u
         LEFT JOIN polling_units pu ON u.pu_id = pu.id
@@ -86,10 +84,10 @@ try {
         AND u.status = 'active'
         AND u.id != ?
         AND u.role_id = ?
-        ORDER BY unread_count DESC, last_message_time DESC
+        ORDER BY last_message_time DESC
     ");
-    $stmt->bind_param("iiiiiiiiii", 
-        $userId, $userId, $userId, $userId, $userId,
+    $stmt->bind_param("iiiiiiii", 
+        $userId, $userId, $userId, $userId,
         $tenantId, $wardId, $userId, $roleId
     );
     $stmt->execute();
