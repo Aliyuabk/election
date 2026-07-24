@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// WARD COORDINATOR - ASSIGN VOLUNTEERS (COMPLETE REWRITE)
+// WARD COORDINATOR - ASSIGN VOLUNTEERS (DEBUG VERSION)
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -34,7 +34,7 @@ $state_id = SessionManager::get('state_id');
 $db = getDB();
 
 // ============================================================
-// FIX: Ensure ward_id is properly set
+// FIX: Force refresh ward_id from database
 // ============================================================
 if (empty($ward_id)) {
     try {
@@ -52,7 +52,6 @@ if (empty($ward_id)) {
             SessionManager::set('lga_id', $lga_id);
             SessionManager::set('state_id', $state_id);
         } else {
-            // No ward assigned - redirect to error
             $_SESSION['flash_error'] = 'You have not been assigned to any ward. Please contact your administrator.';
             header('Location: ../client-admin/dashboard.php');
             exit();
@@ -66,11 +65,39 @@ if (empty($ward_id)) {
 }
 
 // ============================================================
+// DEBUG: Log all relevant data
+// ============================================================
+error_log("=== ASSIGN VOLUNTEER DEBUG ===");
+error_log("User ID: $user_id, Tenant ID: $tenant_id");
+error_log("Session Ward ID: " . SessionManager::get('ward_id'));
+error_log("Ward ID from variable: " . ($ward_id ?? 'NULL'));
+error_log("LGA ID: " . ($lga_id ?? 'NULL'));
+error_log("State ID: " . ($state_id ?? 'NULL'));
+
+// ============================================================
+// DEBUG: Check the actual polling units in the ward
+// ============================================================
+try {
+    $stmt = $db->prepare("
+        SELECT id, name, code, ward_id, is_active, lga_id, state_id 
+        FROM polling_units 
+        WHERE ward_id = ? AND is_active = 1
+    ");
+    $stmt->execute([$ward_id]);
+    $debug_pus = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    error_log("Found " . count($debug_pus) . " active polling units in ward $ward_id:");
+    foreach ($debug_pus as $pu) {
+        error_log("  - PU ID: {$pu['id']}, Name: {$pu['name']}, Ward: {$pu['ward_id']}");
+    }
+} catch (Exception $e) {
+    error_log("Error fetching debug PUs: " . $e->getMessage());
+}
+
+// ============================================================
 // FIX: Function to ensure active election exists
 // ============================================================
 function ensureActiveElection($db, $tenant_id, $ward_id, $user_id) {
     try {
-        // First, check if there's an active election that includes this ward
         $stmt = $db->prepare("
             SELECT id, name FROM elections 
             WHERE tenant_id = ? 
@@ -85,7 +112,6 @@ function ensureActiveElection($db, $tenant_id, $ward_id, $user_id) {
             return ['id' => $result['id'], 'name' => $result['name'], 'created' => false];
         }
         
-        // No active election found - create a default one
         $db->beginTransaction();
         
         $election_name = 'Default Active Election - ' . date('Y-m-d H:i:s');
@@ -124,11 +150,13 @@ function ensureActiveElection($db, $tenant_id, $ward_id, $user_id) {
 }
 
 // ============================================================
-// FIX: Improved function to get polling unit details with debugging
+// FIX: Improved function to get polling unit details with FULL debugging
 // ============================================================
 function getPollingUnitDetails($db, $pu_id, $ward_id = null) {
     try {
-        // First, just check if the PU exists
+        error_log("getPollingUnitDetails called with pu_id: $pu_id, ward_id: " . ($ward_id ?? 'NULL'));
+        
+        // Get ALL polling unit data including ward_id
         $stmt = $db->prepare("
             SELECT 
                 id, 
@@ -140,30 +168,48 @@ function getPollingUnitDetails($db, $pu_id, $ward_id = null) {
                 registered_voters,
                 is_active,
                 description,
-                address
+                address,
+                gps_lat,
+                gps_lng
             FROM polling_units 
             WHERE id = ?
         ");
         $stmt->execute([$pu_id]);
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
         
+        error_log("getPollingUnitDetails result: " . ($result ? 'Found' : 'Not Found'));
+        if ($result) {
+            error_log("PU Data: " . print_r($result, true));
+        }
+        
         if (!$result) {
-            error_log("Polling Unit ID $pu_id not found in database");
+            // Check if the PU exists at all with a simple query
+            $stmt = $db->prepare("SELECT COUNT(*) as count FROM polling_units WHERE id = ?");
+            $stmt->execute([$pu_id]);
+            $count = $stmt->fetch(PDO::FETCH_ASSOC);
+            error_log("PU ID $pu_id existence check: " . ($count['count'] > 0 ? 'Exists' : 'Does not exist'));
             return null;
         }
         
         // Check if active
         if ($result['is_active'] != 1) {
-            error_log("Polling Unit ID $pu_id is not active (is_active = {$result['is_active']})");
-            // Still return it but with a warning
+            error_log("WARNING: Polling Unit ID $pu_id is not active (is_active = {$result['is_active']})");
+            // We'll still return it but with a warning flag
             $result['warning'] = 'Polling unit is not active';
+            $result['warning_code'] = 'inactive';
         }
         
         // Check ward match if provided
-        if ($ward_id && $result['ward_id'] != $ward_id) {
-            error_log("Polling Unit ID $pu_id belongs to ward {$result['ward_id']} but current ward is $ward_id");
-            // Still return it but with a warning
-            $result['warning'] = 'Polling unit belongs to a different ward';
+        if ($ward_id !== null) {
+            error_log("Comparing PU ward_id: {$result['ward_id']} with provided ward_id: $ward_id");
+            if ($result['ward_id'] != $ward_id) {
+                error_log("WARNING: Ward mismatch! PU ward_id: {$result['ward_id']} != Current ward_id: $ward_id");
+                $result['warning'] = 'Polling unit belongs to a different ward';
+                $result['warning_code'] = 'ward_mismatch';
+                // DO NOT return null - we want to see the data
+            } else {
+                error_log("Ward match confirmed!");
+            }
         }
         
         return $result;
@@ -221,6 +267,7 @@ try {
     ");
     $stmt->execute([$tenant_id, $ward_id]);
     $unassigned_volunteers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    error_log("Found " . count($unassigned_volunteers) . " unassigned volunteers");
     
     // Get assigned volunteers (role_id = 15 for Volunteer)
     $stmt = $db->prepare("
@@ -249,8 +296,9 @@ try {
     ");
     $stmt->execute([$tenant_id, $ward_id]);
     $assigned_volunteers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    error_log("Found " . count($assigned_volunteers) . " assigned volunteers");
     
-    // Get polling units in this ward
+    // Get polling units in this ward - WITH DEBUG
     $stmt = $db->prepare("
         SELECT 
             pu.id,
@@ -260,6 +308,8 @@ try {
             pu.is_active,
             pu.ward_id,
             pu.description,
+            pu.lga_id,
+            pu.state_id,
             (SELECT COUNT(*) FROM users u 
              WHERE u.pu_id = pu.id AND u.role_id = 15 AND u.status = 'active' AND u.deleted_at IS NULL) as assigned_count
         FROM polling_units pu
@@ -269,8 +319,29 @@ try {
     $stmt->execute([$ward_id]);
     $polling_units = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // DEBUG: Log the polling units found
     error_log("Found " . count($polling_units) . " polling units for ward $ward_id");
+    foreach ($polling_units as $pu) {
+        error_log("  - PU: ID={$pu['id']}, Name={$pu['name']}, Ward={$pu['ward_id']}, Active={$pu['is_active']}");
+    }
+    
+    // If no polling units found, check if there are any at all in the database
+    if (count($polling_units) === 0) {
+        $stmt = $db->prepare("SELECT COUNT(*) as total FROM polling_units");
+        $stmt->execute();
+        $total = $stmt->fetch(PDO::FETCH_ASSOC);
+        error_log("Total polling units in database: " . ($total['total'] ?? 0));
+        
+        $stmt = $db->prepare("SELECT COUNT(*) as total FROM polling_units WHERE is_active = 1");
+        $stmt->execute();
+        $active = $stmt->fetch(PDO::FETCH_ASSOC);
+        error_log("Active polling units: " . ($active['total'] ?? 0));
+        
+        // Check which ward_ids exist in polling_units
+        $stmt = $db->prepare("SELECT DISTINCT ward_id FROM polling_units");
+        $stmt->execute();
+        $ward_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        error_log("Ward IDs with polling units: " . implode(', ', $ward_ids));
+    }
     
 } catch (Exception $e) {
     error_log("Error fetching data: " . $e->getMessage());
@@ -284,12 +355,16 @@ $success_message = '';
 $error_message = '';
 $show_success = false;
 $debug_info = '';
+$detailed_error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'assign_volunteer') {
     $volunteer_id = isset($_POST['volunteer_id']) ? (int)$_POST['volunteer_id'] : 0;
     $pu_id = isset($_POST['pu_id']) ? (int)$_POST['pu_id'] : 0;
     $notes = isset($_POST['notes']) ? trim($_POST['notes']) : '';
     $assignment_type = isset($_POST['assignment_type']) ? $_POST['assignment_type'] : 'volunteer';
+    
+    error_log("=== FORM SUBMISSION ===");
+    error_log("Volunteer ID: $volunteer_id, PU ID: $pu_id");
     
     // CSRF Protection
     $csrf_token = isset($_POST['csrf_token']) ? $_POST['csrf_token'] : '';
@@ -316,8 +391,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 throw new Exception('Volunteer not found or does not belong to your ward.');
             }
             
-            // Debug: Log volunteer data
-            error_log("Volunteer found: ID={$volunteer['id']}, Name={$volunteer['full_name']}, Role={$volunteer['role_id']}, PU={$volunteer['pu_id']}");
+            error_log("Volunteer found: " . print_r($volunteer, true));
             
             if ($volunteer['role_id'] != 15) {
                 throw new Exception('Selected user is not a volunteer (role_id = ' . $volunteer['role_id'] . ').');
@@ -334,49 +408,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 }
             }
             
-            // DEBUG: Verify the polling unit exists
+            // ============================================================
+            // FIX: Get polling unit details with debugging
+            // ============================================================
             error_log("Looking for polling unit ID: $pu_id in ward: $ward_id");
             
-            // Get polling unit details with debugging
-            $pu_details = getPollingUnitDetails($db, $pu_id, $ward_id);
+            // First, get the PU directly
+            $stmt = $db->prepare("
+                SELECT 
+                    id, name, code, ward_id, lga_id, state_id, 
+                    registered_voters, is_active, description
+                FROM polling_units 
+                WHERE id = ?
+            ");
+            $stmt->execute([$pu_id]);
+            $pu_direct = $stmt->fetch(PDO::FETCH_ASSOC);
             
-            if (!$pu_details) {
-                // Check if the PU exists at all
-                $stmt = $db->prepare("SELECT id, name, ward_id, is_active FROM polling_units WHERE id = ?");
+            error_log("Direct PU query result: " . ($pu_direct ? 'Found' : 'Not Found'));
+            if ($pu_direct) {
+                error_log("Direct PU data: " . print_r($pu_direct, true));
+            }
+            
+            if (!$pu_direct) {
+                // Check if PU exists at all
+                $stmt = $db->prepare("SELECT COUNT(*) as count FROM polling_units WHERE id = ?");
                 $stmt->execute([$pu_id]);
-                $check_pu = $stmt->fetch(PDO::FETCH_ASSOC);
-                
-                if ($check_pu) {
-                    error_log("PU exists but getPollingUnitDetails returned null. PU data: " . print_r($check_pu, true));
-                    throw new Exception('Polling unit exists but could not be loaded. Ward mismatch or inactive.');
+                $count = $stmt->fetch(PDO::FETCH_ASSOC);
+                if ($count['count'] > 0) {
+                    // PU exists but maybe not active or different ward
+                    $stmt = $db->prepare("SELECT id, name, ward_id, is_active FROM polling_units WHERE id = ?");
+                    $stmt->execute([$pu_id]);
+                    $pu_info = $stmt->fetch(PDO::FETCH_ASSOC);
+                    error_log("PU exists but not returned. Info: " . print_r($pu_info, true));
+                    
+                    if ($pu_info['is_active'] != 1) {
+                        throw new Exception("Polling unit is not active (is_active = {$pu_info['is_active']}). Please activate it first.");
+                    }
+                    if ($pu_info['ward_id'] != $ward_id) {
+                        throw new Exception("Polling unit belongs to ward {$pu_info['ward_id']}, but you are assigned to ward $ward_id.");
+                    }
                 } else {
-                    error_log("PU ID $pu_id does not exist in database");
-                    throw new Exception('Polling unit not found. Please select a valid polling unit.');
+                    throw new Exception("Polling unit ID $pu_id does not exist in the database.");
                 }
             }
             
-            // Debug: Log PU details
-            error_log("Polling Unit found: " . print_r($pu_details, true));
-            
             // Check if PU belongs to the same ward
-            if ($pu_details['ward_id'] != $ward_id) {
-                error_log("PU ward_id: {$pu_details['ward_id']} != current ward_id: $ward_id");
-                throw new Exception('Polling unit does not belong to your ward. Please select a polling unit from your ward.');
+            if ($pu_direct['ward_id'] != $ward_id) {
+                error_log("PU ward_id: {$pu_direct['ward_id']} != current ward_id: $ward_id");
+                throw new Exception("Polling unit belongs to ward {$pu_direct['ward_id']}, but you are assigned to ward $ward_id.");
             }
             
             // Check if PU is active
-            if ($pu_details['is_active'] != 1) {
-                throw new Exception('Polling unit is not active. Please select an active polling unit.');
+            if ($pu_direct['is_active'] != 1) {
+                throw new Exception("Polling unit is not active (is_active = {$pu_direct['is_active']}).");
             }
             
             // Get or create active election
             $election_data = ensureActiveElection($db, $tenant_id, $ward_id, $user_id);
             $election_id = $election_data['id'];
-            
-            // If election was just created, log it
-            if ($election_data['created']) {
-                logActivity($user_id, 'election_created', "Created default election: {$election_data['name']} (ID: $election_id) for tenant ID: $tenant_id", 'elections', $election_id);
-            }
             
             // Update user's PU assignment
             $stmt = $db->prepare("UPDATE users SET pu_id = ?, updated_at = NOW() WHERE id = ? AND tenant_id = ?");
@@ -391,30 +480,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $existing = $stmt->fetch(PDO::FETCH_ASSOC);
             
             if ($existing) {
-                // Update existing assignment
                 $stmt = $db->prepare("
                     UPDATE agent_assignments 
                     SET status = 'active', assigned_by = ?, assigned_at = NOW(), notes = CONCAT(notes, '\nReassigned: ', ?)
                     WHERE id = ?
                 ");
                 $stmt->execute([$user_id, $notes, $existing['id']]);
-                $assignment_id = $existing['id'];
             } else {
-                // Create new assignment record
                 $stmt = $db->prepare("
                     INSERT INTO agent_assignments (
-                        tenant_id, 
-                        election_id, 
-                        user_id, 
-                        pu_id, 
-                        ward_id, 
-                        lga_id, 
-                        state_id,
-                        assignment_type, 
-                        status, 
-                        assigned_by, 
-                        notes, 
-                        assigned_at
+                        tenant_id, election_id, user_id, pu_id, ward_id, lga_id, state_id,
+                        assignment_type, status, assigned_by, notes, assigned_at
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, NOW())
                 ");
                 
@@ -430,48 +506,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     $user_id,
                     $notes
                 ]);
-                $assignment_id = $db->lastInsertId();
             }
             
-            // Log the activity
-            logActivity($user_id, 'volunteer_assigned', "Assigned volunteer: {$volunteer['full_name']} (ID: $volunteer_id) to PU: {$pu_details['name']} (ID: $pu_id)", 'user', $volunteer_id);
+            logActivity($user_id, 'volunteer_assigned', "Assigned volunteer: {$volunteer['full_name']} (ID: $volunteer_id) to PU: {$pu_direct['name']} (ID: $pu_id)", 'user', $volunteer_id);
             
             $db->commit();
-            $success_message = "Volunteer assigned successfully!";
+            $success_message = "Volunteer assigned successfully to {$pu_direct['name']}!";
             $show_success = true;
             
-            // Refresh data after assignment
+            // Refresh data...
             $stmt = $db->prepare("
-                SELECT 
-                    u.id,
-                    u.user_code,
-                    u.full_name,
-                    u.email,
-                    u.phone,
-                    u.status,
-                    u.created_at,
-                    u.photograph_url
-                FROM users u
-                WHERE u.tenant_id = ? AND u.ward_id = ? AND u.deleted_at IS NULL
-                AND u.role_id = 15 AND (u.pu_id IS NULL OR u.pu_id = 0) AND u.status = 'active'
-                ORDER BY u.full_name ASC
+                SELECT id, user_code, full_name, email, phone, status, created_at, photograph_url
+                FROM users
+                WHERE tenant_id = ? AND ward_id = ? AND deleted_at IS NULL
+                AND role_id = 15 AND (pu_id IS NULL OR pu_id = 0) AND status = 'active'
+                ORDER BY full_name ASC
             ");
             $stmt->execute([$tenant_id, $ward_id]);
             $unassigned_volunteers = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
             $stmt = $db->prepare("
-                SELECT 
-                    u.id,
-                    u.user_code,
-                    u.full_name,
-                    u.email,
-                    u.phone,
-                    u.status,
-                    u.pu_id,
-                    u.photograph_url,
-                    pu.name as pu_name,
-                    pu.code as pu_code,
-                    pu.registered_voters
+                SELECT u.id, u.user_code, u.full_name, u.email, u.phone, u.status, u.pu_id, u.photograph_url,
+                       pu.name as pu_name, pu.code as pu_code, pu.registered_voters
                 FROM users u
                 LEFT JOIN polling_units pu ON u.pu_id = pu.id
                 WHERE u.tenant_id = ? AND u.ward_id = ? AND u.deleted_at IS NULL
@@ -481,17 +537,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $stmt->execute([$tenant_id, $ward_id]);
             $assigned_volunteers = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
-            // Refresh polling units
             $stmt = $db->prepare("
-                SELECT 
-                    pu.id,
-                    pu.name,
-                    pu.code,
-                    pu.registered_voters,
-                    pu.is_active,
-                    pu.ward_id,
-                    (SELECT COUNT(*) FROM users u 
-                     WHERE u.pu_id = pu.id AND u.role_id = 15 AND u.status = 'active' AND u.deleted_at IS NULL) as assigned_count
+                SELECT pu.id, pu.name, pu.code, pu.registered_voters, pu.is_active, pu.ward_id,
+                       (SELECT COUNT(*) FROM users u 
+                        WHERE u.pu_id = pu.id AND u.role_id = 15 AND u.status = 'active' AND u.deleted_at IS NULL) as assigned_count
                 FROM polling_units pu
                 WHERE pu.ward_id = ? AND pu.is_active = 1
                 ORDER BY pu.name ASC
@@ -502,18 +551,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         } catch (Exception $e) {
             $db->rollBack();
             
+            $error_message = $e->getMessage();
+            $detailed_error = $e->getMessage();
+            
             if ($e->getMessage() === 'reassign_required') {
-                // Special case: Need confirmation for reassignment
                 $error_message = 'reassign_required';
                 $reassign_volunteer_id = $volunteer_id;
                 $reassign_pu_id = $pu_id;
             } else {
-                $error_message = "Error assigning volunteer: " . $e->getMessage();
                 error_log("Volunteer assignment error: " . $e->getMessage());
+                $debug_info = "Debug: Please check that the selected polling unit exists and is active in your ward.";
                 
-                // Add debug info for polling unit issues
-                if (strpos($e->getMessage(), 'Polling unit') !== false) {
-                    $debug_info = "Debug: Please check that the selected polling unit exists and is active in your ward.";
+                // Add more specific debug info
+                if (strpos($e->getMessage(), 'ward') !== false) {
+                    $debug_info .= " Ward ID mismatch detected. Your ward: $ward_id.";
+                }
+                if (strpos($e->getMessage(), 'active') !== false) {
+                    $debug_info .= " Polling unit may be inactive.";
                 }
             }
         }
@@ -524,19 +578,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 $csrf_token = bin2hex(random_bytes(32));
 SessionManager::set('csrf_token', $csrf_token);
 
-// Page title and includes
 $page_title = 'Assign Volunteers';
 include '../includes/base.php';
 include '../includes/sidebar.php';
 ?>
 
 <style>
-/* ============================================================
-   MAIN STYLES (Same as before)
-   ============================================================ */
+/* Same styles as before - kept minimal for brevity */
 :root {
     --primary: #0F4C81;
-    --primary-light: #1a6bb5;
     --primary-dark: #0a3a62;
     --success: #10B981;
     --success-light: #ECFDF5;
@@ -553,10 +603,8 @@ include '../includes/sidebar.php';
     --gray-600: #4B5563;
     --gray-700: #374151;
     --gray-800: #1F2937;
-    --gray-900: #111827;
     --radius: 8px;
     --shadow: 0 1px 3px rgba(0,0,0,0.1);
-    --shadow-md: 0 4px 6px rgba(0,0,0,0.07);
     --transition: all 0.2s ease;
 }
 
@@ -614,6 +662,17 @@ include '../includes/sidebar.php';
     background: var(--gray-100);
     padding: 4px 8px;
     border-radius: 4px;
+    word-break: break-all;
+}
+.alert .detailed-error {
+    font-size: 0.75rem;
+    color: var(--danger);
+    margin-top: 4px;
+    font-family: monospace;
+    background: var(--danger-light);
+    padding: 4px 8px;
+    border-radius: 4px;
+    word-break: break-all;
 }
 .alert-success {
     background: var(--success-light);
@@ -624,16 +683,6 @@ include '../includes/sidebar.php';
     background: var(--danger-light);
     border-color: #FEE2E2;
     color: #991B1B;
-}
-.alert-warning {
-    background: var(--warning-light);
-    border-color: #FDE68A;
-    color: #92400E;
-}
-.alert-info {
-    background: #EFF6FF;
-    border-color: #BFDBFE;
-    color: #1E40AF;
 }
 
 .stats-bar {
@@ -726,15 +775,6 @@ include '../includes/sidebar.php';
     outline: none;
     border-color: var(--primary);
     box-shadow: 0 0 0 3px rgba(15, 76, 129, 0.1);
-}
-.assign-form .form-group select:disabled {
-    background: var(--gray-100);
-    cursor: not-allowed;
-}
-.assign-form .form-group textarea {
-    resize: vertical;
-    min-height: 38px;
-    max-height: 80px;
 }
 .assign-form .form-group .helper-text {
     font-size: 0.7rem;
@@ -842,9 +882,6 @@ include '../includes/sidebar.php';
 .volunteer-list .list-item:hover {
     background: var(--gray-50);
 }
-.volunteer-list .list-item:last-child {
-    border-bottom: none;
-}
 .volunteer-list .list-item .info {
     flex: 1;
     min-width: 0;
@@ -920,6 +957,35 @@ include '../includes/sidebar.php';
 .volunteer-list .empty-state p {
     margin: 0;
     font-size: 0.85rem;
+}
+
+/* Debug Section */
+.debug-section {
+    background: #1a1a2e;
+    color: #00ff41;
+    padding: 16px;
+    border-radius: var(--radius);
+    font-family: 'Courier New', monospace;
+    font-size: 0.75rem;
+    margin-top: 16px;
+    overflow-x: auto;
+    max-height: 300px;
+    overflow-y: auto;
+}
+.debug-section .debug-title {
+    color: #ffd700;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+.debug-section .debug-line {
+    padding: 2px 0;
+    border-bottom: 1px solid rgba(0, 255, 65, 0.1);
+}
+.debug-section .debug-line .label {
+    color: #64b5f6;
+}
+.debug-section .debug-line .value {
+    color: #81c784;
 }
 
 .modal-overlay {
@@ -1114,6 +1180,9 @@ include '../includes/sidebar.php';
                 <div class="alert-content">
                     <div class="alert-title">Error</div>
                     <div class="alert-message"><?php echo htmlspecialchars($error_message); ?></div>
+                    <?php if (!empty($detailed_error) && $detailed_error !== $error_message): ?>
+                        <div class="detailed-error"><?php echo htmlspecialchars($detailed_error); ?></div>
+                    <?php endif; ?>
                     <?php if (!empty($debug_info)): ?>
                         <div class="debug-info"><?php echo htmlspecialchars($debug_info); ?></div>
                     <?php endif; ?>
@@ -1167,9 +1236,6 @@ include '../includes/sidebar.php';
                                         <?php if (($pu['assigned_count'] ?? 0) > 0): ?>
                                             - <?php echo $pu['assigned_count']; ?> assigned
                                         <?php endif; ?>
-                                        <?php if (isset($pu['description']) && !empty($pu['description'])): ?>
-                                            - <?php echo htmlspecialchars($pu['description']); ?>
-                                        <?php endif; ?>
                                     </option>
                                 <?php endforeach; ?>
                             <?php else: ?>
@@ -1178,7 +1244,11 @@ include '../includes/sidebar.php';
                         </select>
                         <div class="helper-text" id="puStatus">
                             <?php if (count($polling_units) === 0): ?>
-                                <span style="color:var(--danger);"><i class="fas fa-exclamation-circle"></i> No polling units found. Please add polling units to this ward first.</span>
+                                <span style="color:var(--danger);">
+                                    <i class="fas fa-exclamation-circle"></i> 
+                                    No polling units found in ward <?php echo htmlspecialchars($ward_id); ?>. 
+                                    <a href="add-polling-unit.php" style="color:var(--primary);">Add polling units</a>
+                                </span>
                             <?php endif; ?>
                         </div>
                     </div>
@@ -1212,7 +1282,6 @@ include '../includes/sidebar.php';
 
         <!-- Volunteers Lists -->
         <div class="volunteers-grid">
-            <!-- Unassigned Volunteers -->
             <div class="volunteer-list">
                 <div class="list-header">
                     <span><i class="fas fa-user-plus" style="color:var(--warning);"></i> Unassigned Volunteers</span>
@@ -1252,7 +1321,6 @@ include '../includes/sidebar.php';
                 </div>
             </div>
 
-            <!-- Assigned Volunteers -->
             <div class="volunteer-list">
                 <div class="list-header">
                     <span><i class="fas fa-user-check" style="color:var(--success);"></i> Assigned Volunteers</span>
@@ -1292,6 +1360,56 @@ include '../includes/sidebar.php';
                 </div>
             </div>
         </div>
+
+        <!-- Debug Section -->
+        <div class="debug-section">
+            <div class="debug-title">🔍 System Debug Information</div>
+            <div class="debug-line">
+                <span class="label">Ward ID:</span> 
+                <span class="value"><?php echo htmlspecialchars($ward_id ?? 'NULL'); ?></span>
+            </div>
+            <div class="debug-line">
+                <span class="label">Ward Name:</span> 
+                <span class="value"><?php echo htmlspecialchars($ward_name); ?></span>
+            </div>
+            <div class="debug-line">
+                <span class="label">Tenant ID:</span> 
+                <span class="value"><?php echo htmlspecialchars($tenant_id ?? 'NULL'); ?></span>
+            </div>
+            <div class="debug-line">
+                <span class="label">LGA ID:</span> 
+                <span class="value"><?php echo htmlspecialchars($lga_id ?? 'NULL'); ?></span>
+            </div>
+            <div class="debug-line">
+                <span class="label">State ID:</span> 
+                <span class="value"><?php echo htmlspecialchars($state_id ?? 'NULL'); ?></span>
+            </div>
+            <div class="debug-line">
+                <span class="label">Polling Units Found:</span> 
+                <span class="value"><?php echo count($polling_units); ?></span>
+            </div>
+            <?php if (count($polling_units) > 0): ?>
+                <div class="debug-line">
+                    <span class="label">Polling Units:</span>
+                    <span class="value">
+                        <?php 
+                        $pu_names = array_map(function($pu) {
+                            return $pu['name'] . ' (ID:' . $pu['id'] . ', Ward:' . $pu['ward_id'] . ')';
+                        }, $polling_units);
+                        echo htmlspecialchars(implode(', ', $pu_names));
+                        ?>
+                    </span>
+                </div>
+            <?php endif; ?>
+            <div class="debug-line">
+                <span class="label">Unassigned Volunteers:</span> 
+                <span class="value"><?php echo count($unassigned_volunteers); ?></span>
+            </div>
+            <div class="debug-line">
+                <span class="label">Assigned Volunteers:</span> 
+                <span class="value"><?php echo count($assigned_volunteers); ?></span>
+            </div>
+        </div>
     </div>
 </main>
 
@@ -1329,10 +1447,6 @@ include '../includes/sidebar.php';
 </div>
 
 <script>
-// ============================================================
-// JAVASCRIPT FUNCTIONS
-// ============================================================
-
 function selectVolunteer(volunteerId) {
     const select = document.getElementById('volunteer_id');
     select.value = volunteerId;
@@ -1369,7 +1483,6 @@ function updatePuStatus() {
     
     if (selectedOption && selectedOption.value) {
         const assigned = parseInt(selectedOption.dataset.assigned) || 0;
-        const wardId = selectedOption.dataset.ward || '';
         if (assigned > 0) {
             statusDiv.innerHTML = '<span style="color:var(--warning);"><i class="fas fa-info-circle"></i> This PU already has ' + 
                 assigned + ' volunteer(s) assigned.</span>';
@@ -1432,7 +1545,7 @@ document.addEventListener('DOMContentLoaded', function() {
             setTimeout(function() {
                 alert.style.display = 'none';
             }, 500);
-        }, 5000);
+        }, 8000);
     });
     
     document.getElementById('volunteer_id').addEventListener('change', updateVolunteerStatus);
