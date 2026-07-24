@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// WARD COORDINATOR - ASSIGN VOLUNTEERS
+// WARD COORDINATOR - ASSIGN VOLUNTEERS (FIXED)
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -63,14 +63,14 @@ try {
 }
 
 // ============================================================
-// FETCH UNASSIGNED VOLUNTEERS
+// FETCH UNASSIGNED VOLUNTEERS (FIXED: Uses role_id from users table)
 // ============================================================
 $unassigned_volunteers = [];
 $assigned_volunteers = [];
 $polling_units = [];
 
 try {
-    // Get unassigned volunteers
+    // Get unassigned volunteers - FIXED: Check role_id directly
     $stmt = $db->prepare("
         SELECT 
             u.id,
@@ -81,11 +81,10 @@ try {
             u.status,
             u.created_at
         FROM users u
-        JOIN roles r ON u.role_id = r.id
         WHERE u.tenant_id = ? 
         AND u.ward_id = ?
         AND u.deleted_at IS NULL
-        AND r.level = 'volunteer'
+        AND u.role_id = 15
         AND (u.pu_id IS NULL OR u.pu_id = 0)
         AND u.status = 'active'
         ORDER BY u.full_name ASC
@@ -93,7 +92,7 @@ try {
     $stmt->execute([$tenant_id, $ward_id]);
     $unassigned_volunteers = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // Get assigned volunteers
+    // Get assigned volunteers - FIXED: Check role_id directly
     $stmt = $db->prepare("
         SELECT 
             u.id,
@@ -106,12 +105,11 @@ try {
             pu.name as pu_name,
             pu.code as pu_code
         FROM users u
-        JOIN roles r ON u.role_id = r.id
         LEFT JOIN polling_units pu ON u.pu_id = pu.id
         WHERE u.tenant_id = ? 
         AND u.ward_id = ?
         AND u.deleted_at IS NULL
-        AND r.level = 'volunteer'
+        AND u.role_id = 15
         AND u.pu_id IS NOT NULL
         AND u.pu_id > 0
         AND u.status = 'active'
@@ -147,7 +145,6 @@ $error_message = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $volunteer_id = isset($_POST['volunteer_id']) ? (int)$_POST['volunteer_id'] : 0;
     $pu_id = isset($_POST['pu_id']) ? (int)$_POST['pu_id'] : 0;
-    $task = isset($_POST['task']) ? trim($_POST['task']) : '';
     $notes = isset($_POST['notes']) ? trim($_POST['notes']) : '';
     
     if ($volunteer_id > 0 && $pu_id > 0) {
@@ -155,8 +152,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $db->beginTransaction();
             
             // Update user's PU assignment
-            $stmt = $db->prepare("UPDATE users SET pu_id = ? WHERE id = ? AND tenant_id = ?");
-            $stmt->execute([$pu_id, $volunteer_id, $tenant_id]);
+            $stmt = $db->prepare("UPDATE users SET pu_id = ? WHERE id = ? AND tenant_id = ? AND ward_id = ?");
+            $stmt->execute([$pu_id, $volunteer_id, $tenant_id, $ward_id]);
             
             // Get active election
             $election_stmt = $db->prepare("
@@ -192,7 +189,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             logActivity($user_id, 'volunteer_assigned', "Assigned volunteer ID: $volunteer_id to PU: $pu_id", 'user', $volunteer_id);
             
             $db->commit();
-            $success_message = "Volunteer assigned successfully.";
+            $success_message = "Volunteer assigned successfully!";
+            
+            // Refresh data
+            $stmt = $db->prepare("
+                SELECT 
+                    u.id,
+                    u.user_code,
+                    u.full_name,
+                    u.email,
+                    u.phone,
+                    u.status,
+                    u.created_at
+                FROM users u
+                WHERE u.tenant_id = ? AND u.ward_id = ? AND u.deleted_at IS NULL
+                AND u.role_id = 15 AND (u.pu_id IS NULL OR u.pu_id = 0) AND u.status = 'active'
+                ORDER BY u.full_name ASC
+            ");
+            $stmt->execute([$tenant_id, $ward_id]);
+            $unassigned_volunteers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            $stmt = $db->prepare("
+                SELECT 
+                    u.id,
+                    u.user_code,
+                    u.full_name,
+                    u.email,
+                    u.phone,
+                    u.status,
+                    u.pu_id,
+                    pu.name as pu_name,
+                    pu.code as pu_code
+                FROM users u
+                LEFT JOIN polling_units pu ON u.pu_id = pu.id
+                WHERE u.tenant_id = ? AND u.ward_id = ? AND u.deleted_at IS NULL
+                AND u.role_id = 15 AND u.pu_id IS NOT NULL AND u.pu_id > 0 AND u.status = 'active'
+                ORDER BY u.full_name ASC
+            ");
+            $stmt->execute([$tenant_id, $ward_id]);
+            $assigned_volunteers = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
         } catch (Exception $e) {
             $db->rollBack();
@@ -207,8 +242,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $page_title = 'Assign Volunteers';
 include '../includes/base.php';
 include '../includes/sidebar.php';
-?>
-
+?> 
 <style>
 .assign-header {
     display: flex;

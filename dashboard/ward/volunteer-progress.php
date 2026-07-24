@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// WARD COORDINATOR - VOLUNTEER PROGRESS
+// WARD COORDINATOR - VOLUNTEER PROGRESS (FIXED)
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -61,7 +61,7 @@ try {
 }
 
 // ============================================================
-// FETCH VOLUNTEERS AND TASKS
+// FETCH VOLUNTEERS AND TASKS (FIXED)
 // ============================================================
 $volunteer_id = isset($_GET['volunteer_id']) ? (int)$_GET['volunteer_id'] : 0;
 $status_filter = isset($_GET['status']) ? $_GET['status'] : 'all';
@@ -71,7 +71,7 @@ $tasks = [];
 $summary = [];
 
 try {
-    // Get all volunteers
+    // Get all volunteers - FIXED: Use role_id = 15
     $stmt = $db->prepare("
         SELECT 
             u.id,
@@ -87,7 +87,7 @@ try {
         LEFT JOIN volunteer_tasks vt ON vt.volunteer_id = u.id
         WHERE u.tenant_id = ? AND u.ward_id = ? AND u.deleted_at IS NULL
         AND u.status = 'active'
-        AND EXISTS (SELECT 1 FROM roles r WHERE r.id = u.role_id AND r.level = 'volunteer')
+        AND u.role_id = 15
         GROUP BY u.id, u.full_name, u.user_code, pu.name
         ORDER BY u.full_name ASC
     ");
@@ -145,8 +145,7 @@ try {
 $page_title = 'Volunteer Progress';
 include '../includes/base.php';
 include '../includes/sidebar.php';
-?>
-
+?> 
 <style>
 .progress-header {
     display: flex;

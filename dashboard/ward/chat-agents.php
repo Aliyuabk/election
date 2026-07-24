@@ -1,7 +1,6 @@
 <?php
 // ============================================================
-// WARD COORDINATOR - CHAT WITH PU AGENTS
-// Professional Chat Interface like WhatsApp/Telegram
+// WARD COORDINATOR - CHAT WITH PU AGENTS (FIXED)
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -70,7 +69,7 @@ $messages = [];
 $contacts = [];
 
 // ============================================================
-// FETCH CONTACTS (PU AGENTS ONLY)
+// FETCH CONTACTS (PU AGENTS ONLY - FIXED: Uses role_id)
 // ============================================================
 try {
     $stmt = $db->prepare("
@@ -108,7 +107,7 @@ try {
         AND u.deleted_at IS NULL
         AND u.status = 'active'
         AND u.id != ?
-        AND r.level = 'pu_agent'
+        AND u.role_id = 9
         ORDER BY last_message_time DESC, u.full_name ASC
     ");
     $stmt->execute([$user_id, $user_id, $user_id, $user_id, $user_id, $tenant_id, $ward_id, $user_id]);
@@ -223,95 +222,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
 }
 
-// ============================================================
-// HANDLE ATTACHMENT UPLOAD
-// ============================================================
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['attachment']) && isset($_POST['receiver_id'])) {
-    $receiver_id = (int)$_POST['receiver_id'];
-    $file = $_FILES['attachment'];
-    $allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf', 'video/mp4', 'audio/mpeg', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
-    $max_size = 20 * 1024 * 1024; // 20MB
-    
-    if ($file['error'] !== UPLOAD_ERR_OK) {
-        $error_message = "Upload error: " . $file['error'];
-    } elseif (!in_array($file['type'], $allowed_types)) {
-        $error_message = "File type not allowed.";
-    } elseif ($file['size'] > $max_size) {
-        $error_message = "File size exceeds 20MB limit.";
-    } else {
-        try {
-            $upload_dir = '../../uploads/chat/';
-            if (!is_dir($upload_dir)) {
-                mkdir($upload_dir, 0777, true);
-            }
-            
-            $filename = 'chat_' . time() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '', $file['name']);
-            $filepath = $upload_dir . $filename;
-            $file_url = '/election/uploads/chat/' . $filename;
-            
-            if (move_uploaded_file($file['tmp_name'], $filepath)) {
-                // Determine message type
-                $message_type = 'file';
-                if (strpos($file['type'], 'image/') === 0) $message_type = 'image';
-                elseif (strpos($file['type'], 'video/') === 0) $message_type = 'video';
-                elseif (strpos($file['type'], 'audio/') === 0) $message_type = 'audio';
-                
-                // Send message with attachment
-                $message = '📎 ' . $file['name'];
-                
-                // Get or create room
-                $stmt = $db->prepare("
-                    SELECT cr.id FROM chat_rooms cr
-                    JOIN chat_room_members crm1 ON cr.id = crm1.room_id
-                    JOIN chat_room_members crm2 ON cr.id = crm2.room_id
-                    WHERE cr.tenant_id = ? AND cr.type = 'direct'
-                    AND crm1.user_id = ? AND crm2.user_id = ?
-                ");
-                $stmt->execute([$tenant_id, $user_id, $receiver_id]);
-                $room = $stmt->fetch(PDO::FETCH_ASSOC);
-                
-                if ($room) {
-                    $room_id = $room['id'];
-                } else {
-                    $stmt = $db->prepare("
-                        INSERT INTO chat_rooms (tenant_id, name, type, created_by, created_at) 
-                        VALUES (?, ?, 'direct', ?, NOW())
-                    ");
-                    $room_name = "Chat between " . $user_name . " and agent";
-                    $stmt->execute([$tenant_id, $room_name, $user_id]);
-                    $room_id = $db->lastInsertId();
-                    
-                    $stmt = $db->prepare("INSERT INTO chat_room_members (room_id, user_id, role, joined_at) VALUES (?, ?, 'member', NOW())");
-                    $stmt->execute([$room_id, $user_id]);
-                    $stmt->execute([$room_id, $receiver_id]);
-                }
-                
-                $stmt = $db->prepare("
-                    INSERT INTO chat_messages (
-                        room_id, sender_id, receiver_id, message_type, content, 
-                        media_url, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, NOW())
-                ");
-                $stmt->execute([$room_id, $user_id, $receiver_id, $message_type, $message, $file_url]);
-                
-                logActivity($user_id, 'chat_attachment', "Sent attachment to PU Agent ID: $receiver_id", 'chat', $room_id);
-                
-                header('Location: chat-agents.php?contact_id=' . $receiver_id . '&sent=1');
-                exit();
-            }
-            
-        } catch (Exception $e) {
-            $error_message = "Error uploading file: " . $e->getMessage();
-            error_log("Chat upload error: " . $e->getMessage());
-        }
-    }
-}
-
 $page_title = 'Chat with PU Agents';
 include '../includes/base.php';
 include '../includes/sidebar.php';
-?>
-
+?> 
 <style>
 /* ============================================================
    WHATSAPP/TELEGRAM STYLE CHAT INTERFACE

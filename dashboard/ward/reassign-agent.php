@@ -68,6 +68,7 @@ try {
 $agent_id = isset($_GET['agent_id']) ? (int)$_GET['agent_id'] : 0;
 $agent = null;
 $current_pu = null;
+$error_message = '';
 
 if ($agent_id > 0) {
     try {
@@ -100,139 +101,92 @@ if ($agent_id > 0) {
 }
 
 // ============================================================
-// HANDLE AGENT ASSIGNMENT (FIXED - with election_id handling)
+// HANDLE REASSIGNMENT
 // ============================================================
 $success_message = '';
-$error_message = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $agent_id = isset($_POST['agent_id']) ? (int)$_POST['agent_id'] : 0;
-    $pu_id = isset($_POST['pu_id']) ? (int)$_POST['pu_id'] : 0;
-    $assignment_type = isset($_POST['assignment_type']) ? $_POST['assignment_type'] : 'data_agent';
-    $notes = isset($_POST['notes']) ? trim($_POST['notes']) : '';
+    $new_pu_id = isset($_POST['new_pu_id']) ? (int)$_POST['new_pu_id'] : 0;
+    $reason = isset($_POST['reason']) ? trim($_POST['reason']) : '';
     
-    if ($agent_id > 0 && $pu_id > 0) {
-        try {
-            // Start transaction
-            $db->beginTransaction();
-            
-            // Check if agent is already assigned to a PU
-            $stmt = $db->prepare("SELECT pu_id FROM users WHERE id = ? AND tenant_id = ?");
-            $stmt->execute([$agent_id, $tenant_id]);
-            $current = $stmt->fetch(PDO::FETCH_ASSOC);
-            
-            if ($current && !empty($current['pu_id'])) {
-                // Agent already assigned - update user's PU
-                $stmt = $db->prepare("UPDATE users SET pu_id = ? WHERE id = ? AND tenant_id = ?");
-                $stmt->execute([$pu_id, $agent_id, $tenant_id]);
+    if ($agent_id > 0 && $new_pu_id > 0) {
+        if ($new_pu_id == $current_pu) {
+            $error_message = "You must select a different polling unit than the current one.";
+        } else {
+            try {
+                $db->beginTransaction();
                 
-                // Update existing assignment - set status to 'reassigned'
-                $stmt = $db->prepare("
-                    UPDATE agent_assignments 
-                    SET status = 'reassigned' 
-                    WHERE user_id = ? AND status = 'active'
-                ");
+                // Update user's PU assignment
+                $stmt = $db->prepare("UPDATE users SET pu_id = ? WHERE id = ? AND tenant_id = ? AND ward_id = ?");
+                $stmt->execute([$new_pu_id, $agent_id, $tenant_id, $ward_id]);
+                
+                // Update existing assignment to 'reassigned'
+                $stmt = $db->prepare("UPDATE agent_assignments SET status = 'reassigned' WHERE user_id = ? AND status = 'active'");
                 $stmt->execute([$agent_id]);
                 
-                $success_message = "Agent reassigned to polling unit successfully.";
-            } else {
-                // Assign agent to PU
-                $stmt = $db->prepare("UPDATE users SET pu_id = ? WHERE id = ? AND tenant_id = ?");
-                $stmt->execute([$pu_id, $agent_id, $tenant_id]);
-                
-                $success_message = "Agent assigned to polling unit successfully.";
-            }
-            
-            // Get election_id
-            // First try: Get active election for this ward
-            $election_stmt = $db->prepare("
-                SELECT id FROM elections 
-                WHERE tenant_id = ? AND status = 'active' 
-                AND JSON_CONTAINS(wards_json, JSON_QUOTE(?))
-                LIMIT 1
-            ");
-            $election_stmt->execute([$tenant_id, $ward_id]);
-            $election = $election_stmt->fetch(PDO::FETCH_ASSOC);
-            $election_id = $election ? $election['id'] : null;
-            
-            // Second try: Get any election for this tenant (fallback)
-            if (!$election_id) {
+                // Get active election
                 $election_stmt = $db->prepare("
                     SELECT id FROM elections 
-                    WHERE tenant_id = ? AND deleted_at IS NULL
-                    ORDER BY created_at DESC LIMIT 1
+                    WHERE tenant_id = ? AND status = 'active' 
+                    AND JSON_CONTAINS(wards_json, JSON_QUOTE(?))
+                    LIMIT 1
                 ");
-                $election_stmt->execute([$tenant_id]);
+                $election_stmt->execute([$tenant_id, $ward_id]);
                 $election = $election_stmt->fetch(PDO::FETCH_ASSOC);
                 $election_id = $election ? $election['id'] : null;
+                
+                // If no active election, get any election for this tenant
+                if (!$election_id) {
+                    $election_stmt = $db->prepare("SELECT id FROM elections WHERE tenant_id = ? AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 1");
+                    $election_stmt->execute([$tenant_id]);
+                    $election = $election_stmt->fetch(PDO::FETCH_ASSOC);
+                    $election_id = $election ? $election['id'] : null;
+                }
+                
+                // Get assignment type from existing assignment
+                $type_stmt = $db->prepare("SELECT assignment_type FROM agent_assignments WHERE user_id = ? ORDER BY id DESC LIMIT 1");
+                $type_stmt->execute([$agent_id]);
+                $type_result = $type_stmt->fetch(PDO::FETCH_ASSOC);
+                $assignment_type = $type_result ? $type_result['assignment_type'] : 'data_agent';
+                
+                // Create new assignment record
+                $stmt = $db->prepare("
+                    INSERT INTO agent_assignments (
+                        tenant_id, election_id, user_id, pu_id, ward_id, lga_id, state_id,
+                        assignment_type, status, assigned_by, notes, assigned_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, NOW())
+                ");
+                
+                $stmt->execute([
+                    $tenant_id,
+                    $election_id,
+                    $agent_id,
+                    $new_pu_id,
+                    $ward_id,
+                    $lga_id,
+                    $state_id,
+                    $assignment_type,
+                    $user_id,
+                    $reason
+                ]);
+                
+                logActivity($user_id, 'agent_reassigned', "Reassigned agent ID: $agent_id to PU: $new_pu_id", 'user', $agent_id);
+                
+                $db->commit();
+                $success_message = "Agent reassigned successfully!";
+                header('Location: manage-pu-agents.php?success=' . urlencode($success_message));
+                exit();
+                
+            } catch (Exception $e) {
+                $db->rollBack();
+                $error_message = "Error reassigning agent: " . $e->getMessage();
+                error_log("Agent reassignment error: " . $e->getMessage());
             }
-            
-            // If still no election_id, use a default or skip assignment creation
-            // You could also create a default election or handle this differently
-            if (!$election_id) {
-                // Log warning but continue
-                error_log("Warning: No election found for tenant $tenant_id, ward $ward_id");
-                // You might want to create a default election here or handle gracefully
-            }
-            
-            // Create NEW assignment record (always insert new)
-            $stmt = $db->prepare("
-                INSERT INTO agent_assignments (
-                    tenant_id, election_id, user_id, pu_id, ward_id, lga_id, state_id,
-                    assignment_type, status, assigned_by, notes, assigned_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, NOW())
-            ");
-            
-            $stmt->execute([
-                $tenant_id,
-                $election_id,  // Can be NULL if no election found
-                $agent_id,
-                $pu_id,
-                $ward_id,
-                $lga_id,
-                $state_id,
-                $assignment_type,
-                $user_id,
-                $notes
-            ]);
-            
-            // Log activity
-            logActivity($user_id, 'agent_assigned', "Assigned agent ID: $agent_id to PU: $pu_id", 'user', $agent_id);
-            
-            $db->commit();
-            
-        } catch (Exception $e) {
-            $db->rollBack();
-            $error_message = "Error assigning agent: " . $e->getMessage();
-            error_log("Agent assignment error: " . $e->getMessage());
         }
     } else {
-        $error_message = "Please select both an agent and a polling unit.";
+        $error_message = "Please select a new polling unit for this agent.";
     }
-}
-
-// ============================================================
-// FETCH POLLING UNITS (excluding current PU)
-// ============================================================
-$polling_units = [];
-try {
-    $stmt = $db->prepare("
-        SELECT 
-            pu.id,
-            pu.name,
-            pu.code,
-            pu.registered_voters,
-            COUNT(DISTINCT u.id) as assigned_agents
-        FROM polling_units pu
-        LEFT JOIN users u ON u.pu_id = pu.id AND u.status = 'active' AND u.deleted_at IS NULL
-        WHERE pu.ward_id = ? AND pu.is_active = 1
-        GROUP BY pu.id, pu.name, pu.code, pu.registered_voters
-        ORDER BY pu.name ASC
-    ");
-    $stmt->execute([$ward_id]);
-    $polling_units = $stmt->fetchAll(PDO::FETCH_ASSOC);
-} catch (Exception $e) {
-    error_log("Error fetching polling units: " . $e->getMessage());
 }
 
 $page_title = 'Reassign Agent';
@@ -241,204 +195,44 @@ include '../includes/sidebar.php';
 ?>
 
 <style>
-.reassign-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 12px;
-    margin-bottom: 20px;
-}
-.reassign-header h2 {
-    font-size: 1.3rem;
-    font-weight: 700;
-    margin: 0;
-}
-.reassign-header h2 i {
-    color: var(--primary);
-}
+.reassign-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+.reassign-header h2 { font-size: 1.3rem; font-weight: 700; margin: 0; }
+.reassign-header h2 i { color: var(--primary); }
 
-.agent-info-card {
-    background: white;
-    border-radius: var(--radius);
-    border: 1px solid var(--gray-200);
-    padding: 20px;
-    margin-bottom: 20px;
-}
-.agent-info-card .agent-details {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 12px 24px;
-    align-items: center;
-}
-.agent-info-card .agent-avatar {
-    width: 60px;
-    height: 60px;
-    border-radius: 50%;
-    background: var(--gray-200);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: var(--gray-600);
-}
-.agent-info-card .agent-avatar img {
-    width: 100%;
-    height: 100%;
-    border-radius: 50%;
-    object-fit: cover;
-}
-.agent-info-card .agent-meta {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 4px 16px;
-}
-.agent-info-card .agent-meta .item {
-    font-size: 0.82rem;
-}
-.agent-info-card .agent-meta .item strong {
-    color: var(--gray-600);
-    font-weight: 500;
-}
-.agent-info-card .agent-meta .item .current-pu {
-    font-weight: 600;
-    color: var(--primary);
-}
+.agent-info { background: white; border-radius: var(--radius); border: 1px solid var(--gray-200); padding: 16px; margin-bottom: 20px; }
+.agent-info .info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px 16px; }
+.agent-info .info-grid .item { font-size: 0.85rem; padding: 4px 0; }
+.agent-info .info-grid .item .label { color: var(--gray-500); font-weight: 500; }
+.agent-info .info-grid .item .value { color: var(--gray-800); }
 
-.reassign-form {
-    background: white;
-    border-radius: var(--radius);
-    border: 1px solid var(--gray-200);
-    padding: 24px;
-}
-.reassign-form .form-group {
-    margin-bottom: 16px;
-}
-.reassign-form .form-group label {
-    display: block;
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: var(--gray-700);
-    margin-bottom: 4px;
-}
-.reassign-form .form-group select,
-.reassign-form .form-group textarea {
-    width: 100%;
-    padding: 10px 12px;
-    border: 1px solid var(--gray-200);
-    border-radius: var(--radius);
-    font-size: 0.85rem;
-    background: white;
-}
-.reassign-form .form-group textarea {
-    resize: vertical;
-    min-height: 80px;
-}
-.reassign-form .form-group .helper {
-    font-size: 0.7rem;
-    color: var(--gray-400);
-    margin-top: 4px;
-}
-.reassign-form .form-actions {
-    display: flex;
-    gap: 12px;
-    margin-top: 16px;
-}
+.reassign-form { background: white; border-radius: var(--radius); border: 1px solid var(--gray-200); padding: 20px; max-width: 700px; margin: 0 auto; }
+.reassign-form .form-group { margin-bottom: 16px; }
+.reassign-form .form-group label { display: block; font-size: 0.85rem; font-weight: 600; color: var(--gray-700); margin-bottom: 4px; }
+.reassign-form .form-group select, .reassign-form .form-group textarea { width: 100%; padding: 10px 12px; border: 1px solid var(--gray-200); border-radius: var(--radius); font-size: 0.85rem; background: white; }
+.reassign-form .form-group textarea { resize: vertical; min-height: 80px; font-family: inherit; }
 
-.pu-list-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-    gap: 8px;
-    max-height: 300px;
-    overflow-y: auto;
-    padding: 4px;
-}
-.pu-option {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px 14px;
-    border: 1px solid var(--gray-200);
-    border-radius: var(--radius);
-    cursor: pointer;
-    transition: var(--transition);
-}
-.pu-option:hover {
-    border-color: var(--primary);
-    background: #EFF6FF;
-}
-.pu-option.selected {
-    border-color: var(--primary);
-    background: #EFF6FF;
-    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
-}
-.pu-option .pu-info .name {
-    font-weight: 500;
-    font-size: 0.82rem;
-}
-.pu-option .pu-info .code {
-    font-size: 0.65rem;
-    color: var(--gray-400);
-}
-.pu-option .pu-meta {
-    text-align: right;
-    font-size: 0.65rem;
-}
-.pu-option .pu-meta .voters {
-    color: var(--gray-500);
-}
-.pu-option .pu-meta .agents {
-    color: var(--gray-400);
-}
+.pu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; max-height: 250px; overflow-y: auto; padding: 4px; }
+.pu-option { padding: 8px 12px; border: 1px solid var(--gray-200); border-radius: var(--radius); cursor: pointer; transition: var(--transition); font-size: 0.82rem; }
+.pu-option:hover { border-color: var(--primary); background: #EFF6FF; }
+.pu-option.selected { border-color: var(--primary); background: #EFF6FF; box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2); }
+.pu-option .pu-name { font-weight: 500; }
+.pu-option .pu-code { font-size: 0.65rem; color: var(--gray-400); }
 
-.alert {
-    padding: 12px 16px;
-    border-radius: var(--radius);
-    margin-bottom: 16px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-.alert-success {
-    background: #ECFDF5;
-    border: 1px solid #D1FAE5;
-    color: #065F46;
-}
-.alert-danger {
-    background: #FEF2F2;
-    border: 1px solid #FEE2E2;
-    color: #991B1B;
-}
-.alert-warning {
-    background: #FFFBEB;
-    border: 1px solid #FEF3C7;
-    color: #92400E;
-}
-.alert i {
-    font-size: 1.1rem;
-}
+.form-actions { display: flex; gap: 12px; margin-top: 16px; }
+.alert { padding: 12px 16px; border-radius: var(--radius); margin-bottom: 16px; display: flex; align-items: center; gap: 10px; }
+.alert-success { background: #ECFDF5; border: 1px solid #D1FAE5; color: #065F46; }
+.alert-danger { background: #FEF2F2; border: 1px solid #FEE2E2; color: #991B1B; }
+.alert i { font-size: 1.1rem; }
+
+.status-badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 0.65rem; font-weight: 500; }
+.status-badge.active { background: #ECFDF5; color: #10B981; }
 
 @media (max-width: 768px) {
-    .agent-info-card .agent-details {
-        grid-template-columns: 1fr;
-        text-align: center;
-    }
-    .agent-info-card .agent-avatar {
-        margin: 0 auto;
-    }
-    .agent-info-card .agent-meta {
-        grid-template-columns: 1fr;
-    }
-    .pu-list-grid {
-        grid-template-columns: 1fr;
-    }
-    .reassign-form .form-actions {
-        flex-direction: column;
-    }
-    .reassign-form .form-actions button {
-        width: 100%;
-    }
+    .agent-info .info-grid { grid-template-columns: 1fr; }
+    .pu-grid { grid-template-columns: 1fr; }
+    .reassign-form { max-width: 100%; }
+    .form-actions { flex-direction: column; }
+    .form-actions button, .form-actions a { width: 100%; text-align: center; }
 }
 </style>
 
@@ -446,7 +240,6 @@ include '../includes/sidebar.php';
     <?php include '../includes/header.php'; ?>
     
     <div class="main-content-inner">
-        <!-- Page Header -->
         <div class="reassign-header">
             <div>
                 <h2><i class="fas fa-exchange-alt"></i> Reassign Agent</h2>
@@ -455,164 +248,113 @@ include '../includes/sidebar.php';
                 </p>
             </div>
             <div>
-                <a href="manage-pu-agents.php" class="btn-secondary-sm">
-                    <i class="fas fa-arrow-left"></i> Back to Agents
-                </a>
+                <a href="manage-pu-agents.php" class="btn-secondary-sm"><i class="fas fa-arrow-left"></i> Back to Agents</a>
             </div>
         </div>
 
-        <?php if ($agent): ?>
-            <!-- Success/Error Messages -->
-            <?php if (!empty($success_message)): ?>
-                <div class="alert alert-success">
-                    <i class="fas fa-check-circle"></i> <?php echo htmlspecialchars($success_message); ?>
-                </div>
-            <?php endif; ?>
-            <?php if (!empty($error_message)): ?>
-                <div class="alert alert-danger">
-                    <i class="fas fa-exclamation-circle"></i> <?php echo htmlspecialchars($error_message); ?>
-                </div>
-            <?php endif; ?>
+        <?php if (!empty($success_message)): ?>
+            <div class="alert alert-success"><i class="fas fa-check-circle"></i> <?php echo htmlspecialchars($success_message); ?></div>
+        <?php endif; ?>
+        <?php if (!empty($error_message)): ?>
+            <div class="alert alert-danger"><i class="fas fa-exclamation-circle"></i> <?php echo htmlspecialchars($error_message); ?></div>
+        <?php endif; ?>
 
-            <!-- Agent Info -->
-            <div class="agent-info-card">
-                <div class="agent-details">
-                    <div class="agent-avatar">
-                        <?php echo strtoupper(substr($agent['full_name'] ?? 'U', 0, 2)); ?>
-                    </div>
-                    <div>
-                        <h3 style="margin:0 0 4px;"><?php echo htmlspecialchars($agent['full_name']); ?></h3>
-                        <div class="agent-meta">
-                            <div class="item"><strong>Code:</strong> <?php echo htmlspecialchars($agent['user_code'] ?? 'N/A'); ?></div>
-                            <div class="item"><strong>Email:</strong> <?php echo htmlspecialchars($agent['email'] ?? 'N/A'); ?></div>
-                            <div class="item"><strong>Phone:</strong> <?php echo htmlspecialchars($agent['phone'] ?? 'N/A'); ?></div>
-                            <div class="item"><strong>Status:</strong> <span class="status-badge <?php echo $agent['status'] ?? 'pending'; ?>"><?php echo ucfirst($agent['status'] ?? 'Pending'); ?></span></div>
-                            <?php if (!empty($agent['current_pu_name'])): ?>
-                                <div class="item">
-                                    <strong>Current PU:</strong> 
-                                    <span class="current-pu"><?php echo htmlspecialchars($agent['current_pu_name']); ?></span>
-                                    <span style="color:var(--gray-400);font-size:0.7rem;">(<?php echo htmlspecialchars($agent['current_pu_code'] ?? ''); ?>)</span>
-                                </div>
-                            <?php else: ?>
-                                <div class="item">
-                                    <strong>Current PU:</strong> 
-                                    <span style="color:var(--gray-400);">Not Assigned</span>
-                                </div>
-                            <?php endif; ?>
-                        </div>
-                    </div>
+        <?php if ($agent && !empty($agent['pu_id'])): ?>
+            <div class="agent-info">
+                <h3 style="margin:0 0 12px;font-size:0.95rem;"><i class="fas fa-user"></i> Agent Information</h3>
+                <div class="info-grid">
+                    <div class="item"><span class="label">Name</span> <?php echo htmlspecialchars($agent['full_name']); ?></div>
+                    <div class="item"><span class="label">Code</span> <?php echo htmlspecialchars($agent['user_code']); ?></div>
+                    <div class="item"><span class="label">Current PU</span> <strong><?php echo htmlspecialchars($agent['current_pu_name']); ?></strong></div>
+                    <div class="item"><span class="label">Status</span> <span class="status-badge <?php echo $agent['status']; ?>"><?php echo ucfirst($agent['status']); ?></span></div>
                 </div>
             </div>
 
-            <?php if (!empty($agent['current_pu_name'])): ?>
-                <!-- Reassignment Form -->
-                <div class="reassign-form">
-                    <form method="POST" action="" id="reassignForm">
-                        <input type="hidden" name="agent_id" value="<?php echo $agent['id']; ?>">
-                        
-                        <div class="form-group">
-                            <label><i class="fas fa-flag-checkered"></i> Select New Polling Unit</label>
-                            <div class="pu-list-grid">
-                                <?php foreach ($polling_units as $pu):
-                                    $is_current = ($pu['id'] == $current_pu);
-                                ?>
-                                    <div class="pu-option <?php echo $is_current ? 'selected' : ''; ?>" 
-                                         data-pu-id="<?php echo $pu['id']; ?>"
-                                         onclick="selectPU(<?php echo $pu['id']; ?>)">
-                                        <div class="pu-info">
-                                            <div class="name"><?php echo htmlspecialchars($pu['name']); ?></div>
-                                            <div class="code"><?php echo htmlspecialchars($pu['code']); ?></div>
-                                        </div>
-                                        <div class="pu-meta">
-                                            <div class="voters"><?php echo number_format($pu['registered_voters']); ?> voters</div>
-                                            <div class="agents"><?php echo $pu['assigned_agents']; ?> agents</div>
-                                            <?php if ($is_current): ?>
-                                                <div style="color:#10B981;font-size:0.6rem;font-weight:600;">Current</div>
-                                            <?php endif; ?>
-                                        </div>
-                                    </div>
-                                <?php endforeach; ?>
-                            </div>
-                            <div class="helper">Click on a polling unit to select it for reassignment</div>
+            <div class="reassign-form">
+                <form method="POST" action="" id="reassignForm">
+                    <input type="hidden" name="agent_id" value="<?php echo $agent['id']; ?>">
+                    
+                    <div class="form-group">
+                        <label>Select New Polling Unit <span class="required" style="color:#EF4444;">*</span></label>
+                        <div class="pu-grid" id="puGrid">
+                            <?php 
+                            // Fetch polling units
+                            $pu_stmt = $db->prepare("SELECT id, name, code, registered_voters FROM polling_units WHERE ward_id = ? AND is_active = 1 ORDER BY name ASC");
+                            $pu_stmt->execute([$ward_id]);
+                            $polling_units = $pu_stmt->fetchAll(PDO::FETCH_ASSOC);
+                            foreach ($polling_units as $pu): 
+                                $is_current = ($pu['id'] == $current_pu);
+                            ?>
+                                <div class="pu-option <?php echo $is_current ? 'selected' : ''; ?>" data-pu-id="<?php echo $pu['id']; ?>" onclick="selectPU(<?php echo $pu['id']; ?>)">
+                                    <div class="pu-name"><?php echo htmlspecialchars($pu['name']); ?></div>
+                                    <div class="pu-code"><?php echo htmlspecialchars($pu['code']); ?></div>
+                                    <?php if ($is_current): ?>
+                                        <div style="font-size:0.6rem;color:#10B981;font-weight:600;">Current</div>
+                                    <?php endif; ?>
+                                </div>
+                            <?php endforeach; ?>
                         </div>
-                        
                         <input type="hidden" name="new_pu_id" id="selected_pu_id" value="<?php echo $current_pu; ?>">
-                        
-                        <div class="form-group">
-                            <label for="reason"><i class="fas fa-sticky-note"></i> Reason for Reassignment</label>
-                            <textarea name="reason" id="reason" placeholder="Provide a reason for reassigning this agent..." rows="3"></textarea>
-                        </div>
-                        
-                        <div class="form-actions">
-                            <button type="submit" class="btn-primary" id="submitBtn">
-                                <i class="fas fa-exchange-alt"></i> Confirm Reassignment
-                            </button>
-                            <a href="manage-pu-agents.php" class="btn-secondary">
-                                <i class="fas fa-times"></i> Cancel
-                            </a>
-                        </div>
-                    </form>
-                </div>
-            <?php else: ?>
-                <div class="alert alert-warning">
-                    <i class="fas fa-info-circle"></i> 
-                    This agent is not currently assigned to any polling unit. 
-                    <a href="assign-agents.php?agent_id=<?php echo $agent['id']; ?>" style="font-weight:600;">Assign them now →</a>
-                </div>
-            <?php endif; ?>
+                    </div>
 
+                    <div class="form-group">
+                        <label>Reason for Reassignment</label>
+                        <textarea name="reason" placeholder="Provide a reason for reassigning this agent..." rows="3"></textarea>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn-primary" id="submitBtn">
+                            <i class="fas fa-exchange-alt"></i> Confirm Reassignment
+                        </button>
+                        <a href="manage-pu-agents.php" class="btn-secondary"><i class="fas fa-times"></i> Cancel</a>
+                    </div>
+                </form>
+            </div>
+
+        <?php elseif ($agent): ?>
+            <div class="alert alert-warning">
+                <i class="fas fa-info-circle"></i> This agent is not currently assigned to any polling unit. 
+                <a href="assign-agents.php?agent_id=<?php echo $agent['id']; ?>" style="font-weight:600;">Assign them now →</a>
+            </div>
         <?php else: ?>
             <div style="text-align:center;padding:60px 20px;background:white;border-radius:var(--radius);border:1px solid var(--gray-200);">
-                <i class="fas fa-user-tie" style="font-size:4rem;color:var(--gray-300);"></i>
+                <i class="fas fa-user" style="font-size:4rem;color:var(--gray-300);"></i>
                 <h4 style="margin:16px 0 8px;">Agent Not Found</h4>
-                <p style="color:var(--gray-500);">The agent you're looking for does not exist or is not in your ward.</p>
-                <a href="manage-pu-agents.php" class="btn-primary-sm" style="display:inline-block;margin-top:12px;">
-                    <i class="fas fa-arrow-left"></i> Back to Agents
-                </a>
+                <p style="color:var(--gray-500);">The agent you're looking for does not exist.</p>
+                <a href="manage-pu-agents.php" class="btn-primary-sm" style="display:inline-block;margin-top:12px;"><i class="fas fa-arrow-left"></i> Back to Agents</a>
             </div>
         <?php endif; ?>
     </div>
 </main>
 
 <script>
-// Select PU
 function selectPU(puId) {
-    // Update hidden input
     document.getElementById('selected_pu_id').value = puId;
-    
-    // Update UI
     document.querySelectorAll('.pu-option').forEach(function(el) {
         el.classList.remove('selected');
         if (el.dataset.puId == puId) {
             el.classList.add('selected');
         }
     });
-    
-    // Enable submit button
     document.getElementById('submitBtn').disabled = false;
 }
 
-// Validate form
 document.getElementById('reassignForm').addEventListener('submit', function(e) {
     const puId = document.getElementById('selected_pu_id').value;
-    
     if (!puId || puId == '0') {
         e.preventDefault();
         alert('Please select a new polling unit for this agent.');
         return false;
     }
-    
     const currentPuId = <?php echo $current_pu ?? 0; ?>;
     if (puId == currentPuId) {
         e.preventDefault();
         alert('You must select a different polling unit than the current one.');
         return false;
     }
-    
     return confirm('Are you sure you want to reassign this agent to the selected polling unit?');
 });
 
-// Preloader
 window.addEventListener('load', function() {
     var preloader = document.getElementById('preloader');
     if (preloader) {
@@ -621,7 +363,6 @@ window.addEventListener('load', function() {
     }
 });
 
-// Sidebar toggle
 var sidebar = document.getElementById('sidebar');
 var sidebarToggle = document.getElementById('sidebarToggle');
 var sidebarOverlay = document.getElementById('sidebarOverlay');
@@ -660,7 +401,6 @@ window.addEventListener('resize', function() {
     }
 });
 
-// Sidebar dropdowns
 document.querySelectorAll('.dropdown-toggle').forEach(function(toggle) {
     toggle.addEventListener('click', function(e) {
         e.preventDefault();
@@ -674,7 +414,6 @@ document.querySelectorAll('.dropdown-toggle').forEach(function(toggle) {
     });
 });
 
-// Profile dropdown
 var profileBtn = document.getElementById('profileBtn');
 var profileMenu = document.getElementById('profileMenu');
 

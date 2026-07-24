@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// WARD COORDINATOR - ASSIGN TASKS TO VOLUNTEERS
+// WARD COORDINATOR - ASSIGN TASKS TO VOLUNTEERS (FIXED)
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -61,7 +61,7 @@ try {
 }
 
 // ============================================================
-// FETCH VOLUNTEERS
+// FETCH VOLUNTEERS (FIXED: Uses role_id directly)
 // ============================================================
 $volunteers = [];
 try {
@@ -77,7 +77,7 @@ try {
         LEFT JOIN polling_units pu ON u.pu_id = pu.id
         WHERE u.tenant_id = ? AND u.ward_id = ? AND u.deleted_at IS NULL
         AND u.status = 'active'
-        AND EXISTS (SELECT 1 FROM roles r WHERE r.id = u.role_id AND r.level = 'volunteer')
+        AND u.role_id = 15
         ORDER BY u.full_name ASC
     ");
     $stmt->execute([$tenant_id, $ward_id]);
@@ -113,6 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $due_datetime = $due_date . ' ' . $due_time . ':00';
             }
             
+            // Insert into volunteer_tasks table
             $stmt = $db->prepare("
                 INSERT INTO volunteer_tasks (
                     volunteer_id, assigned_by, title, description, 
@@ -134,6 +135,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             $success_message = "Task assigned successfully!";
             
+            // Redirect to avoid form resubmission
+            header('Location: volunteer-progress.php?success=' . urlencode($success_message));
+            exit();
+            
         } catch (Exception $e) {
             $error_message = "Error assigning task: " . $e->getMessage();
             error_log("Task assignment error: " . $e->getMessage());
@@ -144,8 +149,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $page_title = 'Assign Tasks';
 include '../includes/base.php';
 include '../includes/sidebar.php';
-?>
-
+?> 
 <style>
 .assign-task-header {
     display: flex;
