@@ -29,6 +29,25 @@ $roleId = isset($_GET['role_id']) ? (int)$_GET['role_id'] : 9;
 $tenantId = $userData['tenant_id'];
 $wardId = $userData['ward_id'] ?? 0;
 
+// If ward_id is not set, try to get it from the user's record
+if (empty($wardId)) {
+    try {
+        $conn = getDBConnection();
+        $stmt = $conn->prepare("SELECT ward_id FROM users WHERE id = ?");
+        $stmt->bind_param("i", $userId);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $user = $result->fetch_assoc();
+        if ($user && !empty($user['ward_id'])) {
+            $wardId = $user['ward_id'];
+        }
+        $stmt->close();
+        $conn->close();
+    } catch (Exception $e) {
+        // Ignore
+    }
+}
+
 try {
     $conn = getDBConnection();
     
@@ -48,10 +67,12 @@ try {
             pu.name as pu_name,
             pu.code as pu_code,
             (SELECT content FROM chat_messages 
-             WHERE (sender_id = u.id AND receiver_id = ?) OR (sender_id = ? AND receiver_id = u.id)
+             WHERE ((sender_id = u.id AND receiver_id = ?) OR (sender_id = ? AND receiver_id = u.id))
+             AND is_deleted = 0
              ORDER BY created_at DESC LIMIT 1) as last_message,
             (SELECT created_at FROM chat_messages 
-             WHERE (sender_id = u.id AND receiver_id = ?) OR (sender_id = ? AND receiver_id = u.id)
+             WHERE ((sender_id = u.id AND receiver_id = ?) OR (sender_id = ? AND receiver_id = u.id))
+             AND is_deleted = 0
              ORDER BY created_at DESC LIMIT 1) as last_message_time,
             (SELECT COUNT(*) FROM chat_messages 
              WHERE sender_id = u.id AND receiver_id = ? AND is_read = 0) as unread_count,
@@ -65,7 +86,7 @@ try {
         AND u.status = 'active'
         AND u.id != ?
         AND u.role_id = ?
-        ORDER BY unread_count DESC, last_message_time DESC NULLS LAST
+        ORDER BY unread_count DESC, last_message_time DESC
     ");
     $stmt->bind_param("iiiiiiiiii", 
         $userId, $userId, $userId, $userId, $userId,

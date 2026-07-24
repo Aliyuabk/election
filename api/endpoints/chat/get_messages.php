@@ -18,12 +18,6 @@ require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../config/database.php';
 
 $userId = validateToken();
-$userData = getUserData($userId);
-
-if (!$userData) {
-    echo json_encode(['success' => false, 'message' => 'User not found']);
-    exit;
-}
 
 $contactId = isset($_GET['contact_id']) ? (int)$_GET['contact_id'] : 0;
 $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 50;
@@ -43,13 +37,14 @@ try {
         SELECT 
             cm.*,
             u_sender.full_name as sender_first_name,
+            u_sender.last_name as sender_last_name,
             u_sender.photograph_url as sender_photo,
             u_receiver.full_name as receiver_name
         FROM chat_messages cm
         LEFT JOIN users u_sender ON cm.sender_id = u_sender.id
         LEFT JOIN users u_receiver ON cm.receiver_id = u_receiver.id
-        WHERE (cm.sender_id = ? AND cm.receiver_id = ?)
-           OR (cm.sender_id = ? AND cm.receiver_id = ?)
+        WHERE ((cm.sender_id = ? AND cm.receiver_id = ?)
+           OR (cm.sender_id = ? AND cm.receiver_id = ?))
         AND cm.is_deleted = 0
         ORDER BY cm.created_at DESC
         LIMIT ? OFFSET ?

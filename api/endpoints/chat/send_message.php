@@ -46,14 +46,14 @@ if (empty($message) && empty($mediaUrl)) {
 try {
     $conn = getDBConnection();
     
-    // Verify receiver exists and is in the same ward
+    // Verify receiver exists
     $stmt = $conn->prepare("
         SELECT id, full_name, role_id, tenant_id, ward_id FROM users 
         WHERE id = ? AND status = 'active' AND deleted_at IS NULL
     ");
     $stmt->bind_param("i", $receiverId);
     $stmt->execute();
-    $receiver = $stmt->fetch(PDO::FETCH_ASSOC);
+    $receiver = $stmt->get_result()->fetch_assoc();
     $stmt->close();
     
     if (!$receiver) {
@@ -66,7 +66,7 @@ try {
     $senderRole = $userData['role_level'];
     $isCoordinator = in_array($senderRole, ['ward', 'lga', 'state', 'national', 'super_admin']);
     
-    if ($userData['ward_id'] != $receiver['ward_id'] && !$isCoordinator) {
+    if (($userData['ward_id'] ?? 0) != ($receiver['ward_id'] ?? 0) && !$isCoordinator) {
         http_response_code(403);
         echo json_encode(['success' => false, 'message' => 'You can only chat with users in your ward']);
         exit;
@@ -85,8 +85,7 @@ try {
     ");
     $stmt->bind_param("iii", $userData['tenant_id'], $userId, $receiverId);
     $stmt->execute();
-    $result = $stmt->get_result();
-    $room = $result->fetch_assoc();
+    $room = $stmt->get_result()->fetch_assoc();
     $stmt->close();
     
     if ($room) {
@@ -116,8 +115,8 @@ try {
     $stmt = $conn->prepare("
         INSERT INTO chat_messages (
             room_id, sender_id, receiver_id, message_type, content, 
-            media_url, is_read, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, 0, NOW())
+            media_url, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, NOW())
     ");
     $stmt->bind_param("iiisss", $roomId, $userId, $receiverId, $messageType, $message, $mediaUrl);
     $stmt->execute();
@@ -127,7 +126,8 @@ try {
     // Get the created message with sender info
     $stmt = $conn->prepare("
         SELECT cm.*, 
-               u_sender.full_name as sender_name,
+               u_sender.full_name as sender_first_name,
+               u_sender.last_name as sender_last_name,
                u_sender.photograph_url as sender_photo,
                u_receiver.full_name as receiver_name
         FROM chat_messages cm
@@ -137,8 +137,7 @@ try {
     ");
     $stmt->bind_param("i", $messageId);
     $stmt->execute();
-    $result = $stmt->get_result();
-    $messageData = $result->fetch_assoc();
+    $messageData = $stmt->get_result()->fetch_assoc();
     $stmt->close();
     
     $conn->close();
@@ -153,4 +152,3 @@ try {
     http_response_code(500);
     echo json_encode(['success' => false, 'message' => 'Server error: ' . $e->getMessage()]);
 }
-?>
