@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// WARD COORDINATOR - ASSIGN OBSERVERS
+// WARD COORDINATOR - ASSIGN OBSERVERS (COMPLETE UPDATE)
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -9,46 +9,57 @@ require_once '../../includes/functions.php';
 // Start session
 SessionManager::start();
 
+// Check if user is logged in
 if (!SessionManager::isLoggedIn()) {
     header('Location: ../../auth/login.php');
     exit();
 }
 
 // Only Ward coordinator can access
-if (SessionManager::get('role_level') !== 'ward') {
+$user_role_level = SessionManager::get('role_level');
+if ($user_role_level !== 'ward') {
     header('Location: ../client-admin/');
     exit();
 }
 
+// Get user data from session
 $user_name = SessionManager::get('user_name', 'Coordinator');
 $user_id = SessionManager::get('user_id');
+$tenant_id = SessionManager::get('tenant_id');
 $ward_id = SessionManager::get('ward_id');
 $lga_id = SessionManager::get('lga_id');
 $state_id = SessionManager::get('state_id');
-$tenant_id = SessionManager::get('tenant_id');
 
-// If ward_id is not set in session, try to get it from user record
+// Get database connection
+$db = getDB();
+
+// ============================================================
+// FIX: Ensure ward_id is properly set
+// ============================================================
 if (empty($ward_id)) {
-    $db = getDB();
     try {
-        $stmt = $db->prepare("SELECT ward_id FROM users WHERE id = ?");
-        $stmt->execute([$user_id]);
+        $stmt = $db->prepare("SELECT ward_id, lga_id, state_id FROM users WHERE id = ? AND tenant_id = ?");
+        $stmt->execute([$user_id, $tenant_id]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        
         if ($user && !empty($user['ward_id'])) {
             $ward_id = $user['ward_id'];
+            $lga_id = $user['lga_id'] ?? $lga_id;
+            $state_id = $user['state_id'] ?? $state_id;
+            
             SessionManager::set('ward_id', $ward_id);
+            SessionManager::set('lga_id', $lga_id);
+            SessionManager::set('state_id', $state_id);
         }
     } catch (Exception $e) {
         error_log("Error fetching ward_id: " . $e->getMessage());
     }
 }
 
-$db = getDB();
-
 // ============================================================
 // FETCH WARD NAME
 // ============================================================
-$ward_name = 'Ward';
+$ward_name = 'Unknown Ward';
 try {
     if ($ward_id) {
         $stmt = $db->prepare("SELECT name FROM wards WHERE id = ?");
@@ -63,6 +74,49 @@ try {
 }
 
 // ============================================================
+// FUNCTION: Ensure active election exists
+// ============================================================
+function ensureActiveElection($db, $tenant_id, $ward_id, $user_id) {
+    try {
+        $stmt = $db->prepare("
+            SELECT id FROM elections 
+            WHERE tenant_id = ? AND status = 'active' 
+            AND JSON_CONTAINS(wards_json, JSON_QUOTE(?))
+            LIMIT 1
+        ");
+        $stmt->execute([$tenant_id, $ward_id]);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($result) {
+            return $result['id'];
+        }
+        
+        $db->beginTransaction();
+        
+        $stmt = $db->prepare("
+            INSERT INTO elections (
+                tenant_id, name, type, cycle, election_date, 
+                status, wards_json, created_by, created_at, updated_at
+            ) VALUES (?, 'Default Active Election', 'governorship', '2031', 
+                DATE_ADD(CURDATE(), INTERVAL 1 YEAR), 'active', JSON_ARRAY(?), ?, NOW(), NOW()
+            )
+        ");
+        $stmt->execute([$tenant_id, $ward_id, $user_id]);
+        $election_id = $db->lastInsertId();
+        
+        $db->commit();
+        return $election_id;
+        
+    } catch (Exception $e) {
+        if (isset($db) && $db->inTransaction()) {
+            $db->rollBack();
+        }
+        error_log("Error ensuring active election: " . $e->getMessage());
+        throw $e;
+    }
+}
+
+// ============================================================
 // FETCH UNASSIGNED OBSERVERS
 // ============================================================
 $unassigned_observers = [];
@@ -70,7 +124,7 @@ $assigned_observers = [];
 $polling_units = [];
 
 try {
-    // Get unassigned observers
+    // Get unassigned observers (role_id = 11)
     $stmt = $db->prepare("
         SELECT 
             u.id,
@@ -79,13 +133,13 @@ try {
             u.email,
             u.phone,
             u.status,
-            u.created_at
+            u.created_at,
+            u.photograph_url
         FROM users u
-        JOIN roles r ON u.role_id = r.id
         WHERE u.tenant_id = ? 
         AND u.ward_id = ?
         AND u.deleted_at IS NULL
-        AND r.level = 'observer'
+        AND u.role_id = 11
         AND (u.pu_id IS NULL OR u.pu_id = 0)
         AND u.status = 'active'
         ORDER BY u.full_name ASC
@@ -103,15 +157,15 @@ try {
             u.phone,
             u.status,
             u.pu_id,
+            u.photograph_url,
             pu.name as pu_name,
             pu.code as pu_code
         FROM users u
-        JOIN roles r ON u.role_id = r.id
         LEFT JOIN polling_units pu ON u.pu_id = pu.id
         WHERE u.tenant_id = ? 
         AND u.ward_id = ?
         AND u.deleted_at IS NULL
-        AND r.level = 'observer'
+        AND u.role_id = 11
         AND u.pu_id IS NOT NULL
         AND u.pu_id > 0
         AND u.status = 'active'
@@ -126,7 +180,11 @@ try {
             pu.id,
             pu.name,
             pu.code,
-            pu.registered_voters
+            pu.registered_voters,
+            pu.is_active,
+            pu.ward_id,
+            (SELECT COUNT(*) FROM users u 
+             WHERE u.pu_id = pu.id AND u.role_id = 11 AND u.status = 'active' AND u.deleted_at IS NULL) as assigned_count
         FROM polling_units pu
         WHERE pu.ward_id = ? AND pu.is_active = 1
         ORDER BY pu.name ASC
@@ -143,32 +201,84 @@ try {
 // ============================================================
 $success_message = '';
 $error_message = '';
+$show_success = false;
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'assign_observer') {
     $observer_id = isset($_POST['observer_id']) ? (int)$_POST['observer_id'] : 0;
     $pu_id = isset($_POST['pu_id']) ? (int)$_POST['pu_id'] : 0;
     $notes = isset($_POST['notes']) ? trim($_POST['notes']) : '';
     
-    if ($observer_id > 0 && $pu_id > 0) {
+    // CSRF Protection
+    $csrf_token = isset($_POST['csrf_token']) ? $_POST['csrf_token'] : '';
+    $session_token = SessionManager::get('csrf_token');
+    
+    if (empty($csrf_token) || $csrf_token !== $session_token) {
+        $error_message = 'Security validation failed. Please try again.';
+    } elseif ($observer_id <= 0 || $pu_id <= 0) {
+        $error_message = 'Please select both an observer and a polling unit.';
+    } else {
         try {
             $db->beginTransaction();
             
+            // Verify observer exists
+            $stmt = $db->prepare("
+                SELECT u.id, u.full_name, u.pu_id, u.status, u.role_id
+                FROM users u
+                WHERE u.id = ? AND u.tenant_id = ? AND u.ward_id = ? AND u.deleted_at IS NULL
+            ");
+            $stmt->execute([$observer_id, $tenant_id, $ward_id]);
+            $observer = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$observer) {
+                throw new Exception('Observer not found or does not belong to your ward.');
+            }
+            
+            if ($observer['role_id'] != 11) {
+                throw new Exception('Selected user is not an observer.');
+            }
+            
+            if ($observer['status'] !== 'active') {
+                throw new Exception('Observer is not active.');
+            }
+            
+            if (!empty($observer['pu_id']) && $observer['pu_id'] > 0) {
+                if (!isset($_POST['confirm_reassign']) || $_POST['confirm_reassign'] !== '1') {
+                    throw new Exception('reassign_required');
+                }
+            }
+            
+            // Verify polling unit
+            $stmt = $db->prepare("
+                SELECT id, name, ward_id, is_active 
+                FROM polling_units 
+                WHERE id = ? AND is_active = 1
+            ");
+            $stmt->execute([$pu_id]);
+            $pu = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$pu) {
+                throw new Exception('Polling unit not found or inactive.');
+            }
+            
+            if ($pu['ward_id'] != $ward_id) {
+                throw new Exception("Polling unit belongs to ward {$pu['ward_id']}, but you are assigned to ward $ward_id.");
+            }
+            
+            $election_id = ensureActiveElection($db, $tenant_id, $ward_id, $user_id);
+            
             // Update user's PU assignment
-            $stmt = $db->prepare("UPDATE users SET pu_id = ? WHERE id = ? AND tenant_id = ?");
+            $stmt = $db->prepare("UPDATE users SET pu_id = ?, updated_at = NOW() WHERE id = ? AND tenant_id = ?");
             $stmt->execute([$pu_id, $observer_id, $tenant_id]);
             
-            // Get active election
-            $election_stmt = $db->prepare("
-                SELECT id FROM elections 
-                WHERE tenant_id = ? AND status = 'active' 
-                AND JSON_CONTAINS(wards_json, JSON_QUOTE(?))
-                LIMIT 1
+            // Mark old assignments
+            $stmt = $db->prepare("
+                UPDATE agent_assignments 
+                SET status = 'reassigned' 
+                WHERE user_id = ? AND status = 'active'
             ");
-            $election_stmt->execute([$tenant_id, $ward_id]);
-            $election = $election_stmt->fetch(PDO::FETCH_ASSOC);
-            $election_id = $election ? $election['id'] : null;
+            $stmt->execute([$observer_id]);
             
-            // Create assignment record
+            // Create assignment
             $stmt = $db->prepare("
                 INSERT INTO agent_assignments (
                     tenant_id, election_id, user_id, pu_id, ward_id, lga_id, state_id,
@@ -188,26 +298,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $notes
             ]);
             
-            logActivity($user_id, 'observer_assigned', "Assigned observer ID: $observer_id to PU: $pu_id", 'user', $observer_id);
+            logActivity($user_id, 'observer_assigned', "Assigned observer: {$observer['full_name']} (ID: $observer_id) to PU: {$pu['name']} (ID: $pu_id)", 'user', $observer_id);
             
             $db->commit();
-            $success_message = "Observer assigned successfully.";
+            $success_message = "Observer assigned successfully to {$pu['name']}!";
+            $show_success = true;
             
         } catch (Exception $e) {
             $db->rollBack();
-            $error_message = "Error assigning observer: " . $e->getMessage();
-            error_log("Observer assignment error: " . $e->getMessage());
+            
+            if ($e->getMessage() === 'reassign_required') {
+                $error_message = 'reassign_required';
+                $reassign_observer_id = $observer_id;
+                $reassign_pu_id = $pu_id;
+            } else {
+                $error_message = "Error: " . $e->getMessage();
+                error_log("Observer assignment error: " . $e->getMessage());
+            }
         }
-    } else {
-        $error_message = "Please select both an observer and a polling unit.";
     }
 }
+
+// Generate CSRF token
+$csrf_token = bin2hex(random_bytes(32));
+SessionManager::set('csrf_token', $csrf_token);
 
 $page_title = 'Assign Observers';
 include '../includes/base.php';
 include '../includes/sidebar.php';
 ?>
-
 <style>
 .assign-header {
     display: flex;
@@ -603,4 +722,4 @@ if (profileBtn && profileMenu) {
 }
 </script>
 </body>
-</html>assign-volunteers.php
+</html>
