@@ -1,13 +1,21 @@
 <?php
-require_once __DIR__ . '/../../includes/cors.php';
-require_once __DIR__ . '/../../includes/response.php';
+header('Content-Type: application/json');
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: GET, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, Authorization');
+
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    exit(0);
+}
+
+if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+    http_response_code(405);
+    echo json_encode(['success' => false, 'message' => 'Method not allowed']);
+    exit;
+}
+
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../config/database.php';
-
-// Only GET method allowed
-if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
-    sendError('Method not allowed', HTTP_METHOD_NOT_ALLOWED);
-}
 
 $userId = validateToken();
 
@@ -16,7 +24,9 @@ $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 50;
 $offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
 
 if ($roomId <= 0) {
-    sendError('Room ID is required', HTTP_BAD_REQUEST);
+    http_response_code(400);
+    echo json_encode(['success' => false, 'message' => 'Room ID is required']);
+    exit;
 }
 
 try {
@@ -32,17 +42,23 @@ try {
     $result = $checkStmt->get_result();
     
     if ($result->num_rows === 0) {
-        sendError('You are not a member of this chat room', HTTP_FORBIDDEN);
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => 'You are not a member of this chat room']);
+        exit;
     }
     $checkStmt->close();
     
-    // Get messages
+    // Get messages with sender info
     $stmt = $conn->prepare("
         SELECT cm.*, 
-               u.first_name as sender_first_name, u.last_name as sender_last_name,
-               u.avatar as sender_avatar
+               u.first_name as sender_first_name, 
+               u.last_name as sender_last_name,
+               u.avatar as sender_avatar,
+               ru.first_name as receiver_first_name,
+               ru.last_name as receiver_last_name
         FROM chat_messages cm
         LEFT JOIN users u ON cm.sender_id = u.id
+        LEFT JOIN users ru ON cm.receiver_id = ru.id
         WHERE cm.room_id = ? AND cm.is_deleted = 0
         ORDER BY cm.created_at DESC
         LIMIT ? OFFSET ?
@@ -69,11 +85,13 @@ try {
     $stmt->close();
     $conn->close();
     
-    sendSuccess('Messages retrieved successfully', [
+    echo json_encode([
+        'success' => true,
         'messages' => array_reverse($messages),
         'total' => count($messages)
     ]);
     
 } catch (Exception $e) {
-    sendError('Server error: ' . $e->getMessage(), HTTP_INTERNAL_ERROR);
+    http_response_code(500);
+    echo json_encode(['success' => false, 'message' => 'Server error: ' . $e->getMessage()]);
 }

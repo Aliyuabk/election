@@ -1,19 +1,28 @@
 <?php
-require_once __DIR__ . '/../../includes/cors.php';
-require_once __DIR__ . '/../../includes/response.php';
+header('Content-Type: application/json');
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: GET, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, Authorization');
+
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    exit(0);
+}
+
+if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
+    http_response_code(405);
+    echo json_encode(['success' => false, 'message' => 'Method not allowed']);
+    exit;
+}
+
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../config/database.php';
-
-// Only GET method allowed
-if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
-    sendError('Method not allowed', HTTP_METHOD_NOT_ALLOWED);
-}
 
 $userId = validateToken();
 $userData = getUserData($userId);
 
 if (!$userData) {
-    sendError('User not found', HTTP_NOT_FOUND);
+    echo json_encode(['success' => false, 'message' => 'User not found']);
+    exit;
 }
 
 try {
@@ -23,8 +32,8 @@ try {
     $stmt = $conn->prepare("
         SELECT cr.*, 
                (SELECT COUNT(*) FROM chat_room_members WHERE room_id = cr.id) as member_count,
-               (SELECT content FROM chat_messages WHERE room_id = cr.id ORDER BY created_at DESC LIMIT 1) as last_message,
-               (SELECT created_at FROM chat_messages WHERE room_id = cr.id ORDER BY created_at DESC LIMIT 1) as last_message_time
+               (SELECT content FROM chat_messages WHERE room_id = cr.id AND is_deleted = 0 ORDER BY created_at DESC LIMIT 1) as last_message,
+               (SELECT created_at FROM chat_messages WHERE room_id = cr.id AND is_deleted = 0 ORDER BY created_at DESC LIMIT 1) as last_message_time
         FROM chat_rooms cr
         JOIN chat_room_members crm ON cr.id = crm.room_id
         WHERE crm.user_id = ? AND cr.is_active = 1
@@ -42,11 +51,13 @@ try {
     $stmt->close();
     $conn->close();
     
-    sendSuccess('Chat rooms retrieved successfully', [
+    echo json_encode([
+        'success' => true,
         'rooms' => $rooms,
         'total' => count($rooms)
     ]);
     
 } catch (Exception $e) {
-    sendError('Server error: ' . $e->getMessage(), HTTP_INTERNAL_ERROR);
+    http_response_code(500);
+    echo json_encode(['success' => false, 'message' => 'Server error: ' . $e->getMessage()]);
 }
