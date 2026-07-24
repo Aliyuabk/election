@@ -18,52 +18,43 @@ require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../config/database.php';
 
 $userId = validateToken();
+$userData = getUserData($userId);
 
-$roomId = isset($_GET['room_id']) ? (int)$_GET['room_id'] : 0;
+if (!$userData) {
+    echo json_encode(['success' => false, 'message' => 'User not found']);
+    exit;
+}
+
+$contactId = isset($_GET['contact_id']) ? (int)$_GET['contact_id'] : 0;
 $limit = isset($_GET['limit']) ? (int)$_GET['limit'] : 50;
 $offset = isset($_GET['offset']) ? (int)$_GET['offset'] : 0;
 
-if ($roomId <= 0) {
+if ($contactId <= 0) {
     http_response_code(400);
-    echo json_encode(['success' => false, 'message' => 'Room ID is required']);
+    echo json_encode(['success' => false, 'message' => 'Contact ID is required']);
     exit;
 }
 
 try {
     $conn = getDBConnection();
     
-    // Check if user is member of room
-    $checkStmt = $conn->prepare("
-        SELECT id FROM chat_room_members 
-        WHERE room_id = ? AND user_id = ?
-    ");
-    $checkStmt->bind_param("ii", $roomId, $userId);
-    $checkStmt->execute();
-    $result = $checkStmt->get_result();
-    
-    if ($result->num_rows === 0) {
-        http_response_code(403);
-        echo json_encode(['success' => false, 'message' => 'You are not a member of this chat room']);
-        exit;
-    }
-    $checkStmt->close();
-    
-    // Get messages with sender info
+    // Get messages between user and contact
     $stmt = $conn->prepare("
-        SELECT cm.*, 
-               u.first_name as sender_first_name, 
-               u.last_name as sender_last_name,
-               u.avatar as sender_avatar,
-               ru.first_name as receiver_first_name,
-               ru.last_name as receiver_last_name
+        SELECT 
+            cm.*,
+            u_sender.full_name as sender_first_name,
+            u_sender.photograph_url as sender_photo,
+            u_receiver.full_name as receiver_name
         FROM chat_messages cm
-        LEFT JOIN users u ON cm.sender_id = u.id
-        LEFT JOIN users ru ON cm.receiver_id = ru.id
-        WHERE cm.room_id = ? AND cm.is_deleted = 0
+        LEFT JOIN users u_sender ON cm.sender_id = u_sender.id
+        LEFT JOIN users u_receiver ON cm.receiver_id = u_receiver.id
+        WHERE (cm.sender_id = ? AND cm.receiver_id = ?)
+           OR (cm.sender_id = ? AND cm.receiver_id = ?)
+        AND cm.is_deleted = 0
         ORDER BY cm.created_at DESC
         LIMIT ? OFFSET ?
     ");
-    $stmt->bind_param("iii", $roomId, $limit, $offset);
+    $stmt->bind_param("iiiiii", $userId, $contactId, $contactId, $userId, $limit, $offset);
     $stmt->execute();
     $result = $stmt->get_result();
     
@@ -71,18 +62,18 @@ try {
     while ($row = $result->fetch_assoc()) {
         $messages[] = $row;
     }
-    
-    // Mark messages as read
-    $updateStmt = $conn->prepare("
-        UPDATE chat_messages 
-        SET is_read = 1 
-        WHERE room_id = ? AND sender_id != ? AND is_read = 0
-    ");
-    $updateStmt->bind_param("ii", $roomId, $userId);
-    $updateStmt->execute();
-    $updateStmt->close();
-    
     $stmt->close();
+    
+    // Mark unread messages as read
+    $stmt = $conn->prepare("
+        UPDATE chat_messages 
+        SET is_read = 1, read_at = NOW() 
+        WHERE sender_id = ? AND receiver_id = ? AND is_read = 0
+    ");
+    $stmt->bind_param("ii", $contactId, $userId);
+    $stmt->execute();
+    $stmt->close();
+    
     $conn->close();
     
     echo json_encode([
