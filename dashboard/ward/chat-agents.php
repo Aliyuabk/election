@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// WARD COORDINATOR - CHAT WITH AGENTS (SIMPLIFIED FIXED)
+// WARD COORDINATOR - CHAT WITH AGENTS (REAL-TIME)
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -91,17 +91,155 @@ $messages = [];
 $contacts = [];
 
 // ============================================================
-// DEBUG: Log what we're looking for
+// HANDLE AJAX REQUESTS
 // ============================================================
-error_log("=== CHAT DEBUG ===");
-error_log("Tenant ID: $tenant_id, Ward ID: $ward_id, User ID: $user_id");
-error_log("Selected Role: $selected_role (" . ($role_definitions[$selected_role]['name'] ?? 'Unknown') . ")");
+if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
+    header('Content-Type: application/json');
+    
+    $response = ['success' => false, 'messages' => [], 'contacts' => [], 'new_messages' => 0];
+    
+    try {
+        // Get latest messages
+        if ($selected_contact_id > 0) {
+            $last_msg_id = isset($_GET['last_msg_id']) ? (int)$_GET['last_msg_id'] : 0;
+            
+            $stmt = $db->prepare("
+                SELECT 
+                    cm.*,
+                    u_sender.full_name as sender_name,
+                    u_sender.photograph_url as sender_photo,
+                    u_receiver.full_name as receiver_name
+                FROM chat_messages cm
+                LEFT JOIN users u_sender ON cm.sender_id = u_sender.id
+                LEFT JOIN users u_receiver ON cm.receiver_id = u_receiver.id
+                WHERE ((cm.sender_id = ? AND cm.receiver_id = ?)
+                   OR (cm.sender_id = ? AND cm.receiver_id = ?))
+                AND cm.is_deleted = 0
+                AND cm.id > ?
+                ORDER BY cm.created_at ASC
+            ");
+            $stmt->execute([$user_id, $selected_contact_id, $selected_contact_id, $user_id, $last_msg_id]);
+            $new_messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            $response['messages'] = $new_messages;
+            $response['new_messages'] = count($new_messages);
+            
+            // Mark messages as read
+            if (count($new_messages) > 0) {
+                $stmt = $db->prepare("
+                    UPDATE chat_messages 
+                    SET is_read = 1, read_at = NOW() 
+                    WHERE sender_id = ? AND receiver_id = ? AND is_read = 0
+                ");
+                $stmt->execute([$selected_contact_id, $user_id]);
+            }
+        }
+        
+        // Get updated contacts
+        $stmt = $db->prepare("
+            SELECT 
+                u.id,
+                u.full_name,
+                u.user_code,
+                u.email,
+                u.phone,
+                u.status,
+                u.photograph_url,
+                u.last_login_at,
+                u.pu_id,
+                u.role_id,
+                pu.name as pu_name,
+                pu.code as pu_code,
+                r.level as role_level,
+                r.name as role_name,
+                (SELECT COUNT(*) FROM chat_messages cm 
+                 WHERE cm.sender_id = u.id AND cm.receiver_id = ? AND cm.is_read = 0 AND cm.is_deleted = 0) as unread_count,
+                (SELECT COUNT(*) FROM user_sessions us 
+                 WHERE us.user_id = u.id AND us.is_active = 1 
+                 AND us.last_activity_at > DATE_SUB(NOW(), INTERVAL 5 MINUTE)) as is_online,
+                (SELECT MAX(created_at) FROM chat_messages 
+                 WHERE (sender_id = u.id AND receiver_id = ?) 
+                    OR (sender_id = ? AND receiver_id = u.id)) as last_message_time,
+                (SELECT content FROM chat_messages 
+                 WHERE (sender_id = u.id AND receiver_id = ?) 
+                    OR (sender_id = ? AND receiver_id = u.id) 
+                 ORDER BY created_at DESC LIMIT 1) as last_message
+            FROM users u
+            LEFT JOIN polling_units pu ON u.pu_id = pu.id
+            LEFT JOIN roles r ON u.role_id = r.id
+            WHERE u.tenant_id = ? 
+            AND u.ward_id = ?
+            AND u.deleted_at IS NULL
+            AND u.status = 'active'
+            AND u.id != ?
+            AND u.role_id = ?
+            ORDER BY last_message_time DESC, u.full_name ASC
+        ");
+        $stmt->execute([$user_id, $user_id, $user_id, $user_id, $user_id, $tenant_id, $ward_id, $user_id, $selected_role]);
+        $response['contacts'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        $response['success'] = true;
+        
+    } catch (Exception $e) {
+        error_log("AJAX error: " . $e->getMessage());
+        $response['error'] = $e->getMessage();
+    }
+    
+    echo json_encode($response);
+    exit();
+}
 
 // ============================================================
-// FETCH CONTACTS BY ROLE - SIMPLIFIED
+// HANDLE FILE UPLOAD
+// ============================================================
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'upload_file') {
+    header('Content-Type: application/json');
+    
+    $response = ['success' => false, 'message' => 'Upload failed'];
+    
+    if (isset($_FILES['attachment']) && $_FILES['attachment']['error'] === UPLOAD_ERR_OK) {
+        $file = $_FILES['attachment'];
+        $upload_dir = '../../uploads/chat/';
+        
+        // Create directory if it doesn't exist
+        if (!is_dir($upload_dir)) {
+            mkdir($upload_dir, 0777, true);
+        }
+        
+        // Generate unique filename
+        $file_ext = pathinfo($file['name'], PATHINFO_EXTENSION);
+        $file_name = time() . '_' . bin2hex(random_bytes(8)) . '.' . $file_ext;
+        $file_path = $upload_dir . $file_name;
+        
+        // Allowed file types
+        $allowed_types = ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'zip', 'rar'];
+        $file_type = strtolower($file_ext);
+        
+        if (in_array($file_type, $allowed_types) && $file['size'] < 10485760) { // 10MB max
+            if (move_uploaded_file($file['tmp_name'], $file_path)) {
+                $response['success'] = true;
+                $response['message'] = 'File uploaded successfully';
+                $response['url'] = '/election/uploads/chat/' . $file_name;
+                $response['filename'] = $file['name'];
+                $response['type'] = in_array($file_type, ['jpg', 'jpeg', 'png', 'gif']) ? 'image' : 'file';
+            } else {
+                $response['message'] = 'Failed to move uploaded file';
+            }
+        } else {
+            $response['message'] = 'Invalid file type or file too large (max 10MB)';
+        }
+    } else {
+        $response['message'] = 'No file uploaded or upload error';
+    }
+    
+    echo json_encode($response);
+    exit();
+}
+
+// ============================================================
+// FETCH CONTACTS BY ROLE
 // ============================================================
 try {
-    // First, let's just get all users in this ward with this role
     $stmt = $db->prepare("
         SELECT 
             u.id,
@@ -117,7 +255,19 @@ try {
             pu.name as pu_name,
             pu.code as pu_code,
             r.level as role_level,
-            r.name as role_name
+            r.name as role_name,
+            (SELECT COUNT(*) FROM chat_messages cm 
+             WHERE cm.sender_id = u.id AND cm.receiver_id = ? AND cm.is_read = 0 AND cm.is_deleted = 0) as unread_count,
+            (SELECT COUNT(*) FROM user_sessions us 
+             WHERE us.user_id = u.id AND us.is_active = 1 
+             AND us.last_activity_at > DATE_SUB(NOW(), INTERVAL 5 MINUTE)) as is_online,
+            (SELECT MAX(created_at) FROM chat_messages 
+             WHERE (sender_id = u.id AND receiver_id = ?) 
+                OR (sender_id = ? AND receiver_id = u.id)) as last_message_time,
+            (SELECT content FROM chat_messages 
+             WHERE (sender_id = u.id AND receiver_id = ?) 
+                OR (sender_id = ? AND receiver_id = u.id) 
+             ORDER BY created_at DESC LIMIT 1) as last_message
         FROM users u
         LEFT JOIN polling_units pu ON u.pu_id = pu.id
         LEFT JOIN roles r ON u.role_id = r.id
@@ -127,15 +277,10 @@ try {
         AND u.status = 'active'
         AND u.id != ?
         AND u.role_id = ?
-        ORDER BY u.full_name ASC
+        ORDER BY last_message_time DESC, u.full_name ASC
     ");
-    $stmt->execute([$tenant_id, $ward_id, $user_id, $selected_role]);
+    $stmt->execute([$user_id, $user_id, $user_id, $user_id, $user_id, $tenant_id, $ward_id, $user_id, $selected_role]);
     $contacts = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
-    error_log("Found " . count($contacts) . " contacts for role " . $selected_role);
-    foreach ($contacts as $c) {
-        error_log("  - Contact: " . $c['full_name'] . " (ID: " . $c['id'] . ", Role: " . $c['role_id'] . ")");
-    }
     
     // If a contact is selected, get their details and messages
     if ($selected_contact_id > 0) {
@@ -147,8 +292,6 @@ try {
         }
         
         if ($selected_contact) {
-            error_log("Selected contact found: " . $selected_contact['full_name']);
-            
             // Get messages between user and selected contact
             $stmt = $db->prepare("
                 SELECT 
@@ -174,8 +317,6 @@ try {
                 WHERE sender_id = ? AND receiver_id = ? AND is_read = 0
             ");
             $stmt->execute([$selected_contact_id, $user_id]);
-        } else {
-            error_log("Selected contact ID $selected_contact_id not found in contacts list");
         }
     }
     
@@ -211,7 +352,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         try {
             $db->beginTransaction();
             
-            // Verify receiver exists and is in the same ward with correct role
+            // Verify receiver exists
             $stmt = $db->prepare("
                 SELECT id, full_name, role_id FROM users 
                 WHERE id = ? AND tenant_id = ? AND ward_id = ? AND role_id = ? AND status = 'active'
@@ -223,7 +364,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 throw new Exception('Recipient not found or not in your ward.');
             }
             
-            // Check if chat room exists, create if not
+            // Check if chat room exists
             $stmt = $db->prepare("
                 SELECT cr.id FROM chat_rooms cr
                 JOIN chat_room_members crm1 ON cr.id = crm1.room_id
@@ -267,6 +408,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $success_message = 'Message sent successfully!';
             $show_success = true;
             
+            // Return JSON for AJAX or redirect for normal
+            if (isset($_POST['ajax']) && $_POST['ajax'] === '1') {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => true, 'message' => 'Message sent successfully']);
+                exit();
+            }
+            
             // Redirect to refresh chat
             header('Location: chat-agents.php?role=' . $role_id . '&contact_id=' . $receiver_id . '&sent=1');
             exit();
@@ -275,6 +423,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $db->rollBack();
             $error_message = "Error sending message: " . $e->getMessage();
             error_log("Chat send error: " . $e->getMessage());
+            
+            if (isset($_POST['ajax']) && $_POST['ajax'] === '1') {
+                header('Content-Type: application/json');
+                echo json_encode(['success' => false, 'message' => $error_message]);
+                exit();
+            }
         }
     }
 }
@@ -417,9 +571,6 @@ include '../includes/sidebar.php';
     font-weight: 700;
     margin: 0;
     color: var(--gray-800);
-    display: flex;
-    align-items: center;
-    gap: 6px;
 }
 .chat-sidebar-header h3 i {
     color: var(--chat-primary);
@@ -915,6 +1066,52 @@ include '../includes/sidebar.php';
     background: var(--gray-50);
 }
 
+/* Online/Offline Indicator */
+.online-status-text {
+    font-size: 0.5rem;
+    font-weight: 500;
+}
+.online-status-text.online {
+    color: var(--chat-online);
+}
+.online-status-text.offline {
+    color: var(--gray-400);
+}
+
+/* Typing Indicator */
+.typing-indicator {
+    padding: 4px 14px;
+    font-size: 0.7rem;
+    color: var(--gray-400);
+    display: none;
+    background: rgba(255,255,255,0.9);
+    border-radius: 8px;
+    margin: 0 20px 4px 20px;
+}
+.typing-indicator .dots {
+    display: inline-block;
+    animation: typingDots 1.4s infinite;
+}
+.typing-indicator .dots span {
+    display: inline-block;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--gray-400);
+    margin: 0 2px;
+    animation: typingDot 1.4s infinite;
+}
+.typing-indicator .dots span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+.typing-indicator .dots span:nth-child(3) {
+    animation-delay: 0.4s;
+}
+@keyframes typingDot {
+    0%, 60%, 100% { opacity: 0.3; transform: scale(1); }
+    30% { opacity: 1; transform: scale(1.3); }
+}
+
 /* Responsive */
 @media (max-width: 1024px) {
     .chat-sidebar {
@@ -996,6 +1193,29 @@ include '../includes/sidebar.php';
         padding: 0 4px;
     }
 }
+
+/* Connection Status */
+.connection-status {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    z-index: 999;
+    display: none;
+}
+.connection-status.online {
+    background: #D1FAE5;
+    color: #065F46;
+    display: block;
+}
+.connection-status.offline {
+    background: #FEE2E2;
+    color: #991B1B;
+    display: block;
+}
 </style>
 
 <main class="main-content">
@@ -1013,6 +1233,9 @@ include '../includes/sidebar.php';
                     <?php echo htmlspecialchars($ward_name); ?> Ward
                     <span style="margin:0 6px;">•</span>
                     <?php echo isset($role_definitions[$selected_role]) ? $role_definitions[$selected_role]['name'] : 'Agents'; ?>
+                    <span id="connectionStatus" style="margin-left:8px;font-size:0.6rem;color:var(--chat-online);">
+                        <i class="fas fa-circle" style="font-size:0.3rem;"></i> Live
+                    </span>
                 </p>
             </div>
             <div style="display:flex;gap:6px;flex-wrap:wrap;">
@@ -1062,7 +1285,7 @@ include '../includes/sidebar.php';
                            style="<?php echo $selected_role == $role_id ? 'border-bottom:2px solid ' . $role['color'] . ';' : ''; ?>">
                             <i class="fas <?php echo $role['icon']; ?>" style="color:<?php echo $selected_role == $role_id ? $role['color'] : 'inherit'; ?>;"></i>
                             <?php echo $role['name']; ?>
-                            <span class="role-count"><?php echo $role_counts[$role_id] ?? 0; ?></span>
+                            <span class="role-count" id="roleCount_<?php echo $role_id; ?>"><?php echo $role_counts[$role_id] ?? 0; ?></span>
                         </a>
                     <?php endforeach; ?>
                 </div>
@@ -1091,9 +1314,10 @@ include '../includes/sidebar.php';
                             $role_name = $role_info ? $role_info['name'] : 'Agent';
                         ?>
                             <a href="?role=<?php echo $selected_role; ?>&contact_id=<?php echo $contact['id']; ?>" 
-                            class="chat-contact-item <?php echo $selected_contact_id == $contact['id'] ? 'active' : ''; ?>"
-                            data-name="<?php echo strtolower($contact['full_name']); ?>"
-                            data-id="<?php echo $contact['id']; ?>">
+                               class="chat-contact-item <?php echo $selected_contact_id == $contact['id'] ? 'active' : ''; ?>"
+                               data-name="<?php echo strtolower($contact['full_name']); ?>"
+                               data-id="<?php echo $contact['id']; ?>"
+                               data-unread="<?php echo $unread; ?>">
                                 <div class="avatar">
                                     <?php if ($avatar): ?>
                                         <img src="<?php echo htmlspecialchars($avatar); ?>" alt="<?php echo htmlspecialchars($contact['full_name']); ?>">
@@ -1109,7 +1333,7 @@ include '../includes/sidebar.php';
                                             <?php echo $role_name; ?>
                                         </span>
                                     </div>
-                                    <div class="last-msg">
+                                    <div class="last-msg" id="lastMsg_<?php echo $contact['id']; ?>">
                                         <?php if ($last_msg && $last_msg !== 'No messages yet'): ?>
                                             <?php echo htmlspecialchars(substr($last_msg, 0, 50)) . (strlen($last_msg) > 50 ? '...' : ''); ?>
                                         <?php else: ?>
@@ -1119,10 +1343,10 @@ include '../includes/sidebar.php';
                                 </div>
                                 <div class="contact-meta">
                                     <?php if ($last_time): ?>
-                                        <div class="time"><?php echo $last_time; ?></div>
+                                        <div class="time" id="lastTime_<?php echo $contact['id']; ?>"><?php echo $last_time; ?></div>
                                     <?php endif; ?>
                                     <?php if ($unread > 0): ?>
-                                        <div class="unread"><?php echo $unread; ?></div>
+                                        <div class="unread" id="unreadBadge_<?php echo $contact['id']; ?>"><?php echo $unread; ?></div>
                                     <?php endif; ?>
                                     <?php if ($is_online): ?>
                                         <div class="online-status"><i class="fas fa-circle" style="font-size:0.25rem;"></i> Online</div>
@@ -1186,11 +1410,13 @@ include '../includes/sidebar.php';
                         <?php if (count($messages) > 0): ?>
                             <?php 
                             $last_date = '';
+                            $last_msg_id = 0;
                             foreach ($messages as $msg): 
                                 $msg_date = date('Y-m-d', strtotime($msg['created_at']));
                                 $is_sent = ($msg['sender_id'] == $user_id);
                                 $display_date = date('l, M d, Y', strtotime($msg['created_at']));
                                 $time = date('H:i', strtotime($msg['created_at']));
+                                $last_msg_id = max($last_msg_id, $msg['id']);
                                 
                                 if ($msg_date != $last_date): 
                                     $last_date = $msg_date;
@@ -1200,9 +1426,15 @@ include '../includes/sidebar.php';
                                 </div>
                             <?php endif; ?>
                                 <div class="message-row <?php echo $is_sent ? 'sent' : 'received'; ?>">
-                                    <div class="message-bubble">
+                                    <div class="message-bubble" data-msg-id="<?php echo $msg['id']; ?>">
                                         <?php if (!$is_sent): ?>
                                             <span class="message-sender"><?php echo htmlspecialchars($msg['sender_name']); ?></span>
+                                        <?php endif; ?>
+                                        
+                                        <?php if (!empty($msg['media_url']) && $msg['message_type'] === 'image'): ?>
+                                            <div style="margin:4px 0;">
+                                                <img src="<?php echo htmlspecialchars($msg['media_url']); ?>" alt="Image" style="max-width:200px;border-radius:6px;cursor:pointer;" onclick="window.open(this.src)">
+                                            </div>
                                         <?php endif; ?>
                                         
                                         <?php if (!empty($msg['content'])): ?>
@@ -1222,13 +1454,25 @@ include '../includes/sidebar.php';
                                     </div>
                                 </div>
                             <?php endforeach; ?>
+                            <input type="hidden" id="lastMsgId" value="<?php echo $last_msg_id; ?>">
                         <?php else: ?>
                             <div class="empty-chat">
                                 <i class="fas fa-comment"></i>
                                 <h4>No Messages Yet</h4>
                                 <p>Start a conversation with <?php echo htmlspecialchars($selected_contact['full_name']); ?></p>
                             </div>
+                            <input type="hidden" id="lastMsgId" value="0">
                         <?php endif; ?>
+                    </div>
+
+                    <!-- Typing Indicator -->
+                    <div class="typing-indicator" id="typingIndicator">
+                        <span>Agent is typing</span>
+                        <span class="dots">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </span>
                     </div>
 
                     <!-- Chat Input -->
@@ -1240,6 +1484,7 @@ include '../includes/sidebar.php';
                             <input type="hidden" name="role_id" value="<?php echo $selected_role; ?>">
                             <input type="hidden" name="message_type" id="messageType" value="text">
                             <input type="hidden" name="media_url" id="mediaUrl" value="">
+                            <input type="hidden" name="ajax" value="1">
                             
                             <div class="input-row">
                                 <div class="input-tools">
@@ -1262,9 +1507,9 @@ include '../includes/sidebar.php';
                             
                             <!-- Hidden file inputs -->
                             <input type="file" id="fileInput" name="attachment" style="display:none" 
-                                   onchange="uploadFile(this, 'file')" accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar">
+                                   onchange="uploadFile(this)" accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar,.jpg,.jpeg,.png,.gif">
                             <input type="file" id="imageInput" name="attachment" style="display:none" 
-                                   onchange="uploadFile(this, 'image')" accept="image/*">
+                                   onchange="uploadFile(this)" accept="image/*">
                         </form>
                     </div>
 
@@ -1288,8 +1533,13 @@ include '../includes/sidebar.php';
 
 <script>
 // ============================================================
-// CHAT FUNCTIONS
+// CHAT FUNCTIONS - REAL-TIME
 // ============================================================
+
+let currentContactId = <?php echo $selected_contact_id ?: 0; ?>;
+let lastMsgId = parseInt(document.getElementById('lastMsgId')?.value || 0);
+let isPolling = false;
+let pollInterval = null;
 
 // Send message
 function sendMessage() {
@@ -1309,6 +1559,11 @@ document.addEventListener('DOMContentLoaded', function() {
             this.style.height = Math.min(this.scrollHeight, 100) + 'px';
         });
     }
+    
+    // Start polling for new messages
+    if (currentContactId > 0) {
+        startPolling();
+    }
 });
 
 // Scroll to bottom
@@ -1319,36 +1574,48 @@ function scrollToBottom() {
     }
 }
 
-// Upload file
-function uploadFile(input, type) {
+// Upload file - FIXED
+function uploadFile(input) {
     if (input.files && input.files[0]) {
         const file = input.files[0];
         const formData = new FormData();
         formData.append('attachment', file);
-        formData.append('receiver_id', document.querySelector('input[name="receiver_id"]').value);
-        formData.append('role_id', document.querySelector('input[name="role_id"]').value);
         formData.append('action', 'upload_file');
         formData.append('csrf_token', document.querySelector('input[name="csrf_token"]').value);
+        
+        // Show loading state
+        const sendBtn = document.getElementById('sendBtn');
+        sendBtn.disabled = true;
+        sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
         
         const xhr = new XMLHttpRequest();
         xhr.open('POST', 'chat-agents.php', true);
         xhr.onload = function() {
+            sendBtn.disabled = false;
+            sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send';
+            
             if (xhr.status === 200) {
                 try {
                     const response = JSON.parse(xhr.responseText);
                     if (response.success) {
                         document.getElementById('mediaUrl').value = response.url;
-                        document.getElementById('messageType').value = type === 'image' ? 'image' : 'file';
-                        document.getElementById('chatForm').submit();
+                        document.getElementById('messageType').value = response.type === 'image' ? 'image' : 'file';
+                        // Auto-send the file message
+                        const form = document.getElementById('chatForm');
+                        form.submit();
                     } else {
                         alert('Upload failed: ' + response.message);
                     }
                 } catch (e) {
                     alert('Upload failed. Please try again.');
                 }
+            } else {
+                alert('Upload failed. Server error.');
             }
         };
         xhr.onerror = function() {
+            sendBtn.disabled = false;
+            sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send';
             alert('Upload failed. Please check your connection.');
         };
         xhr.send(formData);
@@ -1407,42 +1674,256 @@ function refreshChat() {
     }
 }
 
-// Auto-scroll on load
-document.addEventListener('DOMContentLoaded', function() {
-    scrollToBottom();
-    
-    // Auto-refresh messages every 30 seconds
-    const contactId = document.querySelector('input[name="receiver_id"]');
-    const roleId = document.querySelector('input[name="role_id"]');
-    if (contactId && contactId.value && roleId && roleId.value) {
-        setInterval(function() {
-            // Check for new messages
-            fetch('chat-agents.php?check_new=1&contact_id=' + contactId.value + '&role=' + roleId.value)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.new_messages > 0) {
-                        window.location.reload();
-                    }
-                })
-                .catch(err => console.log('Auto-refresh error:', err));
-        }, 30000);
+// ============================================================
+// REAL-TIME POLLING - Like WhatsApp
+// ============================================================
+function startPolling() {
+    if (pollInterval) {
+        clearInterval(pollInterval);
     }
     
-    // Auto-hide alerts
-    const alerts = document.querySelectorAll('.alert');
-    alerts.forEach(function(alert) {
-        setTimeout(function() {
-            alert.style.transition = 'opacity 0.5s ease';
-            alert.style.opacity = '0';
-            setTimeout(function() {
-                alert.style.display = 'none';
-            }, 500);
-        }, 5000);
+    // Poll every 3 seconds
+    pollInterval = setInterval(function() {
+        if (!isPolling) {
+            checkForNewMessages();
+        }
+    }, 3000);
+}
+
+function checkForNewMessages() {
+    if (currentContactId <= 0) return;
+    
+    isPolling = true;
+    
+    const lastMsgId = document.getElementById('lastMsgId')?.value || 0;
+    const roleId = document.querySelector('input[name="role_id"]')?.value || <?php echo $selected_role; ?>;
+    
+    fetch('chat-agents.php?ajax=1&contact_id=' + currentContactId + '&last_msg_id=' + lastMsgId + '&role=' + roleId)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Check for new messages
+                if (data.new_messages > 0) {
+                    displayNewMessages(data.messages);
+                }
+                
+                // Update contacts if needed
+                if (data.contacts) {
+                    updateContacts(data.contacts);
+                }
+                
+                // Update connection status
+                document.getElementById('connectionStatus').innerHTML = '<i class="fas fa-circle" style="font-size:0.3rem;"></i> Live';
+            }
+            isPolling = false;
+        })
+        .catch(err => {
+            console.log('Polling error:', err);
+            document.getElementById('connectionStatus').innerHTML = '<i class="fas fa-circle" style="font-size:0.3rem;color:#EF4444;"></i> Reconnecting...';
+            isPolling = false;
+        });
+}
+
+function displayNewMessages(messages) {
+    const container = document.getElementById('chatMessages');
+    const emptyState = container.querySelector('.empty-chat');
+    
+    // Remove empty state if exists
+    if (emptyState) {
+        emptyState.remove();
+    }
+    
+    let lastDate = '';
+    let lastMsgId = 0;
+    
+    messages.forEach(function(msg) {
+        const msgDate = new Date(msg.created_at).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
+        const msgDateKey = new Date(msg.created_at).toDateString();
+        const isSent = msg.sender_id == <?php echo $user_id; ?>;
+        const time = new Date(msg.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        
+        // Check if we need to add a date divider
+        const lastDivider = container.querySelector('.date-divider:last-child');
+        const lastDividerDate = lastDivider ? lastDivider.dataset.date : '';
+        
+        if (lastDividerDate !== msgDateKey) {
+            const divider = document.createElement('div');
+            divider.className = 'date-divider';
+            divider.dataset.date = msgDateKey;
+            divider.innerHTML = '<span>' + msgDate + '</span>';
+            container.appendChild(divider);
+        }
+        
+        // Create message row
+        const row = document.createElement('div');
+        row.className = 'message-row ' + (isSent ? 'sent' : 'received');
+        
+        const bubble = document.createElement('div');
+        bubble.className = 'message-bubble';
+        bubble.dataset.msgId = msg.id;
+        
+        if (!isSent) {
+            const sender = document.createElement('span');
+            sender.className = 'message-sender';
+            sender.textContent = msg.sender_name || 'Unknown';
+            bubble.appendChild(sender);
+        }
+        
+        if (msg.media_url && msg.message_type === 'image') {
+            const imgDiv = document.createElement('div');
+            imgDiv.style.cssText = 'margin:4px 0;';
+            const img = document.createElement('img');
+            img.src = msg.media_url;
+            img.alt = 'Image';
+            img.style.cssText = 'max-width:200px;border-radius:6px;cursor:pointer;';
+            img.onclick = function() { window.open(this.src); };
+            imgDiv.appendChild(img);
+            bubble.appendChild(imgDiv);
+        }
+        
+        if (msg.content) {
+            const content = document.createElement('span');
+            content.innerHTML = nl2br(escapeHtml(msg.content));
+            bubble.appendChild(content);
+        }
+        
+        const timeSpan = document.createElement('span');
+        timeSpan.className = 'message-time';
+        timeSpan.innerHTML = time;
+        if (isSent) {
+            const checkIcon = document.createElement('i');
+            checkIcon.className = msg.is_read ? 'fas fa-check-double' : 'fas fa-check';
+            checkIcon.style.cssText = 'margin-left:2px;' + (msg.is_read ? 'color:#34D399;' : 'opacity:0.5;');
+            timeSpan.appendChild(checkIcon);
+        }
+        bubble.appendChild(timeSpan);
+        
+        row.appendChild(bubble);
+        container.appendChild(row);
+        
+        lastMsgId = Math.max(lastMsgId, msg.id);
+    });
+    
+    // Update last message ID
+    if (lastMsgId > 0) {
+        document.getElementById('lastMsgId').value = lastMsgId;
+    }
+    
+    // Scroll to bottom
+    scrollToBottom();
+}
+
+function updateContacts(contacts) {
+    // Update contact list without full page reload
+    contacts.forEach(function(contact) {
+        // Update last message
+        const lastMsgEl = document.getElementById('lastMsg_' + contact.id);
+        if (lastMsgEl) {
+            if (contact.last_message) {
+                lastMsgEl.textContent = contact.last_message.substring(0, 50) + (contact.last_message.length > 50 ? '...' : '');
+            }
+        }
+        
+        // Update unread badge
+        const unreadBadge = document.getElementById('unreadBadge_' + contact.id);
+        if (contact.unread_count > 0) {
+            if (unreadBadge) {
+                unreadBadge.textContent = contact.unread_count;
+                unreadBadge.style.display = 'inline-block';
+            } else {
+                // Create badge if it doesn't exist
+                const meta = document.querySelector('.chat-contact-item[data-id="' + contact.id + '"] .contact-meta');
+                if (meta) {
+                    const badge = document.createElement('div');
+                    badge.className = 'unread';
+                    badge.id = 'unreadBadge_' + contact.id;
+                    badge.textContent = contact.unread_count;
+                    meta.appendChild(badge);
+                }
+            }
+        } else if (unreadBadge) {
+            unreadBadge.style.display = 'none';
+        }
+    });
+}
+
+// Helper functions
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function nl2br(text) {
+    return text.replace(/\n/g, '<br>');
+}
+
+// ============================================================
+// HANDLE FORM SUBMISSION - AJAX
+// ============================================================
+document.getElementById('chatForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const message = document.getElementById('messageInput').value.trim();
+    const mediaUrl = document.getElementById('mediaUrl').value;
+    
+    if (!message && !mediaUrl) {
+        return;
+    }
+    
+    const formData = new FormData(this);
+    const sendBtn = document.getElementById('sendBtn');
+    sendBtn.disabled = true;
+    sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+    
+    fetch('chat-agents.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        sendBtn.disabled = false;
+        sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send';
+        
+        if (data.success) {
+            document.getElementById('messageInput').value = '';
+            document.getElementById('messageInput').style.height = 'auto';
+            document.getElementById('mediaUrl').value = '';
+            document.getElementById('messageType').value = 'text';
+            
+            // Add message to chat immediately
+            const container = document.getElementById('chatMessages');
+            const emptyState = container.querySelector('.empty-chat');
+            if (emptyState) emptyState.remove();
+            
+            const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            const row = document.createElement('div');
+            row.className = 'message-row sent';
+            row.innerHTML = `
+                <div class="message-bubble">
+                    ${mediaUrl ? `<div style="margin:4px 0;"><img src="${mediaUrl}" alt="Image" style="max-width:200px;border-radius:6px;cursor:pointer;" onclick="window.open(this.src)"></div>` : ''}
+                    ${message ? nl2br(escapeHtml(message)) : ''}
+                    <span class="message-time">${time} <i class="fas fa-check" style="margin-left:2px;opacity:0.5;"></i></span>
+                </div>
+            `;
+            container.appendChild(row);
+            scrollToBottom();
+            
+            // Update last message ID (will be updated on next poll)
+        } else {
+            alert('Failed to send message: ' + (data.message || 'Unknown error'));
+        }
+    })
+    .catch(err => {
+        sendBtn.disabled = false;
+        sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send';
+        alert('Failed to send message. Please try again.');
+        console.error('Send error:', err);
     });
 });
 
 // ============================================================
-// SIDEBAR TOGGLE (from parent)
+// SIDEBAR TOGGLE
 // ============================================================
 var sidebar = document.getElementById('sidebar');
 var sidebarToggle = document.getElementById('sidebarToggle');
@@ -1518,6 +1999,14 @@ window.addEventListener('load', function() {
     if (preloader) {
         preloader.classList.add('hidden');
         setTimeout(function() { preloader.style.display = 'none'; }, 600);
+    }
+    scrollToBottom();
+});
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', function() {
+    if (pollInterval) {
+        clearInterval(pollInterval);
     }
 });
 </script>
