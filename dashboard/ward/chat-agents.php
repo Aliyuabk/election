@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// WARD COORDINATOR - CHAT WITH AGENTS (REAL-TIME)
+// WARD COORDINATOR - CHAT WITH AGENTS (REAL-TIME + LOCATION)
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -201,27 +201,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $file = $_FILES['attachment'];
         $upload_dir = '../../uploads/chat/';
         
-        // Create directory if it doesn't exist
         if (!is_dir($upload_dir)) {
             mkdir($upload_dir, 0777, true);
         }
         
-        // Generate unique filename
-        $file_ext = pathinfo($file['name'], PATHINFO_EXTENSION);
+        $file_ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
         $file_name = time() . '_' . bin2hex(random_bytes(8)) . '.' . $file_ext;
         $file_path = $upload_dir . $file_name;
         
-        // Allowed file types
         $allowed_types = ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'zip', 'rar'];
-        $file_type = strtolower($file_ext);
         
-        if (in_array($file_type, $allowed_types) && $file['size'] < 10485760) { // 10MB max
+        if (in_array($file_ext, $allowed_types) && $file['size'] < 10485760) {
             if (move_uploaded_file($file['tmp_name'], $file_path)) {
                 $response['success'] = true;
                 $response['message'] = 'File uploaded successfully';
                 $response['url'] = '/election/uploads/chat/' . $file_name;
                 $response['filename'] = $file['name'];
-                $response['type'] = in_array($file_type, ['jpg', 'jpeg', 'png', 'gif']) ? 'image' : 'file';
+                $response['type'] = in_array($file_ext, ['jpg', 'jpeg', 'png', 'gif']) ? 'image' : 'file';
             } else {
                 $response['message'] = 'Failed to move uploaded file';
             }
@@ -282,7 +278,6 @@ try {
     $stmt->execute([$user_id, $user_id, $user_id, $user_id, $user_id, $tenant_id, $ward_id, $user_id, $selected_role]);
     $contacts = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // If a contact is selected, get their details and messages
     if ($selected_contact_id > 0) {
         foreach ($contacts as $contact) {
             if ($contact['id'] == $selected_contact_id) {
@@ -292,7 +287,6 @@ try {
         }
         
         if ($selected_contact) {
-            // Get messages between user and selected contact
             $stmt = $db->prepare("
                 SELECT 
                     cm.*,
@@ -310,7 +304,6 @@ try {
             $stmt->execute([$user_id, $selected_contact_id, $selected_contact_id, $user_id]);
             $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
-            // Mark messages as read
             $stmt = $db->prepare("
                 UPDATE chat_messages 
                 SET is_read = 1, read_at = NOW() 
@@ -338,7 +331,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $media_url = isset($_POST['media_url']) ? trim($_POST['media_url']) : '';
     $role_id = isset($_POST['role_id']) ? (int)$_POST['role_id'] : 9;
     
-    // CSRF Protection
     $csrf_token = isset($_POST['csrf_token']) ? $_POST['csrf_token'] : '';
     $session_token = SessionManager::get('csrf_token');
     
@@ -352,7 +344,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         try {
             $db->beginTransaction();
             
-            // Verify receiver exists
             $stmt = $db->prepare("
                 SELECT id, full_name, role_id FROM users 
                 WHERE id = ? AND tenant_id = ? AND ward_id = ? AND role_id = ? AND status = 'active'
@@ -364,7 +355,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 throw new Exception('Recipient not found or not in your ward.');
             }
             
-            // Check if chat room exists
             $stmt = $db->prepare("
                 SELECT cr.id FROM chat_rooms cr
                 JOIN chat_room_members crm1 ON cr.id = crm1.room_id
@@ -378,7 +368,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             if ($room) {
                 $room_id = $room['id'];
             } else {
-                // Create new room
                 $stmt = $db->prepare("
                     INSERT INTO chat_rooms (tenant_id, name, type, created_by, created_at) 
                     VALUES (?, ?, 'direct', ?, NOW())
@@ -387,13 +376,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 $stmt->execute([$tenant_id, $room_name, $user_id]);
                 $room_id = $db->lastInsertId();
                 
-                // Add members
                 $stmt = $db->prepare("INSERT INTO chat_room_members (room_id, user_id, role, joined_at) VALUES (?, ?, 'member', NOW())");
                 $stmt->execute([$room_id, $user_id]);
                 $stmt->execute([$room_id, $receiver_id]);
             }
             
-            // Insert message
             $stmt = $db->prepare("
                 INSERT INTO chat_messages (
                     room_id, sender_id, receiver_id, message_type, content, 
@@ -408,14 +395,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $success_message = 'Message sent successfully!';
             $show_success = true;
             
-            // Return JSON for AJAX or redirect for normal
             if (isset($_POST['ajax']) && $_POST['ajax'] === '1') {
                 header('Content-Type: application/json');
-                echo json_encode(['success' => true, 'message' => 'Message sent successfully']);
+                echo json_encode(['success' => true, 'message' => 'Message sent successfully', 'msg_id' => $db->lastInsertId()]);
                 exit();
             }
             
-            // Redirect to refresh chat
             header('Location: chat-agents.php?role=' . $role_id . '&contact_id=' . $receiver_id . '&sent=1');
             exit();
             
@@ -898,6 +883,66 @@ include '../includes/sidebar.php';
     color: var(--chat-primary);
 }
 
+/* ============================================================
+   LOCATION MESSAGE STYLES
+   ============================================================ */
+.location-message {
+    background: rgba(59, 130, 246, 0.05);
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin: 4px 0;
+    border-left: 3px solid #3B82F6;
+}
+
+.location-message .location-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+    color: #1E40AF;
+}
+
+.location-message .location-header i {
+    font-size: 1rem;
+}
+
+.location-message .location-details {
+    margin-top: 4px;
+    font-size: 0.8rem;
+    color: var(--gray-600);
+}
+
+.location-message .location-details .coord {
+    font-family: monospace;
+    background: var(--gray-100);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+}
+
+.location-message .location-map-link {
+    display: inline-block;
+    margin-top: 6px;
+    padding: 4px 12px;
+    background: #3B82F6;
+    color: white;
+    border-radius: 6px;
+    font-size: 0.7rem;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+.location-message .location-map-link:hover {
+    background: #2563EB;
+    transform: translateY(-1px);
+}
+
+.location-message .location-name {
+    font-weight: 600;
+    color: var(--gray-800);
+    margin-top: 4px;
+}
+
 /* Date Divider */
 .date-divider {
     text-align: center;
@@ -1066,50 +1111,27 @@ include '../includes/sidebar.php';
     background: var(--gray-50);
 }
 
-/* Online/Offline Indicator */
-.online-status-text {
-    font-size: 0.5rem;
-    font-weight: 500;
-}
-.online-status-text.online {
-    color: var(--chat-online);
-}
-.online-status-text.offline {
-    color: var(--gray-400);
-}
-
-/* Typing Indicator */
-.typing-indicator {
-    padding: 4px 14px;
+/* Connection Status */
+.connection-status {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    padding: 8px 16px;
+    border-radius: 20px;
     font-size: 0.7rem;
-    color: var(--gray-400);
+    font-weight: 500;
+    z-index: 999;
     display: none;
-    background: rgba(255,255,255,0.9);
-    border-radius: 8px;
-    margin: 0 20px 4px 20px;
 }
-.typing-indicator .dots {
-    display: inline-block;
-    animation: typingDots 1.4s infinite;
+.connection-status.online {
+    background: #D1FAE5;
+    color: #065F46;
+    display: block;
 }
-.typing-indicator .dots span {
-    display: inline-block;
-    width: 4px;
-    height: 4px;
-    border-radius: 50%;
-    background: var(--gray-400);
-    margin: 0 2px;
-    animation: typingDot 1.4s infinite;
-}
-.typing-indicator .dots span:nth-child(2) {
-    animation-delay: 0.2s;
-}
-.typing-indicator .dots span:nth-child(3) {
-    animation-delay: 0.4s;
-}
-@keyframes typingDot {
-    0%, 60%, 100% { opacity: 0.3; transform: scale(1); }
-    30% { opacity: 1; transform: scale(1.3); }
+.connection-status.offline {
+    background: #FEE2E2;
+    color: #991B1B;
+    display: block;
 }
 
 /* Responsive */
@@ -1192,29 +1214,6 @@ include '../includes/sidebar.php';
         font-size: 0.4rem;
         padding: 0 4px;
     }
-}
-
-/* Connection Status */
-.connection-status {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    padding: 8px 16px;
-    border-radius: 20px;
-    font-size: 0.7rem;
-    font-weight: 500;
-    z-index: 999;
-    display: none;
-}
-.connection-status.online {
-    background: #D1FAE5;
-    color: #065F46;
-    display: block;
-}
-.connection-status.offline {
-    background: #FEE2E2;
-    color: #991B1B;
-    display: block;
 }
 </style>
 
@@ -1431,13 +1430,70 @@ include '../includes/sidebar.php';
                                             <span class="message-sender"><?php echo htmlspecialchars($msg['sender_name']); ?></span>
                                         <?php endif; ?>
                                         
-                                        <?php if (!empty($msg['media_url']) && $msg['message_type'] === 'image'): ?>
+                                        <?php if ($msg['message_type'] === 'location' && !empty($msg['content'])): 
+                                            // Parse location data
+                                            $location_text = $msg['content'];
+                                            $lat = '';
+                                            $lng = '';
+                                            $location_name = '';
+                                            
+                                            // Try to extract coordinates from the message
+                                            if (preg_match('/📍 Location: ([\d.-]+), ([\d.-]+)/', $location_text, $matches)) {
+                                                $lat = $matches[1];
+                                                $lng = $matches[2];
+                                            }
+                                            
+                                            // Extract location name if present
+                                            if (preg_match('/📍 Location: ([\d.-]+), ([\d.-]+)\n(.*)/', $location_text, $matches)) {
+                                                $lat = $matches[1];
+                                                $lng = $matches[2];
+                                                $location_name = trim($matches[3]);
+                                            } elseif (preg_match('/📍 (.*?): ([\d.-]+), ([\d.-]+)/', $location_text, $matches)) {
+                                                $location_name = trim($matches[1]);
+                                                $lat = $matches[2];
+                                                $lng = $matches[3];
+                                            }
+                                        ?>
+                                            <div class="location-message">
+                                                <div class="location-header">
+                                                    <i class="fas fa-map-marker-alt" style="color:#3B82F6;"></i>
+                                                    <span>📍 Location Shared</span>
+                                                </div>
+                                                <?php if (!empty($location_name) && $location_name !== 'Location'): ?>
+                                                    <div class="location-name">
+                                                        <i class="fas fa-building" style="font-size:0.7rem;"></i>
+                                                        <?php echo htmlspecialchars($location_name); ?>
+                                                    </div>
+                                                <?php endif; ?>
+                                                <div class="location-details">
+                                                    <?php if ($lat && $lng): ?>
+                                                        <span class="coord">Lat: <?php echo $lat; ?></span>
+                                                        <span class="coord" style="margin-left:8px;">Lng: <?php echo $lng; ?></span>
+                                                        <br>
+                                                        <a href="https://www.google.com/maps?q=<?php echo urlencode($lat . ',' . $lng); ?>" 
+                                                           target="_blank" 
+                                                           class="location-map-link">
+                                                            <i class="fas fa-map"></i> View on Google Maps
+                                                        </a>
+                                                        <a href="https://www.openstreetmap.org/?mlat=<?php echo $lat; ?>&mlon=<?php echo $lng; ?>&zoom=15" 
+                                                           target="_blank" 
+                                                           class="location-map-link" 
+                                                           style="background:#10B981;margin-left:6px;">
+                                                            <i class="fas fa-globe"></i> OpenStreetMap
+                                                        </a>
+                                                    <?php else: ?>
+                                                        <?php echo nl2br(htmlspecialchars($location_text)); ?>
+                                                    <?php endif; ?>
+                                                </div>
+                                            </div>
+                                        <?php elseif (!empty($msg['media_url']) && $msg['message_type'] === 'image'): ?>
                                             <div style="margin:4px 0;">
                                                 <img src="<?php echo htmlspecialchars($msg['media_url']); ?>" alt="Image" style="max-width:200px;border-radius:6px;cursor:pointer;" onclick="window.open(this.src)">
                                             </div>
-                                        <?php endif; ?>
-                                        
-                                        <?php if (!empty($msg['content'])): ?>
+                                            <?php if (!empty($msg['content'])): ?>
+                                                <?php echo nl2br(htmlspecialchars($msg['content'])); ?>
+                                            <?php endif; ?>
+                                        <?php elseif (!empty($msg['content'])): ?>
                                             <?php echo nl2br(htmlspecialchars($msg['content'])); ?>
                                         <?php endif; ?>
                                         
@@ -1494,7 +1550,7 @@ include '../includes/sidebar.php';
                                     <button type="button" onclick="document.getElementById('imageInput').click()" title="Attach Image">
                                         <i class="fas fa-image"></i>
                                     </button>
-                                    <button type="button" onclick="shareLocation()" title="Share Location">
+                                    <button type="button" onclick="shareLocation()" title="Share Location" style="color:#3B82F6;">
                                         <i class="fas fa-location-dot"></i>
                                     </button>
                                 </div>
@@ -1560,7 +1616,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Start polling for new messages
     if (currentContactId > 0) {
         startPolling();
     }
@@ -1574,7 +1629,123 @@ function scrollToBottom() {
     }
 }
 
-// Upload file - FIXED
+// ============================================================
+// SHARE LOCATION - WITH LOCATION NAME
+// ============================================================
+function shareLocation() {
+    if (navigator.geolocation) {
+        // Show loading state
+        const sendBtn = document.getElementById('sendBtn');
+        sendBtn.disabled = true;
+        sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Getting location...';
+        
+        navigator.geolocation.getCurrentPosition(function(position) {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            
+            // Get location name using reverse geocoding
+            getLocationName(lat, lng, function(locationName) {
+                const message = `📍 ${locationName || 'Location'}: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+                document.getElementById('messageInput').value = message;
+                document.getElementById('messageType').value = 'location';
+                
+                sendBtn.disabled = false;
+                sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send';
+                
+                // Auto-send the location
+                document.getElementById('chatForm').submit();
+            });
+        }, function(error) {
+            sendBtn.disabled = false;
+            sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send';
+            
+            let errorMsg = 'Unable to get your location. Please try again.';
+            switch(error.code) {
+                case error.PERMISSION_DENIED:
+                    errorMsg = 'Location permission denied. Please enable location access.';
+                    break;
+                case error.POSITION_UNAVAILABLE:
+                    errorMsg = 'Location information is unavailable.';
+                    break;
+                case error.TIMEOUT:
+                    errorMsg = 'Location request timed out.';
+                    break;
+            }
+            alert(errorMsg);
+        }, {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0
+        });
+    } else {
+        alert('Geolocation is not supported by your browser.');
+    }
+}
+
+// ============================================================
+// GET LOCATION NAME (Reverse Geocoding)
+// ============================================================
+function getLocationName(lat, lng, callback) {
+    // Try using OpenStreetMap Nominatim API (free, no API key required)
+    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
+    
+    fetch(url, {
+        headers: {
+            'User-Agent': 'ElectionGuruChat/1.0'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data && data.display_name) {
+            // Get a shorter, more readable name
+            const address = data.address || {};
+            const nameParts = [];
+            
+            if (address.road || address.street) {
+                nameParts.push(address.road || address.street);
+            }
+            if (address.suburb || address.neighbourhood) {
+                nameParts.push(address.suburb || address.neighbourhood);
+            }
+            if (address.city || address.town || address.village) {
+                nameParts.push(address.city || address.town || address.village);
+            }
+            if (address.state) {
+                nameParts.push(address.state);
+            }
+            
+            // If we have a specific place name from the response
+            if (data.name && data.name !== '') {
+                callback(data.name);
+            } else if (nameParts.length > 0) {
+                // Try to get a specific landmark or building name
+                if (address.building || address.house_number) {
+                    const building = address.building || address.house_number;
+                    if (building) {
+                        nameParts.unshift(building);
+                    }
+                }
+                callback(nameParts.join(', '));
+            } else {
+                // Fallback to display name (shortened)
+                const shortName = data.display_name.split(',').slice(0, 3).join(', ');
+                callback(shortName);
+            }
+        } else {
+            // Fallback to coordinates
+            callback(`Location (${lat.toFixed(6)}, ${lng.toFixed(6)})`);
+        }
+    })
+    .catch(function(error) {
+        console.error('Reverse geocoding error:', error);
+        // Fallback to coordinates
+        callback(`Location (${lat.toFixed(6)}, ${lng.toFixed(6)})`);
+    });
+}
+
+// ============================================================
+// FILE UPLOAD
+// ============================================================
 function uploadFile(input) {
     if (input.files && input.files[0]) {
         const file = input.files[0];
@@ -1583,7 +1754,6 @@ function uploadFile(input) {
         formData.append('action', 'upload_file');
         formData.append('csrf_token', document.querySelector('input[name="csrf_token"]').value);
         
-        // Show loading state
         const sendBtn = document.getElementById('sendBtn');
         sendBtn.disabled = true;
         sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
@@ -1600,9 +1770,7 @@ function uploadFile(input) {
                     if (response.success) {
                         document.getElementById('mediaUrl').value = response.url;
                         document.getElementById('messageType').value = response.type === 'image' ? 'image' : 'file';
-                        // Auto-send the file message
-                        const form = document.getElementById('chatForm');
-                        form.submit();
+                        document.getElementById('chatForm').submit();
                     } else {
                         alert('Upload failed: ' + response.message);
                     }
@@ -1619,24 +1787,6 @@ function uploadFile(input) {
             alert('Upload failed. Please check your connection.');
         };
         xhr.send(formData);
-    }
-}
-
-// Share location
-function shareLocation() {
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(function(position) {
-            const lat = position.coords.latitude;
-            const lng = position.coords.longitude;
-            const message = `📍 Location: ${lat.toFixed(6)}, ${lng.toFixed(6)}\nhttps://maps.google.com/?q=${lat.toFixed(6)},${lng.toFixed(6)}`;
-            document.getElementById('messageInput').value = message;
-            document.getElementById('messageType').value = 'location';
-            document.getElementById('chatForm').submit();
-        }, function() {
-            alert('Unable to get your location. Please try again or type manually.');
-        });
-    } else {
-        alert('Geolocation is not supported by your browser.');
     }
 }
 
@@ -1659,13 +1809,11 @@ function filterContacts() {
     document.getElementById('contactBadge').textContent = visibleCount;
 }
 
-// Toggle mobile sidebar
 function toggleMobileSidebar() {
     const sidebar = document.getElementById('chatSidebar');
     sidebar.classList.toggle('mobile-collapsed');
 }
 
-// Refresh chat
 function refreshChat() {
     const contactId = document.querySelector('input[name="receiver_id"]');
     const roleId = document.querySelector('input[name="role_id"]');
@@ -1675,14 +1823,13 @@ function refreshChat() {
 }
 
 // ============================================================
-// REAL-TIME POLLING - Like WhatsApp
+// REAL-TIME POLLING
 // ============================================================
 function startPolling() {
     if (pollInterval) {
         clearInterval(pollInterval);
     }
     
-    // Poll every 3 seconds
     pollInterval = setInterval(function() {
         if (!isPolling) {
             checkForNewMessages();
@@ -1702,17 +1849,12 @@ function checkForNewMessages() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                // Check for new messages
                 if (data.new_messages > 0) {
                     displayNewMessages(data.messages);
                 }
-                
-                // Update contacts if needed
                 if (data.contacts) {
                     updateContacts(data.contacts);
                 }
-                
-                // Update connection status
                 document.getElementById('connectionStatus').innerHTML = '<i class="fas fa-circle" style="font-size:0.3rem;"></i> Live';
             }
             isPolling = false;
@@ -1728,7 +1870,6 @@ function displayNewMessages(messages) {
     const container = document.getElementById('chatMessages');
     const emptyState = container.querySelector('.empty-chat');
     
-    // Remove empty state if exists
     if (emptyState) {
         emptyState.remove();
     }
@@ -1742,7 +1883,6 @@ function displayNewMessages(messages) {
         const isSent = msg.sender_id == <?php echo $user_id; ?>;
         const time = new Date(msg.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
         
-        // Check if we need to add a date divider
         const lastDivider = container.querySelector('.date-divider:last-child');
         const lastDividerDate = lastDivider ? lastDivider.dataset.date : '';
         
@@ -1754,7 +1894,6 @@ function displayNewMessages(messages) {
             container.appendChild(divider);
         }
         
-        // Create message row
         const row = document.createElement('div');
         row.className = 'message-row ' + (isSent ? 'sent' : 'received');
         
@@ -1769,7 +1908,69 @@ function displayNewMessages(messages) {
             bubble.appendChild(sender);
         }
         
-        if (msg.media_url && msg.message_type === 'image') {
+        // Handle location messages
+        if (msg.message_type === 'location' && msg.content) {
+            const locationDiv = document.createElement('div');
+            locationDiv.className = 'location-message';
+            
+            const header = document.createElement('div');
+            header.className = 'location-header';
+            header.innerHTML = '<i class="fas fa-map-marker-alt" style="color:#3B82F6;"></i><span>📍 Location Shared</span>';
+            locationDiv.appendChild(header);
+            
+            // Try to extract location name
+            let lat = '', lng = '', locationName = '';
+            const content = msg.content;
+            
+            if (content.match(/📍 (.*?): ([\d.-]+), ([\d.-]+)/)) {
+                const matches = content.match(/📍 (.*?): ([\d.-]+), ([\d.-]+)/);
+                if (matches) {
+                    locationName = matches[1];
+                    lat = matches[2];
+                    lng = matches[3];
+                }
+            } else if (content.match(/📍 Location: ([\d.-]+), ([\d.-]+)/)) {
+                const matches = content.match(/📍 Location: ([\d.-]+), ([\d.-]+)/);
+                if (matches) {
+                    lat = matches[1];
+                    lng = matches[2];
+                }
+            }
+            
+            if (locationName && locationName !== 'Location') {
+                const nameDiv = document.createElement('div');
+                nameDiv.className = 'location-name';
+                nameDiv.innerHTML = '<i class="fas fa-building" style="font-size:0.7rem;"></i> ' + locationName;
+                locationDiv.appendChild(nameDiv);
+            }
+            
+            const details = document.createElement('div');
+            details.className = 'location-details';
+            
+            if (lat && lng) {
+                details.innerHTML = `
+                    <span class="coord">Lat: ${lat}</span>
+                    <span class="coord" style="margin-left:8px;">Lng: ${lng}</span>
+                    <br>
+                    <a href="https://www.google.com/maps?q=${encodeURIComponent(lat + ',' + lng)}" 
+                       target="_blank" 
+                       class="location-map-link">
+                        <i class="fas fa-map"></i> View on Google Maps
+                    </a>
+                    <a href="https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}&zoom=15" 
+                       target="_blank" 
+                       class="location-map-link" 
+                       style="background:#10B981;margin-left:6px;">
+                        <i class="fas fa-globe"></i> OpenStreetMap
+                    </a>
+                `;
+            } else {
+                details.textContent = content;
+            }
+            
+            locationDiv.appendChild(details);
+            bubble.appendChild(locationDiv);
+        } else if (msg.media_url && msg.message_type === 'image') {
             const imgDiv = document.createElement('div');
             imgDiv.style.cssText = 'margin:4px 0;';
             const img = document.createElement('img');
@@ -1781,10 +1982,10 @@ function displayNewMessages(messages) {
             bubble.appendChild(imgDiv);
         }
         
-        if (msg.content) {
-            const content = document.createElement('span');
-            content.innerHTML = nl2br(escapeHtml(msg.content));
-            bubble.appendChild(content);
+        if (msg.content && msg.message_type !== 'location') {
+            const contentSpan = document.createElement('span');
+            contentSpan.innerHTML = nl2br(escapeHtml(msg.content));
+            bubble.appendChild(contentSpan);
         }
         
         const timeSpan = document.createElement('span');
@@ -1804,19 +2005,15 @@ function displayNewMessages(messages) {
         lastMsgId = Math.max(lastMsgId, msg.id);
     });
     
-    // Update last message ID
     if (lastMsgId > 0) {
         document.getElementById('lastMsgId').value = lastMsgId;
     }
     
-    // Scroll to bottom
     scrollToBottom();
 }
 
 function updateContacts(contacts) {
-    // Update contact list without full page reload
     contacts.forEach(function(contact) {
-        // Update last message
         const lastMsgEl = document.getElementById('lastMsg_' + contact.id);
         if (lastMsgEl) {
             if (contact.last_message) {
@@ -1824,22 +2021,11 @@ function updateContacts(contacts) {
             }
         }
         
-        // Update unread badge
         const unreadBadge = document.getElementById('unreadBadge_' + contact.id);
         if (contact.unread_count > 0) {
             if (unreadBadge) {
                 unreadBadge.textContent = contact.unread_count;
                 unreadBadge.style.display = 'inline-block';
-            } else {
-                // Create badge if it doesn't exist
-                const meta = document.querySelector('.chat-contact-item[data-id="' + contact.id + '"] .contact-meta');
-                if (meta) {
-                    const badge = document.createElement('div');
-                    badge.className = 'unread';
-                    badge.id = 'unreadBadge_' + contact.id;
-                    badge.textContent = contact.unread_count;
-                    meta.appendChild(badge);
-                }
             }
         } else if (unreadBadge) {
             unreadBadge.style.display = 'none';
@@ -1847,7 +2033,6 @@ function updateContacts(contacts) {
     });
 }
 
-// Helper functions
 function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
@@ -1891,7 +2076,6 @@ document.getElementById('chatForm').addEventListener('submit', function(e) {
             document.getElementById('mediaUrl').value = '';
             document.getElementById('messageType').value = 'text';
             
-            // Add message to chat immediately
             const container = document.getElementById('chatMessages');
             const emptyState = container.querySelector('.empty-chat');
             if (emptyState) emptyState.remove();
@@ -1899,17 +2083,25 @@ document.getElementById('chatForm').addEventListener('submit', function(e) {
             const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
             const row = document.createElement('div');
             row.className = 'message-row sent';
+            
+            let bubbleContent = '';
+            
+            if (mediaUrl) {
+                bubbleContent += `<div style="margin:4px 0;"><img src="${mediaUrl}" alt="Image" style="max-width:200px;border-radius:6px;cursor:pointer;" onclick="window.open(this.src)"></div>`;
+            }
+            
+            if (message) {
+                bubbleContent += nl2br(escapeHtml(message));
+            }
+            
             row.innerHTML = `
                 <div class="message-bubble">
-                    ${mediaUrl ? `<div style="margin:4px 0;"><img src="${mediaUrl}" alt="Image" style="max-width:200px;border-radius:6px;cursor:pointer;" onclick="window.open(this.src)"></div>` : ''}
-                    ${message ? nl2br(escapeHtml(message)) : ''}
+                    ${bubbleContent}
                     <span class="message-time">${time} <i class="fas fa-check" style="margin-left:2px;opacity:0.5;"></i></span>
                 </div>
             `;
             container.appendChild(row);
             scrollToBottom();
-            
-            // Update last message ID (will be updated on next poll)
         } else {
             alert('Failed to send message: ' + (data.message || 'Unknown error'));
         }
@@ -1963,7 +2155,6 @@ window.addEventListener('resize', function() {
     }
 });
 
-// Sidebar dropdowns
 document.querySelectorAll('.dropdown-toggle').forEach(function(toggle) {
     toggle.addEventListener('click', function(e) {
         e.preventDefault();
@@ -1977,7 +2168,6 @@ document.querySelectorAll('.dropdown-toggle').forEach(function(toggle) {
     });
 });
 
-// Profile dropdown
 var profileBtn = document.getElementById('profileBtn');
 var profileMenu = document.getElementById('profileMenu');
 
@@ -1993,7 +2183,6 @@ if (profileBtn && profileMenu) {
     });
 }
 
-// Preloader
 window.addEventListener('load', function() {
     var preloader = document.getElementById('preloader');
     if (preloader) {
@@ -2003,7 +2192,6 @@ window.addEventListener('load', function() {
     scrollToBottom();
 });
 
-// Cleanup on page unload
 window.addEventListener('beforeunload', function() {
     if (pollInterval) {
         clearInterval(pollInterval);
