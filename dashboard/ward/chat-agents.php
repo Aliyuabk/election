@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// WARD COORDINATOR - CHAT WITH AGENTS (REAL-TIME + LOCATION)
+// WARD COORDINATOR - CHAT WITH AGENTS (WHATSAPP STYLE)
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -99,7 +99,6 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
     $response = ['success' => false, 'messages' => [], 'contacts' => [], 'new_messages' => 0];
     
     try {
-        // Get latest messages
         if ($selected_contact_id > 0) {
             $last_msg_id = isset($_GET['last_msg_id']) ? (int)$_GET['last_msg_id'] : 0;
             
@@ -124,7 +123,6 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
             $response['messages'] = $new_messages;
             $response['new_messages'] = count($new_messages);
             
-            // Mark messages as read
             if (count($new_messages) > 0) {
                 $stmt = $db->prepare("
                     UPDATE chat_messages 
@@ -135,7 +133,6 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
             }
         }
         
-        // Get updated contacts
         $stmt = $db->prepare("
             SELECT 
                 u.id,
@@ -209,7 +206,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $file_name = time() . '_' . bin2hex(random_bytes(8)) . '.' . $file_ext;
         $file_path = $upload_dir . $file_name;
         
-        $allowed_types = ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'zip', 'rar'];
+        $allowed_types = ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt', 'zip', 'rar', 'ppt', 'pptx'];
         
         if (in_array($file_ext, $allowed_types) && $file['size'] < 10485760) {
             if (move_uploaded_file($file['tmp_name'], $file_path)) {
@@ -217,6 +214,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 $response['message'] = 'File uploaded successfully';
                 $response['url'] = '/election/uploads/chat/' . $file_name;
                 $response['filename'] = $file['name'];
+                $response['filesize'] = $file['size'];
+                $response['filetype'] = $file_ext;
                 $response['type'] = in_array($file_ext, ['jpg', 'jpeg', 'png', 'gif']) ? 'image' : 'file';
             } else {
                 $response['message'] = 'Failed to move uploaded file';
@@ -329,6 +328,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $message = isset($_POST['message']) ? trim($_POST['message']) : '';
     $message_type = isset($_POST['message_type']) ? $_POST['message_type'] : 'text';
     $media_url = isset($_POST['media_url']) ? trim($_POST['media_url']) : '';
+    $media_filename = isset($_POST['media_filename']) ? trim($_POST['media_filename']) : '';
+    $media_filesize = isset($_POST['media_filesize']) ? (int)$_POST['media_filesize'] : 0;
+    $media_filetype = isset($_POST['media_filetype']) ? trim($_POST['media_filetype']) : '';
     $role_id = isset($_POST['role_id']) ? (int)$_POST['role_id'] : 9;
     
     $csrf_token = isset($_POST['csrf_token']) ? $_POST['csrf_token'] : '';
@@ -381,13 +383,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 $stmt->execute([$room_id, $receiver_id]);
             }
             
+            // If it's a file, include file info in the content
+            $content = $message;
+            if ($media_url && $message_type === 'file') {
+                $file_info = json_encode([
+                    'url' => $media_url,
+                    'filename' => $media_filename,
+                    'filesize' => $media_filesize,
+                    'filetype' => $media_filetype
+                ]);
+                $content = $file_info;
+            }
+            
             $stmt = $db->prepare("
                 INSERT INTO chat_messages (
                     room_id, sender_id, receiver_id, message_type, content, 
                     media_url, created_at
                 ) VALUES (?, ?, ?, ?, ?, ?, NOW())
             ");
-            $stmt->execute([$room_id, $user_id, $receiver_id, $message_type, $message, $media_url]);
+            $stmt->execute([$room_id, $user_id, $receiver_id, $message_type, $content, $media_url]);
             
             logActivity($user_id, 'chat_message', "Sent message to {$receiver['full_name']} (ID: $receiver_id)", 'chat', $room_id);
             
@@ -396,13 +410,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $show_success = true;
             
             if (isset($_POST['ajax']) && $_POST['ajax'] === '1') {
+                if (ob_get_level()) ob_clean();
                 header('Content-Type: application/json');
                 echo json_encode(['success' => true, 'message' => 'Message sent successfully', 'msg_id' => $db->lastInsertId()]);
                 exit();
             }
             
-            header('Location: chat-agents.php?role=' . $role_id . '&contact_id=' . $receiver_id . '&sent=1');
-            exit();
+            if (!isset($_POST['ajax']) || $_POST['ajax'] !== '1') {
+                header('Location: chat-agents.php?role=' . $role_id . '&contact_id=' . $receiver_id . '&sent=1');
+                exit();
+            }
             
         } catch (Exception $e) {
             $db->rollBack();
@@ -445,7 +462,7 @@ include '../includes/sidebar.php';
 
 <style>
 /* ============================================================
-   CHAT INTERFACE - PROFESSIONAL DESIGN
+   CHAT INTERFACE - WHATSAPP STYLE
    ============================================================ */
 :root {
     --chat-primary: #0F4C81;
@@ -491,7 +508,6 @@ include '../includes/sidebar.php';
     flex-shrink: 0;
 }
 
-/* Role Tabs */
 .role-tabs {
     display: flex;
     background: white;
@@ -736,7 +752,6 @@ include '../includes/sidebar.php';
     min-width: 0;
 }
 
-/* Chat Header */
 .chat-content-header {
     padding: 10px 16px;
     background: white;
@@ -840,7 +855,7 @@ include '../includes/sidebar.php';
 }
 
 .message-bubble {
-    max-width: 70%;
+    max-width: 75%;
     padding: 6px 12px;
     border-radius: 10px;
     font-size: 0.85rem;
@@ -884,6 +899,127 @@ include '../includes/sidebar.php';
 }
 
 /* ============================================================
+   FILE MESSAGE - WHATSAPP STYLE
+   ============================================================ */
+.file-message {
+    background: rgba(59, 130, 246, 0.05);
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin: 4px 0;
+    border: 1px solid rgba(59, 130, 246, 0.15);
+    min-width: 200px;
+    max-width: 280px;
+}
+
+.file-message .file-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    flex-shrink: 0;
+    margin-right: 10px;
+}
+.file-message .file-icon.pdf { background: #FEE2E2; color: #DC2626; }
+.file-message .file-icon.doc { background: #DBEAFE; color: #2563EB; }
+.file-message .file-icon.docx { background: #DBEAFE; color: #2563EB; }
+.file-message .file-icon.xls { background: #D1FAE5; color: #059669; }
+.file-message .file-icon.xlsx { background: #D1FAE5; color: #059669; }
+.file-message .file-icon.ppt { background: #FEF3C7; color: #D97706; }
+.file-message .file-icon.pptx { background: #FEF3C7; color: #D97706; }
+.file-message .file-icon.txt { background: #E5E7EB; color: #6B7280; }
+.file-message .file-icon.zip { background: #F3E8FF; color: #7C3AED; }
+.file-message .file-icon.rar { background: #F3E8FF; color: #7C3AED; }
+.file-message .file-icon.image { background: #FCE7F3; color: #DB2777; }
+.file-message .file-icon.default { background: #E5E7EB; color: #6B7280; }
+
+.file-message .file-info {
+    flex: 1;
+    min-width: 0;
+}
+.file-message .file-info .file-name {
+    font-weight: 500;
+    font-size: 0.85rem;
+    color: var(--gray-800);
+    word-break: break-all;
+}
+.file-message .file-info .file-size {
+    font-size: 0.65rem;
+    color: var(--gray-500);
+}
+.file-message .file-info .file-type {
+    font-size: 0.55rem;
+    color: var(--gray-400);
+    text-transform: uppercase;
+    background: var(--gray-100);
+    padding: 1px 6px;
+    border-radius: 4px;
+    margin-left: 4px;
+}
+
+.file-message .file-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+}
+.file-message .file-actions a {
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-size: 0.65rem;
+    font-weight: 500;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+.file-message .file-actions .download {
+    background: var(--chat-primary);
+    color: white;
+}
+.file-message .file-actions .download:hover {
+    background: var(--chat-primary-dark);
+}
+.file-message .file-actions .view {
+    background: var(--gray-100);
+    color: var(--gray-600);
+}
+.file-message .file-actions .view:hover {
+    background: var(--gray-200);
+}
+
+.message-row.sent .file-message {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+.message-row.sent .file-message .file-info .file-name {
+    color: white;
+}
+.message-row.sent .file-message .file-info .file-size {
+    color: rgba(255,255,255,0.6);
+}
+.message-row.sent .file-message .file-info .file-type {
+    background: rgba(255,255,255,0.2);
+    color: rgba(255,255,255,0.7);
+}
+.message-row.sent .file-message .file-actions .view {
+    background: rgba(255,255,255,0.2);
+    color: rgba(255,255,255,0.8);
+}
+.message-row.sent .file-message .file-actions .view:hover {
+    background: rgba(255,255,255,0.3);
+}
+.message-row.sent .file-message .file-actions .download {
+    background: rgba(255,255,255,0.2);
+    color: white;
+}
+.message-row.sent .file-message .file-actions .download:hover {
+    background: rgba(255,255,255,0.3);
+}
+
+/* ============================================================
    LOCATION MESSAGE STYLES
    ============================================================ */
 .location-message {
@@ -893,7 +1029,6 @@ include '../includes/sidebar.php';
     margin: 4px 0;
     border-left: 3px solid #3B82F6;
 }
-
 .location-message .location-header {
     display: flex;
     align-items: center;
@@ -901,17 +1036,14 @@ include '../includes/sidebar.php';
     font-weight: 500;
     color: #1E40AF;
 }
-
 .location-message .location-header i {
     font-size: 1rem;
 }
-
 .location-message .location-details {
     margin-top: 4px;
     font-size: 0.8rem;
     color: var(--gray-600);
 }
-
 .location-message .location-details .coord {
     font-family: monospace;
     background: var(--gray-100);
@@ -919,7 +1051,6 @@ include '../includes/sidebar.php';
     border-radius: 4px;
     font-size: 0.7rem;
 }
-
 .location-message .location-map-link {
     display: inline-block;
     margin-top: 6px;
@@ -931,12 +1062,10 @@ include '../includes/sidebar.php';
     text-decoration: none;
     transition: all 0.2s ease;
 }
-
 .location-message .location-map-link:hover {
     background: #2563EB;
     transform: translateY(-1px);
 }
-
 .location-message .location-name {
     font-weight: 600;
     color: var(--gray-800);
@@ -1111,7 +1240,6 @@ include '../includes/sidebar.php';
     background: var(--gray-50);
 }
 
-/* Connection Status */
 .connection-status {
     position: fixed;
     bottom: 20px;
@@ -1190,6 +1318,15 @@ include '../includes/sidebar.php';
         font-size: 0.8rem;
         padding: 5px 10px;
     }
+    .file-message {
+        min-width: 150px;
+        max-width: 220px;
+    }
+    .file-message .file-icon {
+        width: 32px;
+        height: 32px;
+        font-size: 1rem;
+    }
 }
 
 @media (max-width: 480px) {
@@ -1213,6 +1350,15 @@ include '../includes/sidebar.php';
     .role-tab .role-count {
         font-size: 0.4rem;
         padding: 0 4px;
+    }
+    .file-message {
+        min-width: 120px;
+        max-width: 180px;
+        padding: 8px 10px;
+    }
+    .file-message .file-actions a {
+        font-size: 0.55rem;
+        padding: 2px 8px;
     }
 }
 </style>
@@ -1276,7 +1422,6 @@ include '../includes/sidebar.php';
         <div class="chat-container" id="chatContainer">
             <!-- Left Sidebar - Contacts -->
             <div class="chat-sidebar" id="chatSidebar">
-                <!-- Role Tabs -->
                 <div class="role-tabs">
                     <?php foreach ($role_definitions as $role_id => $role): ?>
                         <a href="?role=<?php echo $role_id; ?><?php echo $selected_contact_id > 0 ? '&contact_id=' . $selected_contact_id : ''; ?>" 
@@ -1366,7 +1511,6 @@ include '../includes/sidebar.php';
             <!-- Right Content - Chat Area -->
             <div class="chat-content" id="chatContent">
                 <?php if ($selected_contact): ?>
-                    <!-- Chat Header -->
                     <div class="chat-content-header">
                         <div class="avatar">
                             <?php if (!empty($selected_contact['photograph_url'])): ?>
@@ -1430,28 +1574,69 @@ include '../includes/sidebar.php';
                                             <span class="message-sender"><?php echo htmlspecialchars($msg['sender_name']); ?></span>
                                         <?php endif; ?>
                                         
-                                        <?php if ($msg['message_type'] === 'location' && !empty($msg['content'])): 
-                                            // Parse location data
-                                            $location_text = $msg['content'];
-                                            $lat = '';
-                                            $lng = '';
-                                            $location_name = '';
-                                            
-                                            // Try to extract coordinates from the message
-                                            if (preg_match('/📍 Location: ([\d.-]+), ([\d.-]+)/', $location_text, $matches)) {
-                                                $lat = $matches[1];
-                                                $lng = $matches[2];
+                                        <?php
+                                        // Parse file message
+                                        $file_data = null;
+                                        if ($msg['message_type'] === 'file' && !empty($msg['content'])) {
+                                            $file_data = json_decode($msg['content'], true);
+                                            if (!isset($file_data['filename']) && !empty($msg['media_url'])) {
+                                                // Try to extract filename from URL
+                                                $file_data = [
+                                                    'url' => $msg['media_url'],
+                                                    'filename' => basename($msg['media_url']),
+                                                    'filesize' => 0,
+                                                    'filetype' => pathinfo($msg['media_url'], PATHINFO_EXTENSION)
+                                                ];
                                             }
-                                            
-                                            // Extract location name if present
-                                            if (preg_match('/📍 Location: ([\d.-]+), ([\d.-]+)\n(.*)/', $location_text, $matches)) {
-                                                $lat = $matches[1];
-                                                $lng = $matches[2];
-                                                $location_name = trim($matches[3]);
-                                            } elseif (preg_match('/📍 (.*?): ([\d.-]+), ([\d.-]+)/', $location_text, $matches)) {
-                                                $location_name = trim($matches[1]);
+                                        }
+                                        ?>
+                                        
+                                        <?php if ($msg['message_type'] === 'file' && $file_data): ?>
+                                            <div class="file-message">
+                                                <div style="display:flex;align-items:center;">
+                                                    <?php
+                                                    $ext = strtolower($file_data['filetype'] ?? pathinfo($file_data['filename'] ?? '', PATHINFO_EXTENSION));
+                                                    $icon_class = 'default';
+                                                    $icon_icon = 'fa-file';
+                                                    if (in_array($ext, ['pdf'])) { $icon_class = 'pdf'; $icon_icon = 'fa-file-pdf'; }
+                                                    elseif (in_array($ext, ['doc', 'docx'])) { $icon_class = 'doc'; $icon_icon = 'fa-file-word'; }
+                                                    elseif (in_array($ext, ['xls', 'xlsx'])) { $icon_class = 'xls'; $icon_icon = 'fa-file-excel'; }
+                                                    elseif (in_array($ext, ['ppt', 'pptx'])) { $icon_class = 'ppt'; $icon_icon = 'fa-file-powerpoint'; }
+                                                    elseif (in_array($ext, ['txt'])) { $icon_class = 'txt'; $icon_icon = 'fa-file-alt'; }
+                                                    elseif (in_array($ext, ['zip', 'rar'])) { $icon_class = 'zip'; $icon_icon = 'fa-file-archive'; }
+                                                    elseif (in_array($ext, ['jpg', 'jpeg', 'png', 'gif'])) { $icon_class = 'image'; $icon_icon = 'fa-file-image'; }
+                                                    ?>
+                                                    <div class="file-icon <?php echo $icon_class; ?>">
+                                                        <i class="fas <?php echo $icon_icon; ?>"></i>
+                                                    </div>
+                                                    <div class="file-info">
+                                                        <div class="file-name"><?php echo htmlspecialchars($file_data['filename'] ?? 'File'); ?></div>
+                                                        <div>
+                                                            <span class="file-size"><?php echo $file_data['filesize'] ? formatFileSize($file_data['filesize']) : 'Unknown size'; ?></span>
+                                                            <span class="file-type"><?php echo strtoupper($ext ?: 'FILE'); ?></span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="file-actions">
+                                                    <a href="<?php echo htmlspecialchars($file_data['url'] ?? $msg['media_url']); ?>" download class="download">
+                                                        <i class="fas fa-download"></i> Download
+                                                    </a>
+                                                    <?php if (in_array($ext, ['pdf', 'jpg', 'jpeg', 'png', 'gif'])): ?>
+                                                        <a href="<?php echo htmlspecialchars($file_data['url'] ?? $msg['media_url']); ?>" target="_blank" class="view">
+                                                            <i class="fas fa-eye"></i> View
+                                                        </a>
+                                                    <?php endif; ?>
+                                                </div>
+                                            </div>
+                                        <?php elseif ($msg['message_type'] === 'location' && !empty($msg['content'])): 
+                                            $lat = ''; $lng = ''; $locationName = '';
+                                            if (preg_match('/📍 (.*?): ([\d.-]+), ([\d.-]+)/', $msg['content'], $matches)) {
+                                                $locationName = $matches[1];
                                                 $lat = $matches[2];
                                                 $lng = $matches[3];
+                                            } elseif (preg_match('/📍 Location: ([\d.-]+), ([\d.-]+)/', $msg['content'], $matches)) {
+                                                $lat = $matches[1];
+                                                $lng = $matches[2];
                                             }
                                         ?>
                                             <div class="location-message">
@@ -1459,10 +1644,10 @@ include '../includes/sidebar.php';
                                                     <i class="fas fa-map-marker-alt" style="color:#3B82F6;"></i>
                                                     <span>📍 Location Shared</span>
                                                 </div>
-                                                <?php if (!empty($location_name) && $location_name !== 'Location'): ?>
+                                                <?php if ($locationName && $locationName !== 'Location'): ?>
                                                     <div class="location-name">
                                                         <i class="fas fa-building" style="font-size:0.7rem;"></i>
-                                                        <?php echo htmlspecialchars($location_name); ?>
+                                                        <?php echo htmlspecialchars($locationName); ?>
                                                     </div>
                                                 <?php endif; ?>
                                                 <div class="location-details">
@@ -1482,7 +1667,7 @@ include '../includes/sidebar.php';
                                                             <i class="fas fa-globe"></i> OpenStreetMap
                                                         </a>
                                                     <?php else: ?>
-                                                        <?php echo nl2br(htmlspecialchars($location_text)); ?>
+                                                        <?php echo nl2br(htmlspecialchars($msg['content'])); ?>
                                                     <?php endif; ?>
                                                 </div>
                                             </div>
@@ -1522,7 +1707,7 @@ include '../includes/sidebar.php';
                     </div>
 
                     <!-- Typing Indicator -->
-                    <div class="typing-indicator" id="typingIndicator">
+                    <div class="typing-indicator" id="typingIndicator" style="display:none;">
                         <span>Agent is typing</span>
                         <span class="dots">
                             <span></span>
@@ -1540,6 +1725,9 @@ include '../includes/sidebar.php';
                             <input type="hidden" name="role_id" value="<?php echo $selected_role; ?>">
                             <input type="hidden" name="message_type" id="messageType" value="text">
                             <input type="hidden" name="media_url" id="mediaUrl" value="">
+                            <input type="hidden" name="media_filename" id="mediaFilename" value="">
+                            <input type="hidden" name="media_filesize" id="mediaFilesize" value="0">
+                            <input type="hidden" name="media_filetype" id="mediaFiletype" value="">
                             <input type="hidden" name="ajax" value="1">
                             
                             <div class="input-row">
@@ -1561,16 +1749,14 @@ include '../includes/sidebar.php';
                                 </button>
                             </div>
                             
-                            <!-- Hidden file inputs -->
                             <input type="file" id="fileInput" name="attachment" style="display:none" 
-                                   onchange="uploadFile(this)" accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar,.jpg,.jpeg,.png,.gif">
+                                   onchange="uploadFile(this)" accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.rar,.ppt,.pptx,.jpg,.jpeg,.png,.gif">
                             <input type="file" id="imageInput" name="attachment" style="display:none" 
                                    onchange="uploadFile(this)" accept="image/*">
                         </form>
                     </div>
 
                 <?php else: ?>
-                    <!-- No Contact Selected -->
                     <div class="empty-chat" style="height:100%;">
                         <i class="fas fa-comment-dots" style="color:var(--gray-300);"></i>
                         <h4 style="color:var(--gray-600);">Select a Contact</h4>
@@ -1587,6 +1773,21 @@ include '../includes/sidebar.php';
     </div>
 </main>
 
+<?php
+// Helper function to format file size
+function formatFileSize($bytes) {
+    if ($bytes >= 1073741824) {
+        return number_format($bytes / 1073741824, 2) . ' GB';
+    } elseif ($bytes >= 1048576) {
+        return number_format($bytes / 1048576, 2) . ' MB';
+    } elseif ($bytes >= 1024) {
+        return number_format($bytes / 1024, 2) . ' KB';
+    } else {
+        return $bytes . ' bytes';
+    }
+}
+?>
+
 <script>
 // ============================================================
 // CHAT FUNCTIONS - REAL-TIME
@@ -1596,6 +1797,7 @@ let currentContactId = <?php echo $selected_contact_id ?: 0; ?>;
 let lastMsgId = parseInt(document.getElementById('lastMsgId')?.value || 0);
 let isPolling = false;
 let pollInterval = null;
+let typingTimeout = null;
 
 // Send message
 function sendMessage() {
@@ -1619,6 +1821,11 @@ document.addEventListener('DOMContentLoaded', function() {
     if (currentContactId > 0) {
         startPolling();
     }
+    
+    const typingIndicator = document.getElementById('typingIndicator');
+    if (typingIndicator) {
+        typingIndicator.style.display = 'none';
+    }
 });
 
 // Scroll to bottom
@@ -1630,11 +1837,37 @@ function scrollToBottom() {
 }
 
 // ============================================================
-// SHARE LOCATION - WITH LOCATION NAME
+// SHOW/HIDE TYPING INDICATOR
+// ============================================================
+function showTyping() {
+    const indicator = document.getElementById('typingIndicator');
+    if (indicator) {
+        indicator.style.display = 'block';
+        if (typingTimeout) {
+            clearTimeout(typingTimeout);
+        }
+        typingTimeout = setTimeout(function() {
+            hideTyping();
+        }, 5000);
+    }
+}
+
+function hideTyping() {
+    const indicator = document.getElementById('typingIndicator');
+    if (indicator) {
+        indicator.style.display = 'none';
+    }
+    if (typingTimeout) {
+        clearTimeout(typingTimeout);
+        typingTimeout = null;
+    }
+}
+
+// ============================================================
+// SHARE LOCATION
 // ============================================================
 function shareLocation() {
     if (navigator.geolocation) {
-        // Show loading state
         const sendBtn = document.getElementById('sendBtn');
         sendBtn.disabled = true;
         sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Getting location...';
@@ -1643,7 +1876,6 @@ function shareLocation() {
             const lat = position.coords.latitude;
             const lng = position.coords.longitude;
             
-            // Get location name using reverse geocoding
             getLocationName(lat, lng, function(locationName) {
                 const message = `📍 ${locationName || 'Location'}: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
                 document.getElementById('messageInput').value = message;
@@ -1652,26 +1884,12 @@ function shareLocation() {
                 sendBtn.disabled = false;
                 sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send';
                 
-                // Auto-send the location
                 document.getElementById('chatForm').submit();
             });
         }, function(error) {
             sendBtn.disabled = false;
             sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send';
-            
-            let errorMsg = 'Unable to get your location. Please try again.';
-            switch(error.code) {
-                case error.PERMISSION_DENIED:
-                    errorMsg = 'Location permission denied. Please enable location access.';
-                    break;
-                case error.POSITION_UNAVAILABLE:
-                    errorMsg = 'Location information is unavailable.';
-                    break;
-                case error.TIMEOUT:
-                    errorMsg = 'Location request timed out.';
-                    break;
-            }
-            alert(errorMsg);
+            alert('Unable to get your location. Please try again.');
         }, {
             enableHighAccuracy: true,
             timeout: 10000,
@@ -1683,68 +1901,49 @@ function shareLocation() {
 }
 
 // ============================================================
-// GET LOCATION NAME (Reverse Geocoding)
+// GET LOCATION NAME
 // ============================================================
 function getLocationName(lat, lng, callback) {
-    // Try using OpenStreetMap Nominatim API (free, no API key required)
     const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
     
     fetch(url, {
-        headers: {
-            'User-Agent': 'ElectionGuruChat/1.0'
-        }
+        headers: { 'User-Agent': 'ElectionGuruChat/1.0' }
     })
     .then(response => response.json())
     .then(data => {
         if (data && data.display_name) {
-            // Get a shorter, more readable name
             const address = data.address || {};
             const nameParts = [];
             
-            if (address.road || address.street) {
-                nameParts.push(address.road || address.street);
-            }
-            if (address.suburb || address.neighbourhood) {
-                nameParts.push(address.suburb || address.neighbourhood);
-            }
-            if (address.city || address.town || address.village) {
-                nameParts.push(address.city || address.town || address.village);
-            }
-            if (address.state) {
-                nameParts.push(address.state);
-            }
+            if (address.road || address.street) nameParts.push(address.road || address.street);
+            if (address.suburb || address.neighbourhood) nameParts.push(address.suburb || address.neighbourhood);
+            if (address.city || address.town || address.village) nameParts.push(address.city || address.town || address.village);
+            if (address.state) nameParts.push(address.state);
             
-            // If we have a specific place name from the response
             if (data.name && data.name !== '') {
                 callback(data.name);
             } else if (nameParts.length > 0) {
-                // Try to get a specific landmark or building name
                 if (address.building || address.house_number) {
                     const building = address.building || address.house_number;
-                    if (building) {
-                        nameParts.unshift(building);
-                    }
+                    if (building) nameParts.unshift(building);
                 }
                 callback(nameParts.join(', '));
             } else {
-                // Fallback to display name (shortened)
                 const shortName = data.display_name.split(',').slice(0, 3).join(', ');
                 callback(shortName);
             }
         } else {
-            // Fallback to coordinates
             callback(`Location (${lat.toFixed(6)}, ${lng.toFixed(6)})`);
         }
     })
     .catch(function(error) {
         console.error('Reverse geocoding error:', error);
-        // Fallback to coordinates
         callback(`Location (${lat.toFixed(6)}, ${lng.toFixed(6)})`);
     });
 }
 
 // ============================================================
-// FILE UPLOAD
+// FILE UPLOAD - WHATSAPP STYLE
 // ============================================================
 function uploadFile(input) {
     if (input.files && input.files[0]) {
@@ -1768,8 +1967,14 @@ function uploadFile(input) {
                 try {
                     const response = JSON.parse(xhr.responseText);
                     if (response.success) {
+                        // Store file info in hidden fields
                         document.getElementById('mediaUrl').value = response.url;
-                        document.getElementById('messageType').value = response.type === 'image' ? 'image' : 'file';
+                        document.getElementById('mediaFilename').value = response.filename;
+                        document.getElementById('mediaFilesize').value = response.filesize;
+                        document.getElementById('mediaFiletype').value = response.filetype;
+                        document.getElementById('messageType').value = 'file';
+                        
+                        // Auto-send the file message
                         document.getElementById('chatForm').submit();
                     } else {
                         alert('Upload failed: ' + response.message);
@@ -1908,67 +2113,117 @@ function displayNewMessages(messages) {
             bubble.appendChild(sender);
         }
         
-        // Handle location messages
-        if (msg.message_type === 'location' && msg.content) {
-            const locationDiv = document.createElement('div');
-            locationDiv.className = 'location-message';
+        // Parse file message
+        let file_data = null;
+        if (msg.message_type === 'file' && msg.content) {
+            try {
+                file_data = JSON.parse(msg.content);
+                if (!file_data.filename && msg.media_url) {
+                    file_data = {
+                        url: msg.media_url,
+                        filename: basename(msg.media_url),
+                        filesize: 0,
+                        filetype: msg.media_url.split('.').pop()
+                    };
+                }
+            } catch(e) {
+                if (msg.media_url) {
+                    file_data = {
+                        url: msg.media_url,
+                        filename: basename(msg.media_url),
+                        filesize: 0,
+                        filetype: msg.media_url.split('.').pop()
+                    };
+                }
+            }
+        }
+        
+        if (msg.message_type === 'file' && file_data) {
+            const ext = (file_data.filetype || '').toLowerCase();
+            let iconClass = 'default', iconIcon = 'fa-file';
+            if (['pdf'].includes(ext)) { iconClass = 'pdf'; iconIcon = 'fa-file-pdf'; }
+            else if (['doc', 'docx'].includes(ext)) { iconClass = 'doc'; iconIcon = 'fa-file-word'; }
+            else if (['xls', 'xlsx'].includes(ext)) { iconClass = 'xls'; iconIcon = 'fa-file-excel'; }
+            else if (['ppt', 'pptx'].includes(ext)) { iconClass = 'ppt'; iconIcon = 'fa-file-powerpoint'; }
+            else if (['txt'].includes(ext)) { iconClass = 'txt'; iconIcon = 'fa-file-alt'; }
+            else if (['zip', 'rar'].includes(ext)) { iconClass = 'zip'; iconIcon = 'fa-file-archive'; }
+            else if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) { iconClass = 'image'; iconIcon = 'fa-file-image'; }
             
-            const header = document.createElement('div');
-            header.className = 'location-header';
-            header.innerHTML = '<i class="fas fa-map-marker-alt" style="color:#3B82F6;"></i><span>📍 Location Shared</span>';
-            locationDiv.appendChild(header);
+            const fileSizeText = file_data.filesize ? formatFileSize(file_data.filesize) : 'Unknown size';
             
-            // Try to extract location name
+            const fileDiv = document.createElement('div');
+            fileDiv.className = 'file-message';
+            fileDiv.innerHTML = `
+                <div style="display:flex;align-items:center;">
+                    <div class="file-icon ${iconClass}">
+                        <i class="fas ${iconIcon}"></i>
+                    </div>
+                    <div class="file-info">
+                        <div class="file-name">${escapeHtml(file_data.filename || 'File')}</div>
+                        <div>
+                            <span class="file-size">${fileSizeText}</span>
+                            <span class="file-type">${(ext || 'FILE').toUpperCase()}</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="file-actions">
+                    <a href="${escapeHtml(file_data.url || msg.media_url)}" download class="download">
+                        <i class="fas fa-download"></i> Download
+                    </a>
+                    ${['pdf', 'jpg', 'jpeg', 'png', 'gif'].includes(ext) ? `
+                        <a href="${escapeHtml(file_data.url || msg.media_url)}" target="_blank" class="view">
+                            <i class="fas fa-eye"></i> View
+                        </a>
+                    ` : ''}
+                </div>
+            `;
+            bubble.appendChild(fileDiv);
+        } else if (msg.message_type === 'location' && msg.content) {
             let lat = '', lng = '', locationName = '';
-            const content = msg.content;
-            
-            if (content.match(/📍 (.*?): ([\d.-]+), ([\d.-]+)/)) {
-                const matches = content.match(/📍 (.*?): ([\d.-]+), ([\d.-]+)/);
+            if (msg.content.match(/📍 (.*?): ([\d.-]+), ([\d.-]+)/)) {
+                const matches = msg.content.match(/📍 (.*?): ([\d.-]+), ([\d.-]+)/);
                 if (matches) {
                     locationName = matches[1];
                     lat = matches[2];
                     lng = matches[3];
                 }
-            } else if (content.match(/📍 Location: ([\d.-]+), ([\d.-]+)/)) {
-                const matches = content.match(/📍 Location: ([\d.-]+), ([\d.-]+)/);
+            } else if (msg.content.match(/📍 Location: ([\d.-]+), ([\d.-]+)/)) {
+                const matches = msg.content.match(/📍 Location: ([\d.-]+), ([\d.-]+)/);
                 if (matches) {
                     lat = matches[1];
                     lng = matches[2];
                 }
             }
             
-            if (locationName && locationName !== 'Location') {
-                const nameDiv = document.createElement('div');
-                nameDiv.className = 'location-name';
-                nameDiv.innerHTML = '<i class="fas fa-building" style="font-size:0.7rem;"></i> ' + locationName;
-                locationDiv.appendChild(nameDiv);
-            }
-            
-            const details = document.createElement('div');
-            details.className = 'location-details';
-            
-            if (lat && lng) {
-                details.innerHTML = `
-                    <span class="coord">Lat: ${lat}</span>
-                    <span class="coord" style="margin-left:8px;">Lng: ${lng}</span>
-                    <br>
-                    <a href="https://www.google.com/maps?q=${encodeURIComponent(lat + ',' + lng)}" 
-                       target="_blank" 
-                       class="location-map-link">
-                        <i class="fas fa-map"></i> View on Google Maps
-                    </a>
-                    <a href="https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}&zoom=15" 
-                       target="_blank" 
-                       class="location-map-link" 
-                       style="background:#10B981;margin-left:6px;">
-                        <i class="fas fa-globe"></i> OpenStreetMap
-                    </a>
-                `;
-            } else {
-                details.textContent = content;
-            }
-            
-            locationDiv.appendChild(details);
+            const locationDiv = document.createElement('div');
+            locationDiv.className = 'location-message';
+            locationDiv.innerHTML = `
+                <div class="location-header">
+                    <i class="fas fa-map-marker-alt" style="color:#3B82F6;"></i>
+                    <span>📍 Location Shared</span>
+                </div>
+                ${locationName && locationName !== 'Location' ? `
+                    <div class="location-name">
+                        <i class="fas fa-building" style="font-size:0.7rem;"></i> ${escapeHtml(locationName)}
+                    </div>
+                ` : ''}
+                <div class="location-details">
+                    ${lat && lng ? `
+                        <span class="coord">Lat: ${lat}</span>
+                        <span class="coord" style="margin-left:8px;">Lng: ${lng}</span>
+                        <br>
+                        <a href="https://www.google.com/maps?q=${encodeURIComponent(lat + ',' + lng)}" 
+                           target="_blank" class="location-map-link">
+                            <i class="fas fa-map"></i> View on Google Maps
+                        </a>
+                        <a href="https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}&zoom=15" 
+                           target="_blank" class="location-map-link" 
+                           style="background:#10B981;margin-left:6px;">
+                            <i class="fas fa-globe"></i> OpenStreetMap
+                        </a>
+                    ` : nl2br(escapeHtml(msg.content))}
+                </div>
+            `;
             bubble.appendChild(locationDiv);
         } else if (msg.media_url && msg.message_type === 'image') {
             const imgDiv = document.createElement('div');
@@ -1982,7 +2237,7 @@ function displayNewMessages(messages) {
             bubble.appendChild(imgDiv);
         }
         
-        if (msg.content && msg.message_type !== 'location') {
+        if (msg.content && !['location', 'file'].includes(msg.message_type)) {
             const contentSpan = document.createElement('span');
             contentSpan.innerHTML = nl2br(escapeHtml(msg.content));
             bubble.appendChild(contentSpan);
@@ -2033,6 +2288,17 @@ function updateContacts(contacts) {
     });
 }
 
+function formatFileSize(bytes) {
+    if (bytes >= 1073741824) return (bytes / 1073741824).toFixed(2) + ' GB';
+    if (bytes >= 1048576) return (bytes / 1048576).toFixed(2) + ' MB';
+    if (bytes >= 1024) return (bytes / 1024).toFixed(2) + ' KB';
+    return bytes + ' bytes';
+}
+
+function basename(path) {
+    return path.split('/').pop();
+}
+
 function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
@@ -2065,51 +2331,129 @@ document.getElementById('chatForm').addEventListener('submit', function(e) {
         method: 'POST',
         body: formData
     })
-    .then(response => response.json())
-    .then(data => {
+    .then(response => response.text())
+    .then(text => {
         sendBtn.disabled = false;
         sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send';
         
-        if (data.success) {
-            document.getElementById('messageInput').value = '';
-            document.getElementById('messageInput').style.height = 'auto';
-            document.getElementById('mediaUrl').value = '';
-            document.getElementById('messageType').value = 'text';
+        try {
+            const data = JSON.parse(text);
             
-            const container = document.getElementById('chatMessages');
-            const emptyState = container.querySelector('.empty-chat');
-            if (emptyState) emptyState.remove();
-            
-            const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-            const row = document.createElement('div');
-            row.className = 'message-row sent';
-            
-            let bubbleContent = '';
-            
-            if (mediaUrl) {
-                bubbleContent += `<div style="margin:4px 0;"><img src="${mediaUrl}" alt="Image" style="max-width:200px;border-radius:6px;cursor:pointer;" onclick="window.open(this.src)"></div>`;
+            if (data.success) {
+                document.getElementById('messageInput').value = '';
+                document.getElementById('messageInput').style.height = 'auto';
+                document.getElementById('mediaUrl').value = '';
+                document.getElementById('mediaFilename').value = '';
+                document.getElementById('mediaFilesize').value = '0';
+                document.getElementById('mediaFiletype').value = '';
+                document.getElementById('messageType').value = 'text';
+                
+                const container = document.getElementById('chatMessages');
+                const emptyState = container.querySelector('.empty-chat');
+                if (emptyState) emptyState.remove();
+                
+                const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                const row = document.createElement('div');
+                row.className = 'message-row sent';
+                
+                let bubbleContent = '';
+                
+                if (mediaUrl) {
+                    const ext = (document.getElementById('mediaFiletype').value || '').toLowerCase();
+                    const filename = document.getElementById('mediaFilename').value || 'File';
+                    const filesize = parseInt(document.getElementById('mediaFilesize').value) || 0;
+                    
+                    if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) {
+                        bubbleContent += `<div style="margin:4px 0;"><img src="${mediaUrl}" alt="Image" style="max-width:200px;border-radius:6px;cursor:pointer;" onclick="window.open(this.src)"></div>`;
+                    } else {
+                        let iconClass = 'default', iconIcon = 'fa-file';
+                        if (['pdf'].includes(ext)) { iconClass = 'pdf'; iconIcon = 'fa-file-pdf'; }
+                        else if (['doc', 'docx'].includes(ext)) { iconClass = 'doc'; iconIcon = 'fa-file-word'; }
+                        else if (['xls', 'xlsx'].includes(ext)) { iconClass = 'xls'; iconIcon = 'fa-file-excel'; }
+                        else if (['ppt', 'pptx'].includes(ext)) { iconClass = 'ppt'; iconIcon = 'fa-file-powerpoint'; }
+                        else if (['txt'].includes(ext)) { iconClass = 'txt'; iconIcon = 'fa-file-alt'; }
+                        else if (['zip', 'rar'].includes(ext)) { iconClass = 'zip'; iconIcon = 'fa-file-archive'; }
+                        else if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) { iconClass = 'image'; iconIcon = 'fa-file-image'; }
+                        
+                        const fileSizeText = filesize ? formatFileSize(filesize) : 'Unknown size';
+                        
+                        bubbleContent += `
+                            <div class="file-message">
+                                <div style="display:flex;align-items:center;">
+                                    <div class="file-icon ${iconClass}">
+                                        <i class="fas ${iconIcon}"></i>
+                                    </div>
+                                    <div class="file-info">
+                                        <div class="file-name">${escapeHtml(filename)}</div>
+                                        <div>
+                                            <span class="file-size">${fileSizeText}</span>
+                                            <span class="file-type">${(ext || 'FILE').toUpperCase()}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="file-actions">
+                                    <a href="${mediaUrl}" download class="download">
+                                        <i class="fas fa-download"></i> Download
+                                    </a>
+                                    ${['pdf', 'jpg', 'jpeg', 'png', 'gif'].includes(ext) ? `
+                                        <a href="${mediaUrl}" target="_blank" class="view">
+                                            <i class="fas fa-eye"></i> View
+                                        </a>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        `;
+                    }
+                }
+                
+                if (message) {
+                    bubbleContent += nl2br(escapeHtml(message));
+                }
+                
+                row.innerHTML = `
+                    <div class="message-bubble">
+                        ${bubbleContent}
+                        <span class="message-time">${time} <i class="fas fa-check" style="margin-left:2px;opacity:0.5;"></i></span>
+                    </div>
+                `;
+                container.appendChild(row);
+                scrollToBottom();
+                
+                if (data.msg_id) {
+                    document.getElementById('lastMsgId').value = data.msg_id;
+                }
+                
+                const errorAlert = document.getElementById('errorAlert');
+                if (errorAlert) {
+                    errorAlert.style.display = 'none';
+                }
+            } else {
+                alert('Failed to send message: ' + (data.message || 'Unknown error'));
             }
-            
-            if (message) {
-                bubbleContent += nl2br(escapeHtml(message));
+        } catch (e) {
+            if (text.includes('Message sent successfully')) {
+                document.getElementById('messageInput').value = '';
+                document.getElementById('messageInput').style.height = 'auto';
+                document.getElementById('mediaUrl').value = '';
+                document.getElementById('messageType').value = 'text';
+                
+                setTimeout(function() {
+                    const contactId = document.querySelector('input[name="receiver_id"]');
+                    const roleId = document.querySelector('input[name="role_id"]');
+                    if (contactId && contactId.value && roleId && roleId.value) {
+                        window.location.href = 'chat-agents.php?role=' + roleId.value + '&contact_id=' + contactId.value;
+                    }
+                }, 1000);
+            } else {
+                console.error('Unexpected response:', text);
+                alert('An unexpected error occurred. Please try again.');
             }
-            
-            row.innerHTML = `
-                <div class="message-bubble">
-                    ${bubbleContent}
-                    <span class="message-time">${time} <i class="fas fa-check" style="margin-left:2px;opacity:0.5;"></i></span>
-                </div>
-            `;
-            container.appendChild(row);
-            scrollToBottom();
-        } else {
-            alert('Failed to send message: ' + (data.message || 'Unknown error'));
         }
     })
     .catch(err => {
         sendBtn.disabled = false;
         sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send';
-        alert('Failed to send message. Please try again.');
+        alert('Failed to send message. Please check your connection.');
         console.error('Send error:', err);
     });
 });
@@ -2190,6 +2534,7 @@ window.addEventListener('load', function() {
         setTimeout(function() { preloader.style.display = 'none'; }, 600);
     }
     scrollToBottom();
+    hideTyping();
 });
 
 window.addEventListener('beforeunload', function() {
