@@ -13,6 +13,9 @@ if (!SessionManager::isLoggedIn()) {
     exit();
 }
 
+// ============================================================
+// ACCESS CONTROL - Only Client Admin can create users
+// ============================================================
 if (SessionManager::get('role_level') !== 'client_admin') {
     header('Location: ../client-admin/');
     exit();
@@ -28,7 +31,8 @@ $tenant_id = SessionManager::get('tenant_id');
 $roles = [];
 try {
     // Only allow client admin to assign these roles
-    $allowed_levels = ['national', 'state', 'senatorial', 'federal_constituency', 'lga', 'ward', 'pu_agent'];
+    // Includes all roles from super_admin down to pu_agent
+    $allowed_levels = ['national', 'state', 'senatorial', 'federal_constituency', 'lga', 'ward', 'pu_agent', 'party_agent', 'volunteer', 'observer'];
     $placeholders = implode(',', array_fill(0, count($allowed_levels), '?'));
     
     $stmt = $db->prepare("
@@ -37,13 +41,13 @@ try {
         WHERE (r.tenant_id = ? OR r.tenant_id IS NULL) 
         AND r.is_active = 1 
         AND r.level IN ($placeholders)
-        ORDER BY FIELD(r.level, 'national', 'state', 'senatorial', 'federal_constituency', 'lga', 'ward', 'pu_agent'), r.name
+        ORDER BY FIELD(r.level, 'national', 'state', 'senatorial', 'federal_constituency', 'lga', 'ward', 'pu_agent', 'party_agent', 'volunteer', 'observer'), r.name
     ");
     $params = array_merge([$tenant_id], $allowed_levels);
     $stmt->execute($params);
     $roles = $stmt->fetchAll();
 } catch (Exception $e) {
-    // Continue
+    error_log("Error fetching roles: " . $e->getMessage());
 }
 
 // ============================================================
@@ -55,7 +59,43 @@ try {
     $stmt->execute();
     $states = $stmt->fetchAll();
 } catch (Exception $e) {
-    // Continue
+    error_log("Error fetching states: " . $e->getMessage());
+}
+
+// ============================================================
+// FETCH SENATORIAL DISTRICTS
+// ============================================================
+$senatorial_districts = [];
+try {
+    $stmt = $db->prepare("SELECT id, name, state_id FROM senatorial_districts WHERE is_active = 1 ORDER BY name ASC");
+    $stmt->execute();
+    $senatorial_districts = $stmt->fetchAll();
+} catch (Exception $e) {
+    error_log("Error fetching senatorial districts: " . $e->getMessage());
+}
+
+// ============================================================
+// FETCH FEDERAL CONSTITUENCIES
+// ============================================================
+$federal_constituencies = [];
+try {
+    $stmt = $db->prepare("SELECT id, name, state_id FROM federal_constituencies WHERE is_active = 1 ORDER BY name ASC");
+    $stmt->execute();
+    $federal_constituencies = $stmt->fetchAll();
+} catch (Exception $e) {
+    error_log("Error fetching federal constituencies: " . $e->getMessage());
+}
+
+// ============================================================
+// FETCH LGAs
+// ============================================================
+$lgas_all = [];
+try {
+    $stmt = $db->prepare("SELECT id, name, state_id FROM lgas WHERE is_active = 1 ORDER BY name ASC");
+    $stmt->execute();
+    $lgas_all = $stmt->fetchAll();
+} catch (Exception $e) {
+    error_log("Error fetching LGAs: " . $e->getMessage());
 }
 
 // ============================================================
@@ -109,10 +149,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     $errors = [];
     
+    // Basic validation
     if (empty($first_name)) $errors[] = 'First name is required.';
     if (empty($last_name)) $errors[] = 'Last name is required.';
     if (empty($email)) $errors[] = 'Email is required.';
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) $errors[] = 'Invalid email address.';
+    if (empty($phone)) $errors[] = 'Phone number is required.';
     if (empty($role_id)) $errors[] = 'Role is required.';
     if (strlen($password) < 8) $errors[] = 'Password must be at least 8 characters.';
     if ($password !== $confirm_password) $errors[] = 'Passwords do not match.';
@@ -133,16 +175,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     // ============================================================
-    // JURISDICTION VALIDATION - FIXED MAP
+    // JURISDICTION VALIDATION BASED ON ROLE
     // ============================================================
     $jurisdiction_map = [
+        'national' => [],
         'state' => ['state_id' => 'State'],
         'senatorial' => ['state_id' => 'State', 'senatorial_id' => 'Senatorial District'],
         'federal_constituency' => ['state_id' => 'State', 'constituency_id' => 'Federal Constituency'],
         'lga' => ['state_id' => 'State', 'lga_id' => 'LGA'],
         'ward' => ['state_id' => 'State', 'lga_id' => 'LGA', 'ward_id' => 'Ward'],
         'pu_agent' => ['state_id' => 'State', 'lga_id' => 'LGA', 'ward_id' => 'Ward', 'pu_id' => 'Polling Unit'],
-        'national' => [],
+        'party_agent' => ['state_id' => 'State', 'lga_id' => 'LGA', 'ward_id' => 'Ward', 'pu_id' => 'Polling Unit'],
+        'volunteer' => ['state_id' => 'State', 'lga_id' => 'LGA', 'ward_id' => 'Ward', 'pu_id' => 'Polling Unit'],
+        'observer' => ['state_id' => 'State', 'lga_id' => 'LGA', 'ward_id' => 'Ward', 'pu_id' => 'Polling Unit'],
         'client_admin' => []
     ];
     
@@ -155,6 +200,86 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
     
+    // ============================================================
+    // VALIDATE THAT SENATORIAL ID MATCHES STATE
+    // ============================================================
+    if ($senatorial_id > 0 && $state_id > 0) {
+        try {
+            $stmt = $db->prepare("SELECT state_id FROM senatorial_districts WHERE id = ?");
+            $stmt->execute([$senatorial_id]);
+            $sd_state = $stmt->fetchColumn();
+            if ($sd_state && $sd_state != $state_id) {
+                $errors[] = 'Selected Senatorial District does not belong to the selected State.';
+            }
+        } catch (Exception $e) {
+            // Skip validation on error
+        }
+    }
+    
+    // ============================================================
+    // VALIDATE THAT FEDERAL CONSTITUENCY MATCHES STATE
+    // ============================================================
+    if ($constituency_id > 0 && $state_id > 0) {
+        try {
+            $stmt = $db->prepare("SELECT state_id FROM federal_constituencies WHERE id = ?");
+            $stmt->execute([$constituency_id]);
+            $fc_state = $stmt->fetchColumn();
+            if ($fc_state && $fc_state != $state_id) {
+                $errors[] = 'Selected Federal Constituency does not belong to the selected State.';
+            }
+        } catch (Exception $e) {
+            // Skip validation on error
+        }
+    }
+    
+    // ============================================================
+    // VALIDATE THAT LGA MATCHES STATE
+    // ============================================================
+    if ($lga_id > 0 && $state_id > 0) {
+        try {
+            $stmt = $db->prepare("SELECT state_id FROM lgas WHERE id = ?");
+            $stmt->execute([$lga_id]);
+            $lga_state = $stmt->fetchColumn();
+            if ($lga_state && $lga_state != $state_id) {
+                $errors[] = 'Selected LGA does not belong to the selected State.';
+            }
+        } catch (Exception $e) {
+            // Skip validation on error
+        }
+    }
+    
+    // ============================================================
+    // VALIDATE THAT WARD MATCHES LGA
+    // ============================================================
+    if ($ward_id > 0 && $lga_id > 0) {
+        try {
+            $stmt = $db->prepare("SELECT lga_id FROM wards WHERE id = ?");
+            $stmt->execute([$ward_id]);
+            $ward_lga = $stmt->fetchColumn();
+            if ($ward_lga && $ward_lga != $lga_id) {
+                $errors[] = 'Selected Ward does not belong to the selected LGA.';
+            }
+        } catch (Exception $e) {
+            // Skip validation on error
+        }
+    }
+    
+    // ============================================================
+    // VALIDATE THAT PU MATCHES WARD
+    // ============================================================
+    if ($pu_id > 0 && $ward_id > 0) {
+        try {
+            $stmt = $db->prepare("SELECT ward_id FROM polling_units WHERE id = ?");
+            $stmt->execute([$pu_id]);
+            $pu_ward = $stmt->fetchColumn();
+            if ($pu_ward && $pu_ward != $ward_id) {
+                $errors[] = 'Selected Polling Unit does not belong to the selected Ward.';
+            }
+        } catch (Exception $e) {
+            // Skip validation on error
+        }
+    }
+    
     // Check if email exists
     if (empty($errors)) {
         try {
@@ -164,7 +289,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $errors[] = 'Email already registered.';
             }
         } catch (Exception $e) {
-            // Continue
+            error_log("Email check error: " . $e->getMessage());
         }
     }
     
@@ -453,6 +578,25 @@ include 'includes/sidebar.php';
     display: none !important;
 }
 
+.jurisdiction-group {
+    background: #F8FAFC;
+    border-radius: 8px;
+    padding: 16px;
+    grid-column: 1 / -1;
+}
+.jurisdiction-group .jurisdiction-group-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--gray-600);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.jurisdiction-group .jurisdiction-group-title i {
+    color: var(--primary);
+}
+
 @media (max-width: 768px) {
     .form-grid {
         grid-template-columns: 1fr;
@@ -551,6 +695,7 @@ include 'includes/sidebar.php';
                         <select name="status">
                             <option value="active" <?php echo (isset($form_data['status']) && $form_data['status'] == 'active') ? 'selected' : ''; ?>>Active</option>
                             <option value="pending" <?php echo (isset($form_data['status']) && $form_data['status'] == 'pending') ? 'selected' : ''; ?>>Pending</option>
+                            <option value="suspended" <?php echo (isset($form_data['status']) && $form_data['status'] == 'suspended') ? 'selected' : ''; ?>>Suspended</option>
                         </select>
                     </div>
 
@@ -607,81 +752,90 @@ include 'includes/sidebar.php';
                     </div>
 
                     <!-- Jurisdiction -->
-                    <div class="form-section-title" id="jurisdictionTitle">
+                    <div class="form-section-title hidden" id="jurisdictionTitle">
                         <i class="fas fa-map-marker-alt"></i> Jurisdiction <span class="required">*</span>
                     </div>
                     
-                    <div class="jurisdiction-hint" id="jurisdictionHint">
+                    <div class="jurisdiction-hint hidden" id="jurisdictionHint">
                         <i class="fas fa-info-circle"></i>
                         Please select the jurisdiction for this user based on their role.
                     </div>
                     
-                    <!-- State -->
-                    <div class="form-group hidden" id="stateField">
-                        <label>State <span class="required">*</span></label>
-                        <select name="state_id" id="stateSelect" onchange="loadLGAs(); loadSenatorialDistricts(); loadFederalConstituencies();">
-                            <option value="">Select State</option>
-                            <?php foreach ($states as $state): ?>
-                                <option value="<?php echo $state['id']; ?>" <?php echo (isset($form_data['state_id']) && $form_data['state_id'] == $state['id']) ? 'selected' : ''; ?>>
-                                    <?php echo htmlspecialchars($state['name']); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    
-                    <!-- LGA -->
-                    <div class="form-group hidden" id="lgaField">
-                        <label>LGA <span class="required">*</span></label>
-                        <select name="lga_id" id="lgaSelect" onchange="loadWards()">
-                            <option value="">Select LGA</option>
-                            <?php if (isset($form_data['lga_id']) && $form_data['lga_id'] > 0): ?>
-                                <option value="<?php echo $form_data['lga_id']; ?>" selected>Loading...</option>
-                            <?php endif; ?>
-                        </select>
-                    </div>
-                    
-                    <!-- Ward -->
-                    <div class="form-group hidden" id="wardField">
-                        <label>Ward <span class="required">*</span></label>
-                        <select name="ward_id" id="wardSelect" onchange="loadPollingUnits()">
-                            <option value="">Select Ward</option>
-                            <?php if (isset($form_data['ward_id']) && $form_data['ward_id'] > 0): ?>
-                                <option value="<?php echo $form_data['ward_id']; ?>" selected>Loading...</option>
-                            <?php endif; ?>
-                        </select>
-                    </div>
-                    
-                    <!-- Polling Unit -->
-                    <div class="form-group hidden" id="puField">
-                        <label>Polling Unit <span class="required">*</span></label>
-                        <select name="pu_id" id="puSelect">
-                            <option value="">Select Polling Unit</option>
-                            <?php if (isset($form_data['pu_id']) && $form_data['pu_id'] > 0): ?>
-                                <option value="<?php echo $form_data['pu_id']; ?>" selected>Loading...</option>
-                            <?php endif; ?>
-                        </select>
-                    </div>
+                    <!-- Jurisdiction Group -->
+                    <div class="jurisdiction-group hidden" id="jurisdictionGroup">
+                        <div class="jurisdiction-group-title">
+                            <i class="fas fa-sitemap"></i> Select Jurisdiction
+                        </div>
+                        
+                        <div class="form-grid" style="grid-column:1/-1;padding:0;">
+                            <!-- State -->
+                            <div class="form-group hidden" id="stateField">
+                                <label>State <span class="required">*</span></label>
+                                <select name="state_id" id="stateSelect" onchange="loadLGAs(); loadSenatorialDistricts(); loadFederalConstituencies();">
+                                    <option value="">Select State</option>
+                                    <?php foreach ($states as $state): ?>
+                                        <option value="<?php echo $state['id']; ?>" <?php echo (isset($form_data['state_id']) && $form_data['state_id'] == $state['id']) ? 'selected' : ''; ?>>
+                                            <?php echo htmlspecialchars($state['name']); ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            
+                            <!-- LGA -->
+                            <div class="form-group hidden" id="lgaField">
+                                <label>LGA <span class="required">*</span></label>
+                                <select name="lga_id" id="lgaSelect" onchange="loadWards()">
+                                    <option value="">Select LGA</option>
+                                    <?php if (isset($form_data['lga_id']) && $form_data['lga_id'] > 0): ?>
+                                        <option value="<?php echo $form_data['lga_id']; ?>" selected>Loading...</option>
+                                    <?php endif; ?>
+                                </select>
+                            </div>
+                            
+                            <!-- Ward -->
+                            <div class="form-group hidden" id="wardField">
+                                <label>Ward <span class="required">*</span></label>
+                                <select name="ward_id" id="wardSelect" onchange="loadPollingUnits()">
+                                    <option value="">Select Ward</option>
+                                    <?php if (isset($form_data['ward_id']) && $form_data['ward_id'] > 0): ?>
+                                        <option value="<?php echo $form_data['ward_id']; ?>" selected>Loading...</option>
+                                    <?php endif; ?>
+                                </select>
+                            </div>
+                            
+                            <!-- Polling Unit -->
+                            <div class="form-group hidden" id="puField">
+                                <label>Polling Unit <span class="required">*</span></label>
+                                <select name="pu_id" id="puSelect">
+                                    <option value="">Select Polling Unit</option>
+                                    <?php if (isset($form_data['pu_id']) && $form_data['pu_id'] > 0): ?>
+                                        <option value="<?php echo $form_data['pu_id']; ?>" selected>Loading...</option>
+                                    <?php endif; ?>
+                                </select>
+                            </div>
 
-                    <!-- Senatorial District -->
-                    <div class="form-group hidden" id="senatorialField">
-                        <label>Senatorial District <span class="required">*</span></label>
-                        <select name="senatorial_id" id="senatorialSelect">
-                            <option value="">Select Senatorial District</option>
-                            <?php if (isset($form_data['senatorial_id']) && $form_data['senatorial_id'] > 0): ?>
-                                <option value="<?php echo $form_data['senatorial_id']; ?>" selected>Loading...</option>
-                            <?php endif; ?>
-                        </select>
-                    </div>
+                            <!-- Senatorial District -->
+                            <div class="form-group hidden" id="senatorialField">
+                                <label>Senatorial District <span class="required">*</span></label>
+                                <select name="senatorial_id" id="senatorialSelect">
+                                    <option value="">Select Senatorial District</option>
+                                    <?php if (isset($form_data['senatorial_id']) && $form_data['senatorial_id'] > 0): ?>
+                                        <option value="<?php echo $form_data['senatorial_id']; ?>" selected>Loading...</option>
+                                    <?php endif; ?>
+                                </select>
+                            </div>
 
-                    <!-- Federal Constituency -->
-                    <div class="form-group hidden" id="constituencyField">
-                        <label>Federal Constituency <span class="required">*</span></label>
-                        <select name="constituency_id" id="constituencySelect">
-                            <option value="">Select Federal Constituency</option>
-                            <?php if (isset($form_data['constituency_id']) && $form_data['constituency_id'] > 0): ?>
-                                <option value="<?php echo $form_data['constituency_id']; ?>" selected>Loading...</option>
-                            <?php endif; ?>
-                        </select>
+                            <!-- Federal Constituency -->
+                            <div class="form-group hidden" id="constituencyField">
+                                <label>Federal Constituency <span class="required">*</span></label>
+                                <select name="constituency_id" id="constituencySelect">
+                                    <option value="">Select Federal Constituency</option>
+                                    <?php if (isset($form_data['constituency_id']) && $form_data['constituency_id'] > 0): ?>
+                                        <option value="<?php echo $form_data['constituency_id']; ?>" selected>Loading...</option>
+                                    <?php endif; ?>
+                                </select>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Security -->
@@ -725,6 +879,9 @@ const roleJurisdictionMap = {
     'lga': ['stateField', 'lgaField'],
     'ward': ['stateField', 'lgaField', 'wardField'],
     'pu_agent': ['stateField', 'lgaField', 'wardField', 'puField'],
+    'party_agent': ['stateField', 'lgaField', 'wardField', 'puField'],
+    'volunteer': ['stateField', 'lgaField', 'wardField', 'puField'],
+    'observer': ['stateField', 'lgaField', 'wardField', 'puField'],
     'national': [],
     'client_admin': []
 };
@@ -763,13 +920,17 @@ function updateJurisdictionFields() {
         if (field) field.classList.remove('hidden');
     });
     
-    // Show/hide jurisdiction section title
+    // Show/hide jurisdiction section
+    var group = document.getElementById('jurisdictionGroup');
     var title = document.getElementById('jurisdictionTitle');
     var hint = document.getElementById('jurisdictionHint');
+    
     if (fieldsToShow.length > 0) {
+        group.classList.remove('hidden');
         title.classList.remove('hidden');
         hint.classList.remove('hidden');
     } else {
+        group.classList.add('hidden');
         title.classList.add('hidden');
         hint.classList.add('hidden');
     }

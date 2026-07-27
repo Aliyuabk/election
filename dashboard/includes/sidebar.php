@@ -120,7 +120,104 @@ function getJurisdictionName($role, $state_id, $lga_id, $ward_id, $pu_id, $senat
 $role_menus = [];
 
 // ============================================================
-// 1. NATIONAL COORDINATOR MENU
+// SENATORIAL COORDINATOR MENU - COMPLETE
+// ============================================================
+$role_menus['senatorial'] = [
+    'main' => [
+        ['label' => 'Dashboard', 'icon' => 'fa-th-large', 'url' => 'index.php', 'active' => 'dashboard'],
+        ['label' => 'Monitor Senatorial District', 'icon' => 'fa-university', 'url' => 'monitor-district.php'],
+    ],
+    'results' => [
+        ['label' => 'View Results', 'icon' => 'fa-chart-bar', 'dropdown' => true, 'id' => 'results-dropdown',
+            'items' => [
+                ['label' => 'By Federal Constituency', 'icon' => 'fa-building', 'url' => 'results-by-constituency.php'],
+                ['label' => 'By LGA', 'icon' => 'fa-map-marker-alt', 'url' => 'results-by-lga.php'],
+                ['label' => 'By Ward', 'icon' => 'fa-layer-group', 'url' => 'results-by-ward.php'],
+                ['label' => 'Polling Unit Results', 'icon' => 'fa-flag-checkered', 'url' => 'results-by-pu.php'],
+                ['label' => 'Compare Results', 'icon' => 'fa-balance-scale', 'url' => 'compare-results.php'],
+                ['label' => 'Result Status', 'icon' => 'fa-check-circle', 'url' => 'result-status.php'],
+                ['label' => 'Download Summary', 'icon' => 'fa-download', 'url' => 'download-results.php'],
+                ['label' => 'EC8A Overview', 'icon' => 'fa-file-alt', 'url' => 'ec8a-overview.php'],
+                ['label' => 'EC8B Overview', 'icon' => 'fa-file-alt', 'url' => 'ec8b-overview.php'],
+            ]
+        ]
+    ],
+    'reports' => [
+        ['label' => 'Reports', 'icon' => 'fa-file-alt', 'dropdown' => true, 'id' => 'reports-dropdown',
+            'items' => [
+                ['label' => 'Election Progress Report', 'icon' => 'fa-chart-line', 'url' => 'report-progress.php'],
+                ['label' => 'Federal Constituency Report', 'icon' => 'fa-building', 'url' => 'report-constituency.php'],
+                ['label' => 'LGA Report', 'icon' => 'fa-map-marker-alt', 'url' => 'report-lga.php'],
+                ['label' => 'Ward Report', 'icon' => 'fa-layer-group', 'url' => 'report-ward.php'],
+                ['label' => 'Polling Unit Report', 'icon' => 'fa-flag-checkered', 'url' => 'report-pu.php'],
+                ['label' => 'Result Summary Report', 'icon' => 'fa-file-alt', 'url' => 'report-results-summary.php'],
+                ['label' => 'Incident Report', 'icon' => 'fa-exclamation-triangle', 'url' => 'report-incidents.php'],
+                ['label' => 'Personnel Performance Report', 'icon' => 'fa-user-chart', 'url' => 'report-personnel.php'],
+                ['label' => 'Export PDF', 'icon' => 'fa-file-pdf', 'url' => 'export-pdf.php'],
+                ['label' => 'Export Excel', 'icon' => 'fa-file-excel', 'url' => 'export-excel.php'],
+                ['label' => 'Export CSV', 'icon' => 'fa-file-csv', 'url' => 'export-csv.php'],
+            ]
+        ]
+    ],
+    'communications' => [
+        ['label' => 'Broadcast', 'icon' => 'fa-bullhorn', 'dropdown' => true, 'id' => 'broadcast-dropdown',
+            'items' => [
+                ['label' => 'Create Broadcast', 'icon' => 'fa-plus', 'url' => 'broadcasts-create.php'],
+                ['label' => 'Edit Draft', 'icon' => 'fa-edit', 'url' => 'broadcasts-edit.php'],
+                ['label' => 'Delete Draft', 'icon' => 'fa-trash', 'url' => 'broadcasts-delete.php'],
+                ['label' => 'Send Broadcast', 'icon' => 'fa-paper-plane', 'url' => 'broadcasts-send.php'],
+                ['label' => 'Schedule Broadcast', 'icon' => 'fa-calendar-plus', 'url' => 'broadcasts-schedule.php'],
+                ['label' => 'Cancel Scheduled', 'icon' => 'fa-calendar-times', 'url' => 'broadcasts-cancel.php'],
+                ['label' => 'Broadcast History', 'icon' => 'fa-history', 'url' => 'broadcasts-history.php'],
+                ['label' => 'Search Broadcasts', 'icon' => 'fa-search', 'url' => 'broadcasts-search.php'],
+            ]
+        ],
+        ['label' => 'Incident Monitoring', 'icon' => 'fa-exclamation-triangle', 'dropdown' => true, 'id' => 'incident-dropdown',
+            'items' => [
+                ['label' => 'View Incidents', 'icon' => 'fa-list', 'url' => 'incidents.php'],
+                ['label' => 'Incident Details', 'icon' => 'fa-info-circle', 'url' => 'incident-details.php'],
+                ['label' => 'Search Incidents', 'icon' => 'fa-search', 'url' => 'incidents-search.php'],
+                ['label' => 'Filter by Status', 'icon' => 'fa-filter', 'url' => 'incidents-filter-status.php'],
+                ['label' => 'Filter by LGA', 'icon' => 'fa-map-marker-alt', 'url' => 'incidents-filter-lga.php'],
+                ['label' => 'Filter by Ward', 'icon' => 'fa-layer-group', 'url' => 'incidents-filter-ward.php'],
+                ['label' => 'Filter by Severity', 'icon' => 'fa-exclamation-circle', 'url' => 'incidents-filter-severity.php'],
+                ['label' => 'Update Status', 'icon' => 'fa-edit', 'url' => 'incident-update.php'],
+                ['label' => 'Assign Priority', 'icon' => 'fa-flag', 'url' => 'incident-priority.php'],
+                ['label' => 'Escalate to State', 'icon' => 'fa-arrow-up', 'url' => 'incident-escalate.php'],
+                ['label' => 'Close Incident', 'icon' => 'fa-times-circle', 'url' => 'incident-close.php'],
+                ['label' => 'Export Incident Report', 'icon' => 'fa-download', 'url' => 'incidents-export.php'],
+                ['label' => 'Add Notes', 'icon' => 'fa-sticky-note', 'url' => 'incident-add-notes.php'],
+            ]
+        ]
+    ],
+    'notifications' => [
+        ['label' => 'Notifications', 'icon' => 'fa-bell', 'dropdown' => true, 'id' => 'notifications-dropdown',
+            'items' => [
+                ['label' => 'View All Notifications', 'icon' => 'fa-list', 'url' => 'notifications.php'],
+                ['label' => 'Mark as Read', 'icon' => 'fa-check-double', 'url' => 'notifications-mark-read.php'],
+                ['label' => 'Delete Notification', 'icon' => 'fa-trash', 'url' => 'notifications-delete.php'],
+                ['label' => 'Broadcast Alerts', 'icon' => 'fa-bullhorn', 'url' => 'notifications-broadcasts.php'],
+                ['label' => 'Incident Alerts', 'icon' => 'fa-exclamation-triangle', 'url' => 'notifications-incidents.php'],
+                ['label' => 'System Alerts', 'icon' => 'fa-cog', 'url' => 'notifications-system.php'],
+            ]
+        ]
+    ],
+    'profile' => [
+        ['label' => 'Profile', 'icon' => 'fa-user', 'dropdown' => true, 'id' => 'profile-dropdown',
+            'items' => [
+                ['label' => 'View Profile', 'icon' => 'fa-id-card', 'url' => 'profile.php'],
+                ['label' => 'Update Profile', 'icon' => 'fa-edit', 'url' => 'profile-edit.php'],
+                ['label' => 'Change Password', 'icon' => 'fa-key', 'url' => 'change-password.php'],
+                ['label' => 'Activity Log', 'icon' => 'fa-clock', 'url' => 'profile-activity.php'],
+                ['label' => 'Security Settings', 'icon' => 'fa-shield-alt', 'url' => 'profile-security.php'],
+                ['label' => 'Logout', 'icon' => 'fa-sign-out-alt', 'url' => '../../auth/logout.php'],
+            ]
+        ]
+    ]
+];
+
+// ============================================================
+// NATIONAL COORDINATOR MENU
 // ============================================================
 $role_menus['national'] = [
     'main' => [
@@ -131,6 +228,7 @@ $role_menus['national'] = [
         ['label' => 'Elections', 'icon' => 'fa-vote-yea', 'dropdown' => true, 'id' => 'elections-dropdown',
             'items' => [
                 ['label' => 'All Elections', 'icon' => 'fa-list', 'url' => 'elections.php'],
+                ['label' => 'Create Election', 'icon' => 'fa-plus', 'url' => 'elections-create.php'],
             ]
         ]
     ],
@@ -160,7 +258,7 @@ $role_menus['national'] = [
 ];
 
 // ============================================================
-// 2. STATE COORDINATOR MENU
+// STATE COORDINATOR MENU
 // ============================================================
 $role_menus['state'] = [
     'main' => [
@@ -252,101 +350,7 @@ $role_menus['state'] = [
 ];
 
 // ============================================================
-// 3. SENATORIAL COORDINATOR MENU
-// ============================================================
-// ============================================================
-// SENATORIAL COORDINATOR MENU - SIMPLIFIED
-// ============================================================
-$role_menus['senatorial'] = [
-    'main' => [
-        ['label' => 'Dashboard', 'icon' => 'fa-th-large', 'url' => 'index.php', 'active' => 'dashboard'],
-        ['label' => 'Monitor Senatorial District', 'icon' => 'fa-university', 'url' => 'monitor-district.php'],
-    ],
-    'results' => [
-        ['label' => 'View Results', 'icon' => 'fa-chart-bar', 'dropdown' => true, 'id' => 'results-dropdown',
-            'items' => [
-                ['label' => 'By Federal Constituency', 'icon' => 'fa-building', 'url' => 'results-by-constituency.php'],
-                ['label' => 'By LGA', 'icon' => 'fa-map-marker-alt', 'url' => 'results-by-lga.php'],
-                ['label' => 'By Ward', 'icon' => 'fa-layer-group', 'url' => 'results-by-ward.php'],
-                ['label' => 'Polling Unit Results', 'icon' => 'fa-flag-checkered', 'url' => 'results-by-pu.php'],
-                ['label' => 'Compare Results', 'icon' => 'fa-balance-scale', 'url' => 'compare-results.php'],
-                ['label' => 'Result Status', 'icon' => 'fa-check-circle', 'url' => 'result-status.php'],
-                ['label' => 'Download Summary', 'icon' => 'fa-download', 'url' => 'download-results.php'],
-            ]
-        ]
-    ],
-    'reports' => [
-        ['label' => 'Reports', 'icon' => 'fa-file-alt', 'dropdown' => true, 'id' => 'reports-dropdown',
-            'items' => [
-                ['label' => 'Election Progress Report', 'icon' => 'fa-chart-line', 'url' => 'report-progress.php'],
-                ['label' => 'Federal Constituency Report', 'icon' => 'fa-building', 'url' => 'report-constituency.php'],
-                ['label' => 'LGA Report', 'icon' => 'fa-map-marker-alt', 'url' => 'report-lga.php'],
-                ['label' => 'Ward Report', 'icon' => 'fa-layer-group', 'url' => 'report-ward.php'],
-                ['label' => 'Polling Unit Report', 'icon' => 'fa-flag-checkered', 'url' => 'report-pu.php'],
-                ['label' => 'Result Summary Report', 'icon' => 'fa-file-alt', 'url' => 'report-results-summary.php'],
-                ['label' => 'Incident Report', 'icon' => 'fa-exclamation-triangle', 'url' => 'report-incidents.php'],
-                ['label' => 'Personnel Performance Report', 'icon' => 'fa-user-chart', 'url' => 'report-personnel.php'],
-                ['label' => 'Export PDF', 'icon' => 'fa-file-pdf', 'url' => 'export-pdf.php'],
-                ['label' => 'Export Excel', 'icon' => 'fa-file-excel', 'url' => 'export-excel.php'],
-                ['label' => 'Export CSV', 'icon' => 'fa-file-csv', 'url' => 'export-csv.php'],
-            ]
-        ]
-    ],
-    'communications' => [
-        ['label' => 'Broadcast', 'icon' => 'fa-bullhorn', 'dropdown' => true, 'id' => 'broadcast-dropdown',
-            'items' => [
-                ['label' => 'Create Broadcast', 'icon' => 'fa-plus', 'url' => 'broadcasts-create.php'],
-                ['label' => 'Edit Draft', 'icon' => 'fa-edit', 'url' => 'broadcasts-edit.php'],
-                ['label' => 'Delete Draft', 'icon' => 'fa-trash', 'url' => 'broadcasts-delete.php'],
-                ['label' => 'Send Broadcast', 'icon' => 'fa-paper-plane', 'url' => 'broadcasts-send.php'],
-                ['label' => 'Schedule Broadcast', 'icon' => 'fa-calendar-plus', 'url' => 'broadcasts-schedule.php'],
-                ['label' => 'Cancel Scheduled', 'icon' => 'fa-calendar-times', 'url' => 'broadcasts-cancel.php'],
-                ['label' => 'Broadcast History', 'icon' => 'fa-history', 'url' => 'broadcasts-history.php'],
-                ['label' => 'Search Broadcasts', 'icon' => 'fa-search', 'url' => 'broadcasts-search.php'],
-            ]
-        ],
-        ['label' => 'Incident Monitoring', 'icon' => 'fa-exclamation-triangle', 'dropdown' => true, 'id' => 'incident-dropdown',
-            'items' => [
-                ['label' => 'View Incidents', 'icon' => 'fa-list', 'url' => 'incidents.php'],
-                ['label' => 'Incident Details', 'icon' => 'fa-info-circle', 'url' => 'incident-details.php'],
-                ['label' => 'Search Incidents', 'icon' => 'fa-search', 'url' => 'incidents-search.php'],
-                ['label' => 'Filter by Status', 'icon' => 'fa-filter', 'url' => 'incidents-filter-status.php'],
-                ['label' => 'Filter by LGA', 'icon' => 'fa-map-marker-alt', 'url' => 'incidents-filter-lga.php'],
-                ['label' => 'Filter by Ward', 'icon' => 'fa-layer-group', 'url' => 'incidents-filter-ward.php'],
-                ['label' => 'Filter by Severity', 'icon' => 'fa-exclamation-circle', 'url' => 'incidents-filter-severity.php'],
-                ['label' => 'Update Status', 'icon' => 'fa-edit', 'url' => 'incident-update.php'],
-                ['label' => 'Assign Priority', 'icon' => 'fa-flag', 'url' => 'incident-priority.php'],
-                ['label' => 'Escalate to State', 'icon' => 'fa-arrow-up', 'url' => 'incident-escalate.php'],
-                ['label' => 'Close Incident', 'icon' => 'fa-times-circle', 'url' => 'incident-close.php'],
-                ['label' => 'Export Incident Report', 'icon' => 'fa-download', 'url' => 'incidents-export.php'],
-            ]
-        ]
-    ],
-    'notifications' => [
-        ['label' => 'Notifications', 'icon' => 'fa-bell', 'dropdown' => true, 'id' => 'notifications-dropdown',
-            'items' => [
-                ['label' => 'View All Notifications', 'icon' => 'fa-list', 'url' => 'notifications.php'],
-                ['label' => 'Mark as Read', 'icon' => 'fa-check-double', 'url' => 'notifications-mark-read.php'],
-                ['label' => 'Delete Notification', 'icon' => 'fa-trash', 'url' => 'notifications-delete.php'],
-                ['label' => 'Broadcast Alerts', 'icon' => 'fa-bullhorn', 'url' => 'notifications-broadcasts.php'],
-                ['label' => 'Incident Alerts', 'icon' => 'fa-exclamation-triangle', 'url' => 'notifications-incidents.php'],
-            ]
-        ]
-    ],
-    'profile' => [
-        ['label' => 'Profile', 'icon' => 'fa-user', 'dropdown' => true, 'id' => 'profile-dropdown',
-            'items' => [
-                ['label' => 'View Profile', 'icon' => 'fa-id-card', 'url' => 'profile.php'],
-                ['label' => 'Update Profile', 'icon' => 'fa-edit', 'url' => 'profile-edit.php'],
-                ['label' => 'Change Password', 'icon' => 'fa-key', 'url' => 'change-password.php'],
-                ['label' => 'Logout', 'icon' => 'fa-sign-out-alt', 'url' => '../../auth/logout.php'],
-            ]
-        ]
-    ]
-];
-
-// ============================================================
-// 4. FEDERAL CONSTITUENCY COORDINATOR MENU
+// FEDERAL CONSTITUENCY COORDINATOR MENU
 // ============================================================
 $role_menus['federal_constituency'] = [
     'main' => [
@@ -388,11 +392,21 @@ $role_menus['federal_constituency'] = [
                 ['label' => 'Incident Report', 'icon' => 'fa-file-alt', 'url' => 'reports-incident.php'],
             ]
         ]
+    ],
+    'profile' => [
+        ['label' => 'Profile', 'icon' => 'fa-user', 'dropdown' => true, 'id' => 'profile-dropdown',
+            'items' => [
+                ['label' => 'View Profile', 'icon' => 'fa-id-card', 'url' => 'profile.php'],
+                ['label' => 'Update Profile', 'icon' => 'fa-edit', 'url' => 'profile-edit.php'],
+                ['label' => 'Change Password', 'icon' => 'fa-key', 'url' => 'change-password.php'],
+                ['label' => 'Logout', 'icon' => 'fa-sign-out-alt', 'url' => '../../auth/logout.php'],
+            ]
+        ]
     ]
 ];
 
 // ============================================================
-// 5. LGA COORDINATOR MENU
+// LGA COORDINATOR MENU
 // ============================================================
 $role_menus['lga'] = [
     'main' => [
@@ -447,11 +461,21 @@ $role_menus['lga'] = [
                 ['label' => 'Agent Report', 'icon' => 'fa-file-alt', 'url' => 'reports-agents.php'],
             ]
         ]
+    ],
+    'profile' => [
+        ['label' => 'Profile', 'icon' => 'fa-user', 'dropdown' => true, 'id' => 'profile-dropdown',
+            'items' => [
+                ['label' => 'View Profile', 'icon' => 'fa-id-card', 'url' => 'profile.php'],
+                ['label' => 'Update Profile', 'icon' => 'fa-edit', 'url' => 'profile-edit.php'],
+                ['label' => 'Change Password', 'icon' => 'fa-key', 'url' => 'change-password.php'],
+                ['label' => 'Logout', 'icon' => 'fa-sign-out-alt', 'url' => '../../auth/logout.php'],
+            ]
+        ]
     ]
 ];
 
 // ============================================================
-// 6. WARD COORDINATOR MENU - COMPLETE WITH ALL FEATURES
+// WARD COORDINATOR MENU
 // ============================================================
 $role_menus['ward'] = [
     'main' => [
@@ -595,7 +619,7 @@ $role_menus['ward'] = [
 ];
 
 // ============================================================
-// 7. PU AGENT MENU
+// PU AGENT MENU
 // ============================================================
 $role_menus['pu_agent'] = [
     'main' => [
@@ -622,7 +646,7 @@ $role_menus['pu_agent'] = [
 ];
 
 // ============================================================
-// 8. PARTY AGENT MENU
+// PARTY AGENT MENU
 // ============================================================
 $role_menus['party_agent'] = [
     'main' => [
@@ -635,11 +659,14 @@ $role_menus['party_agent'] = [
     'communications' => [
         ['label' => 'Report Incident', 'icon' => 'fa-exclamation-triangle', 'url' => 'report-incident.php'],
         ['label' => 'Broadcast', 'icon' => 'fa-bullhorn', 'url' => 'broadcasts.php'],
+    ],
+    'profile' => [
+        ['label' => 'My Profile', 'icon' => 'fa-user', 'url' => 'profile.php'],
     ]
 ];
 
 // ============================================================
-// 9. OBSERVER MENU
+// OBSERVER MENU
 // ============================================================
 $role_menus['observer'] = [
     'main' => [
@@ -650,11 +677,45 @@ $role_menus['observer'] = [
     ],
     'communications' => [
         ['label' => 'Report Incident', 'icon' => 'fa-exclamation-triangle', 'url' => 'report-incident.php'],
+    ],
+    'profile' => [
+        ['label' => 'My Profile', 'icon' => 'fa-user', 'url' => 'profile.php'],
     ]
 ];
 
 // ============================================================
-// 10. SITUATION ROOM MENU
+// VOLUNTEER MENU
+// ============================================================
+$role_menus['volunteer'] = [
+    'main' => [
+        ['label' => 'Dashboard', 'icon' => 'fa-th-large', 'url' => 'index.php', 'active' => 'dashboard'],
+        ['label' => 'My Tasks', 'icon' => 'fa-tasks', 'url' => 'my-tasks.php', 'badge' => 'New'],
+    ],
+    'tasks' => [
+        ['label' => 'Tasks', 'icon' => 'fa-clipboard-list', 'dropdown' => true, 'id' => 'tasks-dropdown',
+            'items' => [
+                ['label' => 'View Tasks', 'icon' => 'fa-list', 'url' => 'tasks.php'],
+                ['label' => 'Update Progress', 'icon' => 'fa-chart-line', 'url' => 'task-progress.php'],
+                ['label' => 'Task History', 'icon' => 'fa-history', 'url' => 'task-history.php'],
+            ]
+        ]
+    ],
+    'reports' => [
+        ['label' => 'Submit Report', 'icon' => 'fa-file-alt', 'url' => 'submit-report.php'],
+        ['label' => 'Report History', 'icon' => 'fa-history', 'url' => 'report-history.php'],
+    ],
+    'communications' => [
+        ['label' => 'Chat', 'icon' => 'fa-comment-dots', 'url' => 'chat.php'],
+        ['label' => 'Broadcasts', 'icon' => 'fa-bullhorn', 'url' => 'broadcasts.php'],
+        ['label' => 'Report Incident', 'icon' => 'fa-exclamation-triangle', 'url' => 'report-incident.php'],
+    ],
+    'profile' => [
+        ['label' => 'My Profile', 'icon' => 'fa-user', 'url' => 'profile.php'],
+    ]
+];
+
+// ============================================================
+// SITUATION ROOM MENU
 // ============================================================
 $role_menus['situation_room'] = [
     'main' => [
@@ -687,11 +748,14 @@ $role_menus['situation_room'] = [
                 ['label' => 'Election Report', 'icon' => 'fa-file-alt', 'url' => 'reports-election.php'],
             ]
         ]
+    ],
+    'profile' => [
+        ['label' => 'Profile', 'icon' => 'fa-user', 'url' => 'profile.php'],
     ]
 ];
 
 // ============================================================
-// 11. FINANCE OFFICER MENU
+// FINANCE OFFICER MENU
 // ============================================================
 $role_menus['finance_officer'] = [
     'main' => [
@@ -728,11 +792,14 @@ $role_menus['finance_officer'] = [
                 ['label' => 'Payment History', 'icon' => 'fa-history', 'url' => 'reports-payment-history.php'],
             ]
         ]
+    ],
+    'profile' => [
+        ['label' => 'Profile', 'icon' => 'fa-user', 'url' => 'profile.php'],
     ]
 ];
 
 // ============================================================
-// 12. CITIZEN MENU
+// CITIZEN MENU
 // ============================================================
 $role_menus['citizen'] = [
     'main' => [
@@ -743,39 +810,14 @@ $role_menus['citizen'] = [
     ],
     'communications' => [
         ['label' => 'Report Incident', 'icon' => 'fa-exclamation-triangle', 'url' => 'report-incident.php'],
+    ],
+    'profile' => [
+        ['label' => 'My Profile', 'icon' => 'fa-user', 'url' => 'profile.php'],
     ]
 ];
 
 // ============================================================
-// 13. VOLUNTEER MENU
-// ============================================================
-$role_menus['volunteer'] = [
-    'main' => [
-        ['label' => 'Dashboard', 'icon' => 'fa-th-large', 'url' => 'index.php', 'active' => 'dashboard'],
-        ['label' => 'My Tasks', 'icon' => 'fa-tasks', 'url' => 'my-tasks.php', 'badge' => 'New'],
-    ],
-    'tasks' => [
-        ['label' => 'Tasks', 'icon' => 'fa-clipboard-list', 'dropdown' => true, 'id' => 'tasks-dropdown',
-            'items' => [
-                ['label' => 'View Tasks', 'icon' => 'fa-list', 'url' => 'tasks.php'],
-                ['label' => 'Update Progress', 'icon' => 'fa-chart-line', 'url' => 'task-progress.php'],
-                ['label' => 'Task History', 'icon' => 'fa-history', 'url' => 'task-history.php'],
-            ]
-        ]
-    ],
-    'reports' => [
-        ['label' => 'Submit Report', 'icon' => 'fa-file-alt', 'url' => 'submit-report.php'],
-        ['label' => 'Report History', 'icon' => 'fa-history', 'url' => 'report-history.php'],
-    ],
-    'communications' => [
-        ['label' => 'Chat', 'icon' => 'fa-comment-dots', 'url' => 'chat.php'],
-        ['label' => 'Broadcasts', 'icon' => 'fa-bullhorn', 'url' => 'broadcasts.php'],
-        ['label' => 'Report Incident', 'icon' => 'fa-exclamation-triangle', 'url' => 'report-incident.php'],
-    ]
-];
-
-// ============================================================
-// 14. CLIENT ADMINISTRATOR MENU (Full Access)
+// CLIENT ADMINISTRATOR MENU (Full Access)
 // ============================================================
 $role_menus['client_admin'] = [
     'main' => [
