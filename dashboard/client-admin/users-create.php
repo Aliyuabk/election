@@ -5,6 +5,7 @@
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
 require_once '../../includes/functions.php';
+require_once '../../includes/Database.php';
 
 SessionManager::start();
 
@@ -18,26 +19,32 @@ if (SessionManager::get('role_level') !== 'client_admin') {
     exit();
 }
 
-$db = getDB();
+$db = Database::getInstance()->getConnection();
 $user_id = SessionManager::get('user_id');
 $tenant_id = SessionManager::get('tenant_id');
 
 // ============================================================
-// FETCH ROLES
+// FETCH ROLES (Only roles the client admin can assign)
 // ============================================================
 $roles = [];
 try {
+    // Client admins can assign: national, state, senatorial, federal_constituency, lga, ward, pu_agent, volunteer, observer
+    $allowed_levels = ['national', 'state', 'senatorial', 'federal_constituency', 'lga', 'ward', 'pu_agent', 'volunteer', 'observer'];
+    $placeholders = implode(',', array_fill(0, count($allowed_levels), '?'));
+    
     $stmt = $db->prepare("
         SELECT r.id, r.name, r.level 
         FROM roles r 
         WHERE (r.tenant_id = ? OR r.tenant_id IS NULL) 
         AND r.is_active = 1 
-        ORDER BY FIELD(r.level, 'client_admin', 'national', 'state', 'senatorial', 'federal_constituency', 'lga', 'ward', 'pu_agent'), r.name
+        AND r.level IN ($placeholders)
+        ORDER BY FIELD(r.level, 'client_admin', 'national', 'state', 'senatorial', 'federal_constituency', 'lga', 'ward', 'pu_agent', 'volunteer', 'observer'), r.name
     ");
-    $stmt->execute([$tenant_id]);
+    $params = array_merge([$tenant_id], $allowed_levels);
+    $stmt->execute($params);
     $roles = $stmt->fetchAll();
 } catch (Exception $e) {
-    // Continue
+    error_log("Error fetching roles: " . $e->getMessage());
 }
 
 // ============================================================
@@ -49,7 +56,7 @@ try {
     $stmt->execute();
     $states = $stmt->fetchAll();
 } catch (Exception $e) {
-    // Continue
+    error_log("Error fetching states: " . $e->getMessage());
 }
 
 // ============================================================
@@ -57,6 +64,7 @@ try {
 // ============================================================
 $error = '';
 $success = '';
+$form_data = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $first_name = trim($_POST['first_name'] ?? '');
@@ -82,6 +90,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     $errors = [];
     
+    // Store form data for repopulation
+    $form_data = [
+        'first_name' => $first_name,
+        'last_name' => $last_name,
+        'email' => $email,
+        'phone' => $phone,
+        'role_id' => $role_id,
+        'status' => $status,
+        'gender' => $gender,
+        'date_of_birth' => $date_of_birth,
+        'nin' => $nin,
+        'address' => $address,
+        'state_id' => $state_id,
+        'lga_id' => $lga_id,
+        'ward_id' => $ward_id,
+        'pu_id' => $pu_id,
+        'senatorial_id' => $senatorial_id,
+        'constituency_id' => $constituency_id
+    ];
+    
+    // Validation
     if (empty($first_name)) $errors[] = 'First name is required.';
     if (empty($last_name)) $errors[] = 'Last name is required.';
     if (empty($email)) $errors[] = 'Email is required.';
@@ -92,28 +121,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     // Get role level for validation
     $role_level = '';
+    $role_name = '';
     foreach ($roles as $role) {
         if ($role['id'] == $role_id) {
             $role_level = $role['level'];
+            $role_name = $role['name'];
             break;
         }
     }
     
-    // Jurisdiction validation based on role
-    if ($role_level === 'state' || $role_level === 'senatorial' || $role_level === 'federal_constituency' || $role_level === 'lga' || $role_level === 'ward' || $role_level === 'pu_agent') {
-        if ($state_id <= 0) $errors[] = 'State is required for this role.';
+    if (empty($role_level)) {
+        $errors[] = 'Invalid role selected.';
     }
     
-    if ($role_level === 'lga' || $role_level === 'ward' || $role_level === 'pu_agent') {
-        if ($lga_id <= 0) $errors[] = 'LGA is required for this role.';
-    }
+    // ============================================================
+    // JURISDICTION VALIDATION BASED ON ROLE
+    // ============================================================
+    $jurisdiction_map = [
+        'state' => ['state_id' => 'State'],
+        'senatorial' => ['state_id' => 'State', 'senatorial_id' => 'Senatorial District'],
+        'federal_constituency' => ['state_id' => 'State', 'constituency_id' => 'Federal Constituency'],
+        'lga' => ['state_id' => 'State', 'lga_id' => 'LGA'],
+        'ward' => ['state_id' => 'State', 'lga_id' => 'LGA', 'ward_id' => 'Ward'],
+        'pu_agent' => ['state_id' => 'State', 'lga_id' => 'LGA', 'ward_id' => 'Ward', 'pu_id' => 'Polling Unit'],
+        'volunteer' => ['state_id' => 'State', 'lga_id' => 'LGA', 'ward_id' => 'Ward', 'pu_id' => 'Polling Unit'],
+        'observer' => ['state_id' => 'State', 'lga_id' => 'LGA', 'ward_id' => 'Ward', 'pu_id' => 'Polling Unit'],
+        'national' => [],
+        'client_admin' => []
+    ];
     
-    if ($role_level === 'ward' || $role_level === 'pu_agent') {
-        if ($ward_id <= 0) $errors[] = 'Ward is required for this role.';
-    }
-    
-    if ($role_level === 'pu_agent') {
-        if ($pu_id <= 0) $errors[] = 'Polling Unit is required for this role.';
+    if (isset($jurisdiction_map[$role_level])) {
+        foreach ($jurisdiction_map[$role_level] as $field => $label) {
+            $value = $$field ?? 0;
+            if ($value <= 0) {
+                $errors[] = "$label is required for the '$role_name' role.";
+            }
+        }
     }
     
     // Check if email exists
@@ -125,7 +168,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $errors[] = 'Email already registered.';
             }
         } catch (Exception $e) {
-            // Continue
+            error_log("Email check error: " . $e->getMessage());
         }
     }
     
@@ -133,6 +176,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $user_code = 'USR' . str_pad(rand(1, 999999), 6, '0', STR_PAD_LEFT);
             $password_hash = password_hash($password, PASSWORD_DEFAULT);
+            
+            $db->beginTransaction();
             
             $stmt = $db->prepare("
                 INSERT INTO users (
@@ -151,7 +196,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $first_name,
                 $last_name,
                 $email,
-                $phone,
+                $phone ?: null,
                 $password_hash,
                 $status,
                 $gender ?: null,
@@ -169,7 +214,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             $new_user_id = $db->lastInsertId();
             
-            logActivity($user_id, 'user_created', "Created user: $first_name $last_name (ID: $new_user_id)");
+            // Log activity
+            logActivity($user_id, 'user_created', "Created user: $first_name $last_name (ID: $new_user_id) with role: $role_name");
+            
+            $db->commit();
             
             // Send welcome email
             try {
@@ -189,10 +237,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             $success = "User created successfully! They will receive login details via email.";
             
+            // Clear form data on success
+            $form_data = [];
+            
         } catch (PDOException $e) {
+            $db->rollBack();
             $error = 'Database error: ' . $e->getMessage();
             error_log("User creation PDO Error: " . $e->getMessage());
         } catch (Exception $e) {
+            $db->rollBack();
             $error = 'Error creating user: ' . $e->getMessage();
             error_log("User creation Error: " . $e->getMessage());
         }
@@ -490,7 +543,7 @@ include 'includes/sidebar.php';
                         <select name="role_id" id="roleSelect" required onchange="updateJurisdictionFields()">
                             <option value="">Select Role</option>
                             <?php foreach ($roles as $role): ?>
-                                <option value="<?php echo $role['id']; ?>" data-level="<?php echo $role['level']; ?>">
+                                <option value="<?php echo $role['id']; ?>" data-level="<?php echo $role['level']; ?>" <?php echo (isset($form_data['role_id']) && $form_data['role_id'] == $role['id']) ? 'selected' : ''; ?>>
                                     <?php echo htmlspecialchars($role['name']); ?>
                                 </option>
                             <?php endforeach; ?>
@@ -500,8 +553,8 @@ include 'includes/sidebar.php';
                     <div class="form-group">
                         <label>Status</label>
                         <select name="status">
-                            <option value="active">Active</option>
-                            <option value="pending">Pending</option>
+                            <option value="active" <?php echo (isset($form_data['status']) && $form_data['status'] == 'active') ? 'selected' : ''; ?>>Active</option>
+                            <option value="pending" <?php echo (isset($form_data['status']) && $form_data['status'] == 'pending') ? 'selected' : ''; ?>>Pending</option>
                         </select>
                     </div>
 
@@ -512,57 +565,57 @@ include 'includes/sidebar.php';
                     
                     <div class="form-group">
                         <label>First Name <span class="required">*</span></label>
-                        <input type="text" name="first_name" placeholder="John" required>
+                        <input type="text" name="first_name" placeholder="John" required value="<?php echo htmlspecialchars($form_data['first_name'] ?? ''); ?>">
                     </div>
                     
                     <div class="form-group">
                         <label>Last Name <span class="required">*</span></label>
-                        <input type="text" name="last_name" placeholder="Doe" required>
+                        <input type="text" name="last_name" placeholder="Doe" required value="<?php echo htmlspecialchars($form_data['last_name'] ?? ''); ?>">
                     </div>
                     
                     <div class="form-group">
                         <label>Email Address <span class="required">*</span></label>
-                        <input type="email" name="email" placeholder="user@organization.ng" required>
+                        <input type="email" name="email" placeholder="user@organization.ng" required value="<?php echo htmlspecialchars($form_data['email'] ?? ''); ?>">
                         <div class="help-text">This will be used for login.</div>
                     </div>
                     
                     <div class="form-group">
                         <label>Phone Number</label>
-                        <input type="tel" name="phone" placeholder="+234 800 555 5555">
+                        <input type="tel" name="phone" placeholder="+234 800 555 5555" value="<?php echo htmlspecialchars($form_data['phone'] ?? ''); ?>">
                     </div>
                     
                     <div class="form-group">
                         <label>Gender</label>
                         <select name="gender">
                             <option value="">Select Gender</option>
-                            <option value="male">Male</option>
-                            <option value="female">Female</option>
-                            <option value="other">Other</option>
-                            <option value="prefer_not_say">Prefer not to say</option>
+                            <option value="male" <?php echo (isset($form_data['gender']) && $form_data['gender'] == 'male') ? 'selected' : ''; ?>>Male</option>
+                            <option value="female" <?php echo (isset($form_data['gender']) && $form_data['gender'] == 'female') ? 'selected' : ''; ?>>Female</option>
+                            <option value="other" <?php echo (isset($form_data['gender']) && $form_data['gender'] == 'other') ? 'selected' : ''; ?>>Other</option>
+                            <option value="prefer_not_say" <?php echo (isset($form_data['gender']) && $form_data['gender'] == 'prefer_not_say') ? 'selected' : ''; ?>>Prefer not to say</option>
                         </select>
                     </div>
                     
                     <div class="form-group">
                         <label>Date of Birth</label>
-                        <input type="date" name="date_of_birth">
+                        <input type="date" name="date_of_birth" value="<?php echo htmlspecialchars($form_data['date_of_birth'] ?? ''); ?>">
                     </div>
                     
                     <div class="form-group full-width">
                         <label>NIN (Optional)</label>
-                        <input type="text" name="nin" placeholder="National Identification Number">
+                        <input type="text" name="nin" placeholder="National Identification Number" value="<?php echo htmlspecialchars($form_data['nin'] ?? ''); ?>">
                     </div>
 
                     <div class="form-group full-width">
                         <label>Residential Address</label>
-                        <input type="text" name="address" placeholder="Enter full address">
+                        <input type="text" name="address" placeholder="Enter full address" value="<?php echo htmlspecialchars($form_data['address'] ?? ''); ?>">
                     </div>
 
                     <!-- Jurisdiction -->
-                    <div class="form-section-title" id="jurisdictionTitle">
+                    <div class="form-section-title hidden" id="jurisdictionTitle">
                         <i class="fas fa-map-marker-alt"></i> Jurisdiction <span class="required">*</span>
                     </div>
                     
-                    <div class="jurisdiction-hint" id="jurisdictionHint">
+                    <div class="jurisdiction-hint hidden" id="jurisdictionHint">
                         <i class="fas fa-info-circle"></i>
                         Please select the jurisdiction for this user based on their role.
                     </div>
@@ -573,7 +626,9 @@ include 'includes/sidebar.php';
                         <select name="state_id" id="stateSelect" onchange="loadLGAs()">
                             <option value="">Select State</option>
                             <?php foreach ($states as $state): ?>
-                                <option value="<?php echo $state['id']; ?>"><?php echo htmlspecialchars($state['name']); ?></option>
+                                <option value="<?php echo $state['id']; ?>" <?php echo (isset($form_data['state_id']) && $form_data['state_id'] == $state['id']) ? 'selected' : ''; ?>>
+                                    <?php echo htmlspecialchars($state['name']); ?>
+                                </option>
                             <?php endforeach; ?>
                         </select>
                     </div>
@@ -659,8 +714,22 @@ const roleJurisdictionMap = {
     'lga': ['stateField', 'lgaField'],
     'ward': ['stateField', 'lgaField', 'wardField'],
     'pu_agent': ['stateField', 'lgaField', 'wardField', 'puField'],
+    'volunteer': ['stateField', 'lgaField', 'wardField', 'puField'],
+    'observer': ['stateField', 'lgaField', 'wardField', 'puField'],
     'national': [],
     'client_admin': []
+};
+
+// ============================================================
+// PRESELECTED VALUES FOR DROPDOWNS
+// ============================================================
+const preselected = {
+    state_id: <?php echo json_encode($form_data['state_id'] ?? 0); ?>,
+    lga_id: <?php echo json_encode($form_data['lga_id'] ?? 0); ?>,
+    ward_id: <?php echo json_encode($form_data['ward_id'] ?? 0); ?>,
+    pu_id: <?php echo json_encode($form_data['pu_id'] ?? 0); ?>,
+    senatorial_id: <?php echo json_encode($form_data['senatorial_id'] ?? 0); ?>,
+    constituency_id: <?php echo json_encode($form_data['constituency_id'] ?? 0); ?>
 };
 
 // ============================================================
@@ -719,17 +788,28 @@ function updateJurisdictionFields() {
 // RESET DROPDOWNS
 // ============================================================
 function resetDropdowns() {
-    document.getElementById('lgaSelect').innerHTML = '<option value="">Select LGA</option>';
-    document.getElementById('wardSelect').innerHTML = '<option value="">Select Ward</option>';
-    document.getElementById('puSelect').innerHTML = '<option value="">Select Polling Unit</option>';
-    document.getElementById('senatorialSelect').innerHTML = '<option value="">Select Senatorial District</option>';
-    document.getElementById('constituencySelect').innerHTML = '<option value="">Select Federal Constituency</option>';
+    var lgaSelect = document.getElementById('lgaSelect');
+    var wardSelect = document.getElementById('wardSelect');
+    var puSelect = document.getElementById('puSelect');
+    var senatorialSelect = document.getElementById('senatorialSelect');
+    var constituencySelect = document.getElementById('constituencySelect');
+    
+    lgaSelect.innerHTML = '<option value="">Select LGA</option>';
+    wardSelect.innerHTML = '<option value="">Select Ward</option>';
+    puSelect.innerHTML = '<option value="">Select Polling Unit</option>';
+    senatorialSelect.innerHTML = '<option value="">Select Senatorial District</option>';
+    constituencySelect.innerHTML = '<option value="">Select Federal Constituency</option>';
+    
+    // If we have preselected values, load them
+    if (preselected.state_id > 0) {
+        loadLGAs(true);
+    }
 }
 
 // ============================================================
 // LOAD LGAS
 // ============================================================
-function loadLGAs() {
+function loadLGAs(skipPreselect) {
     var stateId = document.getElementById('stateSelect').value;
     var lgaSelect = document.getElementById('lgaSelect');
     lgaSelect.innerHTML = '<option value="">Loading...</option>';
@@ -748,8 +828,15 @@ function loadLGAs() {
                     var option = document.createElement('option');
                     option.value = lga.id;
                     option.textContent = lga.name;
+                    if (!skipPreselect && preselected.lga_id == lga.id) {
+                        option.selected = true;
+                    }
                     lgaSelect.appendChild(option);
                 });
+                // If we have a preselected LGA, load wards
+                if (!skipPreselect && preselected.lga_id > 0) {
+                    loadWards(true);
+                }
             } else {
                 lgaSelect.innerHTML = '<option value="">No LGAs found</option>';
             }
@@ -762,7 +849,7 @@ function loadLGAs() {
 // ============================================================
 // LOAD WARDS
 // ============================================================
-function loadWards() {
+function loadWards(skipPreselect) {
     var lgaId = document.getElementById('lgaSelect').value;
     var wardSelect = document.getElementById('wardSelect');
     wardSelect.innerHTML = '<option value="">Loading...</option>';
@@ -781,8 +868,15 @@ function loadWards() {
                     var option = document.createElement('option');
                     option.value = ward.id;
                     option.textContent = ward.name;
+                    if (!skipPreselect && preselected.ward_id == ward.id) {
+                        option.selected = true;
+                    }
                     wardSelect.appendChild(option);
                 });
+                // If we have a preselected Ward, load polling units
+                if (!skipPreselect && preselected.ward_id > 0) {
+                    loadPollingUnits(true);
+                }
             } else {
                 wardSelect.innerHTML = '<option value="">No Wards found</option>';
             }
@@ -795,7 +889,7 @@ function loadWards() {
 // ============================================================
 // LOAD POLLING UNITS
 // ============================================================
-function loadPollingUnits() {
+function loadPollingUnits(skipPreselect) {
     var wardId = document.getElementById('wardSelect').value;
     var puSelect = document.getElementById('puSelect');
     puSelect.innerHTML = '<option value="">Loading...</option>';
@@ -814,6 +908,9 @@ function loadPollingUnits() {
                     var option = document.createElement('option');
                     option.value = pu.id;
                     option.textContent = pu.name + ' (' + pu.code + ')';
+                    if (!skipPreselect && preselected.pu_id == pu.id) {
+                        option.selected = true;
+                    }
                     puSelect.appendChild(option);
                 });
             } else {
@@ -847,6 +944,9 @@ function loadSenatorialDistricts() {
                     var option = document.createElement('option');
                     option.value = sd.id;
                     option.textContent = sd.name;
+                    if (preselected.senatorial_id == sd.id) {
+                        option.selected = true;
+                    }
                     senatorialSelect.appendChild(option);
                 });
             } else {
@@ -880,6 +980,9 @@ function loadFederalConstituencies() {
                     var option = document.createElement('option');
                     option.value = fc.id;
                     option.textContent = fc.name;
+                    if (preselected.constituency_id == fc.id) {
+                        option.selected = true;
+                    }
                     constituencySelect.appendChild(option);
                 });
             } else {
@@ -910,7 +1013,18 @@ document.getElementById('createUserForm').addEventListener('submit', function(e)
 // INITIALIZE ON LOAD
 // ============================================================
 document.addEventListener('DOMContentLoaded', function() {
+    // First, set the role and show/hide fields
     updateJurisdictionFields();
+    
+    // Then, if state is preselected, load dependent data
+    if (preselected.state_id > 0) {
+        // Load LGAs with preselected values
+        loadLGAs(false);
+        // Load Senatorial Districts
+        loadSenatorialDistricts();
+        // Load Federal Constituencies
+        loadFederalConstituencies();
+    }
 });
 
 // ============================================================
