@@ -25,7 +25,9 @@ $tenant_id = SessionManager::get('tenant_id');
 
 $db = getDB();
 
-// Get Senatorial District name
+// ============================================================
+// GET SENATORIAL DISTRICT NAME
+// ============================================================
 $district_name = 'Senatorial District';
 $state_name = 'State';
 try {
@@ -44,35 +46,50 @@ try {
         }
     }
 } catch (Exception $e) {
-    $district_name = 'Senatorial District';
-    $state_name = 'State';
+    error_log("Error fetching district: " . $e->getMessage());
 }
 
-// Get LGAs in this senatorial district
+// ============================================================
+// GET LGA IDs FROM SENATORIAL DISTRICT
+// ============================================================
 $lga_ids = [];
 try {
-    $stmt = $db->prepare("SELECT lgas_json FROM senatorial_districts WHERE id = ?");
-    $stmt->execute([$senatorial_id]);
-    $lgas_json = $stmt->fetchColumn();
-    if ($lgas_json) {
-        $lga_ids = json_decode($lgas_json, true) ?: [];
+    if ($senatorial_id) {
+        $stmt = $db->prepare("SELECT lgas_json FROM senatorial_districts WHERE id = ?");
+        $stmt->execute([$senatorial_id]);
+        $lgas_json = $stmt->fetchColumn();
+        
+        if ($lgas_json) {
+            $lga_names = json_decode($lgas_json, true) ?: [];
+            
+            if (!empty($lga_names)) {
+                $placeholders = implode(',', array_fill(0, count($lga_names), '?'));
+                $stmt = $db->prepare("SELECT id FROM lgas WHERE name IN ($placeholders) AND state_id = ? AND is_active = 1");
+                $stmt->execute(array_merge($lga_names, [$state_id]));
+                $lga_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+            }
+        }
     }
 } catch (Exception $e) {
+    error_log("Error getting LGA IDs: " . $e->getMessage());
     $lga_ids = [];
 }
 
 $lga_list = !empty($lga_ids) ? implode(',', array_map('intval', $lga_ids)) : '0';
 
-// Get LGAs with details
+// ============================================================
+// GET LGAS WITH DETAILS
+// ============================================================
 $lgas = [];
 try {
-    if (!empty($lga_ids)) {
+    if ($lga_list !== '0') {
         $stmt = $db->prepare("
             SELECT l.id, l.name, l.code,
                    COUNT(DISTINCT w.id) as ward_count,
                    COUNT(DISTINCT pu.id) as pu_count,
                    COUNT(DISTINCT u.id) as coordinator_count,
-                   COUNT(DISTINCT CASE WHEN u.role_id = (SELECT id FROM roles WHERE level = 'pu_agent' LIMIT 1) THEN u.id END) as agent_count
+                   COUNT(DISTINCT CASE WHEN u.role_id = (SELECT id FROM roles WHERE level = 'pu_agent' LIMIT 1) THEN u.id END) as agent_count,
+                   COUNT(DISTINCT CASE WHEN u.role_id = (SELECT id FROM roles WHERE level = 'party_agent' LIMIT 1) THEN u.id END) as party_agent_count
             FROM lgas l
             LEFT JOIN wards w ON w.lga_id = l.id AND w.is_active = 1
             LEFT JOIN polling_units pu ON pu.ward_id = w.id AND pu.is_active = 1
@@ -85,7 +102,37 @@ try {
         $lgas = $stmt->fetchAll();
     }
 } catch (Exception $e) {
+    error_log("Error fetching LGAs: " . $e->getMessage());
     $lgas = [];
+}
+
+// ============================================================
+// GET ELECTION PROGRESS BY LGA
+// ============================================================
+$lga_progress = [];
+try {
+    if ($lga_list !== '0') {
+        $stmt = $db->prepare("
+            SELECT 
+                l.id as lga_id,
+                l.name as lga_name,
+                COUNT(DISTINCT pu.id) as total_pus,
+                COUNT(DISTINCT CASE WHEN r.id IS NOT NULL THEN pu.id END) as results_submitted,
+                COUNT(DISTINCT CASE WHEN r.status = 'verified' THEN pu.id END) as results_verified
+            FROM lgas l
+            LEFT JOIN wards w ON w.lga_id = l.id AND w.is_active = 1
+            LEFT JOIN polling_units pu ON pu.ward_id = w.id AND pu.is_active = 1
+            LEFT JOIN results_ec8a r ON r.pu_id = pu.id AND r.tenant_id = ?
+            WHERE l.id IN ($lga_list)
+            GROUP BY l.id, l.name
+            ORDER BY l.name ASC
+        ");
+        $stmt->execute([$tenant_id]);
+        $lga_progress = $stmt->fetchAll();
+    }
+} catch (Exception $e) {
+    error_log("Error fetching LGA progress: " . $e->getMessage());
+    $lga_progress = [];
 }
 
 $page_title = 'LGAs';
@@ -137,6 +184,20 @@ include '../includes/sidebar.php';
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
+.stat-card .stat-icon {
+    font-size: 1.5rem;
+    margin-bottom: 4px;
+}
+.stat-card.blue .stat-number { color: #2563EB; }
+.stat-card.blue .stat-icon { color: #2563EB; }
+.stat-card.green .stat-number { color: #059669; }
+.stat-card.green .stat-icon { color: #059669; }
+.stat-card.purple .stat-number { color: #7C3AED; }
+.stat-card.purple .stat-icon { color: #7C3AED; }
+.stat-card.orange .stat-number { color: #EA580C; }
+.stat-card.orange .stat-icon { color: #EA580C; }
+.stat-card.teal .stat-number { color: #0D9488; }
+.stat-card.teal .stat-icon { color: #0D9488; }
 
 .table-wrap {
     overflow-x: auto;
@@ -212,6 +273,29 @@ include '../includes/sidebar.php';
 .progress-bar .progress-fill.yellow { background: #F59E0B; }
 .progress-bar .progress-fill.red { background: #EF4444; }
 
+.status-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 0.65rem;
+    font-weight: 600;
+}
+.status-badge.active { background: #DBEAFE; color: #2563EB; }
+.status-badge.pending { background: #FEF3C7; color: #D97706; }
+.status-badge.completed { background: #D1FAE5; color: #059669; }
+
+.empty-state {
+    text-align: center;
+    padding: 40px;
+    color: var(--gray-500);
+}
+.empty-state i {
+    font-size: 3rem;
+    display: block;
+    margin-bottom: 12px;
+    color: var(--gray-300);
+}
+
 .filters-row {
     display: flex;
     gap: 12px;
@@ -256,21 +340,41 @@ include '../includes/sidebar.php';
 
         <!-- Stats -->
         <div class="stats-grid">
-            <div class="stat-card">
+            <div class="stat-card blue">
+                <div class="stat-icon"><i class="fas fa-map-marker-alt"></i></div>
                 <div class="stat-number"><?php echo number_format(count($lgas)); ?></div>
                 <div class="stat-label">Total LGAs</div>
             </div>
-            <div class="stat-card">
+            <div class="stat-card green">
+                <div class="stat-icon"><i class="fas fa-layer-group"></i></div>
                 <div class="stat-number"><?php echo number_format(array_sum(array_column($lgas, 'ward_count'))); ?></div>
                 <div class="stat-label">Total Wards</div>
             </div>
-            <div class="stat-card">
+            <div class="stat-card purple">
+                <div class="stat-icon"><i class="fas fa-flag-checkered"></i></div>
                 <div class="stat-number"><?php echo number_format(array_sum(array_column($lgas, 'pu_count'))); ?></div>
                 <div class="stat-label">Total Polling Units</div>
             </div>
-            <div class="stat-card">
+            <div class="stat-card orange">
+                <div class="stat-icon"><i class="fas fa-user-tie"></i></div>
                 <div class="stat-number"><?php echo number_format(array_sum(array_column($lgas, 'coordinator_count'))); ?></div>
                 <div class="stat-label">Coordinators</div>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="section-card" style="margin-bottom:20px;">
+            <div class="card-header">
+                <h3><i class="fas fa-filter"></i> Filters</h3>
+            </div>
+            <div class="filters-row">
+                <input type="text" id="searchInput" placeholder="Search LGAs..." onkeyup="applyFilters()">
+                <select id="filterStatus" onchange="applyFilters()">
+                    <option value="">All Status</option>
+                    <option value="active">Active</option>
+                    <option value="pending">Pending</option>
+                    <option value="completed">Completed</option>
+                </select>
             </div>
         </div>
 
@@ -291,15 +395,24 @@ include '../includes/sidebar.php';
                             <th>Polling Units</th>
                             <th>Coordinators</th>
                             <th>Agents</th>
-                            <th>Coverage</th>
+                            <th>Progress</th>
                             <th>Action</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (count($lgas) > 0): ?>
                             <?php $i = 1; foreach ($lgas as $lga): 
-                                $coverage = $lga['pu_count'] > 0 ? round(($lga['agent_count'] / $lga['pu_count']) * 100, 1) : 0;
+                                // Find progress for this LGA
+                                $progress = ['total_pus' => 0, 'results_submitted' => 0, 'results_verified' => 0];
+                                foreach ($lga_progress as $p) {
+                                    if ($p['lga_id'] == $lga['id']) {
+                                        $progress = $p;
+                                        break;
+                                    }
+                                }
+                                $coverage = $progress['total_pus'] > 0 ? round(($progress['results_submitted'] / $progress['total_pus']) * 100, 1) : 0;
                                 $color = $coverage >= 80 ? 'green' : ($coverage >= 50 ? 'blue' : ($coverage >= 30 ? 'yellow' : 'red'));
+                                $status = $coverage >= 80 ? 'completed' : ($coverage > 0 ? 'active' : 'pending');
                             ?>
                                 <tr>
                                     <td><?php echo $i++; ?></td>
@@ -308,12 +421,17 @@ include '../includes/sidebar.php';
                                     <td><?php echo number_format($lga['ward_count'] ?? 0); ?></td>
                                     <td><?php echo number_format($lga['pu_count'] ?? 0); ?></td>
                                     <td><?php echo number_format($lga['coordinator_count'] ?? 0); ?></td>
-                                    <td><?php echo number_format($lga['agent_count'] ?? 0); ?></td>
+                                    <td><?php echo number_format(($lga['agent_count'] ?? 0) + ($lga['party_agent_count'] ?? 0)); ?></td>
                                     <td>
-                                        <?php echo $coverage; ?>%
+                                        <span class="status-badge <?php echo $status; ?>">
+                                            <?php echo $coverage; ?>%
+                                        </span>
                                         <div class="progress-bar">
                                             <div class="progress-fill <?php echo $color; ?>" style="width:<?php echo min($coverage, 100); ?>%"></div>
                                         </div>
+                                        <span style="font-size:0.65rem;color:var(--gray-400);">
+                                            <?php echo number_format($progress['results_submitted']); ?>/<?php echo number_format($progress['total_pus']); ?> submitted
+                                        </span>
                                     </td>
                                     <td>
                                         <a href="view-lga-details.php?id=<?php echo $lga['id']; ?>" class="btn-sm">View</a>
@@ -322,9 +440,12 @@ include '../includes/sidebar.php';
                             <?php endforeach; ?>
                         <?php else: ?>
                             <tr>
-                                <td colspan="9" style="text-align:center;padding:30px;color:var(--gray-500);">
-                                    <i class="fas fa-inbox" style="font-size:2rem;display:block;margin-bottom:8px;"></i>
-                                    No LGAs found in this senatorial district.
+                                <td colspan="9">
+                                    <div class="empty-state">
+                                        <i class="fas fa-inbox"></i>
+                                        <p>No LGAs found in this senatorial district.</p>
+                                        <p style="font-size:0.8rem;margin-top:4px;">Please add LGAs to see them here.</p>
+                                    </div>
                                 </td>
                             </tr>
                         <?php endif; ?>
@@ -336,6 +457,33 @@ include '../includes/sidebar.php';
 </main>
 
 <script>
+// ============================================================
+// FILTER FUNCTIONALITY
+// ============================================================
+function applyFilters() {
+    var search = document.getElementById('searchInput').value.toLowerCase();
+    var status = document.getElementById('filterStatus').value;
+    var rows = document.querySelectorAll('#lgaTable tbody tr');
+    
+    rows.forEach(function(row) {
+        var show = true;
+        var cells = row.querySelectorAll('td');
+        if (cells.length < 9) return;
+        
+        var rowName = cells[1]?.textContent?.trim().toLowerCase() || '';
+        var rowStatus = cells[7]?.textContent?.trim().toLowerCase() || '';
+        
+        if (search && !rowName.includes(search)) {
+            show = false;
+        }
+        if (status && !rowStatus.includes(status)) {
+            show = false;
+        }
+        
+        row.style.display = show ? '' : 'none';
+    });
+}
+
 // ============================================================
 // SIDEBAR TOGGLE
 // ============================================================

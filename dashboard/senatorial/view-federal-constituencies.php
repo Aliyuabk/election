@@ -25,7 +25,9 @@ $tenant_id = SessionManager::get('tenant_id');
 
 $db = getDB();
 
-// Get Senatorial District name
+// ============================================================
+// GET SENATORIAL DISTRICT NAME
+// ============================================================
 $district_name = 'Senatorial District';
 $state_name = 'State';
 try {
@@ -44,11 +46,12 @@ try {
         }
     }
 } catch (Exception $e) {
-    $district_name = 'Senatorial District';
-    $state_name = 'State';
+    error_log("Error fetching district: " . $e->getMessage());
 }
 
-// Get Federal Constituencies
+// ============================================================
+// GET FEDERAL CONSTITUENCIES
+// ============================================================
 $federal_constituencies = [];
 try {
     $stmt = $db->prepare("
@@ -69,7 +72,21 @@ try {
     $stmt->execute([$state_id]);
     $federal_constituencies = $stmt->fetchAll();
 } catch (Exception $e) {
+    error_log("Error fetching federal constituencies: " . $e->getMessage());
     $federal_constituencies = [];
+}
+
+// ============================================================
+// GET ALL LGAS FOR FILTER
+// ============================================================
+$lgas = [];
+try {
+    $stmt = $db->prepare("SELECT id, name FROM lgas WHERE state_id = ? AND is_active = 1 ORDER BY name ASC");
+    $stmt->execute([$state_id]);
+    $lgas = $stmt->fetchAll();
+} catch (Exception $e) {
+    error_log("Error fetching LGAs: " . $e->getMessage());
+    $lgas = [];
 }
 
 $page_title = 'Federal Constituencies';
@@ -121,6 +138,18 @@ include '../includes/sidebar.php';
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
+.stat-card .stat-icon {
+    font-size: 1.5rem;
+    margin-bottom: 4px;
+}
+.stat-card.blue .stat-number { color: #2563EB; }
+.stat-card.blue .stat-icon { color: #2563EB; }
+.stat-card.green .stat-number { color: #059669; }
+.stat-card.green .stat-icon { color: #059669; }
+.stat-card.purple .stat-number { color: #7C3AED; }
+.stat-card.purple .stat-icon { color: #7C3AED; }
+.stat-card.orange .stat-number { color: #EA580C; }
+.stat-card.orange .stat-icon { color: #EA580C; }
 
 .table-wrap {
     overflow-x: auto;
@@ -194,6 +223,18 @@ include '../includes/sidebar.php';
     background: white;
 }
 
+.empty-state {
+    text-align: center;
+    padding: 40px;
+    color: var(--gray-500);
+}
+.empty-state i {
+    font-size: 3rem;
+    display: block;
+    margin-bottom: 12px;
+    color: var(--gray-300);
+}
+
 @media (max-width: 768px) {
     .stats-grid {
         grid-template-columns: repeat(2, 1fr);
@@ -223,19 +264,23 @@ include '../includes/sidebar.php';
 
         <!-- Stats -->
         <div class="stats-grid">
-            <div class="stat-card">
+            <div class="stat-card blue">
+                <div class="stat-icon"><i class="fas fa-building"></i></div>
                 <div class="stat-number"><?php echo number_format(count($federal_constituencies)); ?></div>
                 <div class="stat-label">Total Federal Constituencies</div>
             </div>
-            <div class="stat-card">
+            <div class="stat-card green">
+                <div class="stat-icon"><i class="fas fa-map-marker-alt"></i></div>
                 <div class="stat-number"><?php echo number_format(array_sum(array_column($federal_constituencies, 'lga_count'))); ?></div>
                 <div class="stat-label">Total LGAs</div>
             </div>
-            <div class="stat-card">
+            <div class="stat-card purple">
+                <div class="stat-icon"><i class="fas fa-layer-group"></i></div>
                 <div class="stat-number"><?php echo number_format(array_sum(array_column($federal_constituencies, 'ward_count'))); ?></div>
                 <div class="stat-label">Total Wards</div>
             </div>
-            <div class="stat-card">
+            <div class="stat-card orange">
+                <div class="stat-icon"><i class="fas fa-flag-checkered"></i></div>
                 <div class="stat-number"><?php echo number_format(array_sum(array_column($federal_constituencies, 'pu_count'))); ?></div>
                 <div class="stat-label">Total Polling Units</div>
             </div>
@@ -243,20 +288,15 @@ include '../includes/sidebar.php';
 
         <!-- Filters -->
         <div class="section-card" style="margin-bottom:20px;">
+            <div class="card-header">
+                <h3><i class="fas fa-filter"></i> Filters</h3>
+            </div>
             <div class="filters-row">
                 <select id="filterLGA" onchange="applyFilters()">
                     <option value="">All LGAs</option>
-                    <?php
-                    // Get all LGAs in this state
-                    try {
-                        $stmt = $db->prepare("SELECT id, name FROM lgas WHERE state_id = ? AND is_active = 1 ORDER BY name ASC");
-                        $stmt->execute([$state_id]);
-                        $lgas = $stmt->fetchAll();
-                        foreach ($lgas as $lga) {
-                            echo '<option value="' . $lga['id'] . '">' . htmlspecialchars($lga['name']) . '</option>';
-                        }
-                    } catch (Exception $e) {}
-                    ?>
+                    <?php foreach ($lgas as $lga): ?>
+                        <option value="<?php echo $lga['id']; ?>"><?php echo htmlspecialchars($lga['name']); ?></option>
+                    <?php endforeach; ?>
                 </select>
                 <input type="text" id="searchInput" placeholder="Search constituencies..." onkeyup="applyFilters()">
             </div>
@@ -300,9 +340,12 @@ include '../includes/sidebar.php';
                             <?php endforeach; ?>
                         <?php else: ?>
                             <tr>
-                                <td colspan="8" style="text-align:center;padding:30px;color:var(--gray-500);">
-                                    <i class="fas fa-inbox" style="font-size:2rem;display:block;margin-bottom:8px;"></i>
-                                    No federal constituencies found in this state.
+                                <td colspan="8">
+                                    <div class="empty-state">
+                                        <i class="fas fa-inbox"></i>
+                                        <p>No federal constituencies found in this state.</p>
+                                        <p style="font-size:0.8rem;margin-top:4px;">Please add federal constituencies to see them here.</p>
+                                    </div>
                                 </td>
                             </tr>
                         <?php endif; ?>
@@ -314,6 +357,9 @@ include '../includes/sidebar.php';
 </main>
 
 <script>
+// ============================================================
+// FILTER FUNCTIONALITY
+// ============================================================
 function applyFilters() {
     var lga = document.getElementById('filterLGA').value;
     var search = document.getElementById('searchInput').value.toLowerCase();
