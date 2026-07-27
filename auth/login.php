@@ -10,7 +10,27 @@ SessionManager::start();
 
 // Check if already logged in
 if (SessionManager::isLoggedIn()) {
-    header('Location: ../dashboard/index.php');
+    // Redirect based on role
+    $role_level = SessionManager::get('role_level', 'client_admin');
+    $dashboardMap = [
+        'super_admin' => '../dashboard/super-admin/',
+        'client_admin' => '../dashboard/client-admin/',
+        'national' => '../dashboard/national/',
+        'state' => '../dashboard/state/',
+        'senatorial' => '../dashboard/senatorial/',
+        'federal_constituency' => '../dashboard/federal-constituency/',
+        'lga' => '../dashboard/lga/',
+        'ward' => '../dashboard/ward/',
+        'pu_agent' => '../dashboard/agent/',
+        'party_agent' => '../dashboard/party-agent/',
+        'volunteer' => '../dashboard/volunteer/',
+        'observer' => '../dashboard/observer/',
+        'situation_room' => '../dashboard/situation-room/',
+        'finance_officer' => '../dashboard/finance-officer/',
+        'citizen' => '../dashboard/citizen/'
+    ];
+    $dashboard = $dashboardMap[$role_level] ?? '../dashboard/client-admin/';
+    header('Location: ' . $dashboard);
     exit();
 }
 
@@ -37,7 +57,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $user_id = $_SESSION['2fa_user_id'];
         $remember = $_SESSION['2fa_remember'] ?? false;
         
-        // DEBUG: Log the OTP being verified
         error_log("Verifying OTP: " . $otp . " for user_id: " . $user_id);
         
         if (verifyOTP($user_id, $otp, 'login')) {
@@ -49,7 +68,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         } else {
             $error = 'Invalid or expired OTP code. Please try again.';
-            // Allow retry - don't clear the session
         }
         $show_2fa = true;
     } else {
@@ -67,7 +85,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = 'Please enter the CAPTCHA code.';
             } elseif (strtoupper($captcha) !== strtoupper($expected)) {
                 $error = 'Invalid CAPTCHA. Please try again.';
-                // Generate new CAPTCHA on failure
                 $_SESSION['captcha_text'] = generateCaptcha();
                 $captcha_text = $_SESSION['captcha_text'];
             }
@@ -82,7 +99,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (isAccountLocked($email)) {
                 $error = 'Your account is temporarily locked due to multiple failed attempts. Please try again later.';
             } else {
-                // Check login attempts
                 $ip = getClientIP();
                 $attempts = getLoginAttempts($email, $ip);
                 
@@ -99,14 +115,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         } else {
                             // Check if 2FA is enabled
                             if ($user['two_factor_enabled']) {
-                                // Generate OTP
                                 $otp = generateOTP();
                                 $saved = saveOTP($user['id'], $otp, 'login', 'email');
                                 
-                                // DEBUG: Log the OTP being saved
-                                error_log("Saving OTP: " . $otp . " for user_id: " . $user['id'] . " - Saved: " . ($saved ? 'Yes' : 'No'));
+                                error_log("Saving OTP: " . $otp . " for user_id: " . $user['id']);
                                 
-                                // Send OTP via email
                                 $result = sendOTPEmail($user['email'], $otp, $user['first_name']);
                                 
                                 if ($result['success']) {
@@ -115,9 +128,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     $_SESSION['2fa_email'] = $user['email'];
                                     $show_2fa = true;
                                     $user_id = $user['id'];
-                                    $error = ''; // Clear any previous errors
+                                    $error = '';
                                 } else {
-                                    $error = 'Failed to send OTP. Please try again. Error: ' . $result['message'];
+                                    $error = 'Failed to send OTP. Please try again.';
                                 }
                             } else {
                                 // Direct login
@@ -125,13 +138,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             }
                         }
                     } else {
-                        // Log failed attempt
                         logLoginAttempt(null, $email, false);
                         $_SESSION['login_attempts'] = ($_SESSION['login_attempts'] ?? 0) + 1;
                         $remaining = MAX_LOGIN_ATTEMPTS - ($_SESSION['login_attempts'] ?? 0);
                         $error = "Invalid credentials. " . max(0, $remaining) . " attempts remaining.";
                         
-                        // Show CAPTCHA after 3 attempts
                         if (($attempts + 1) >= 3) {
                             $show_captcha = true;
                             $_SESSION['captcha_text'] = generateCaptcha();
@@ -161,7 +172,9 @@ function loginUser($user, $remember, $db) {
     // Create session token
     $token = createSession($user['id'], $remember);
     
-    // Set session data
+    // ============================================================
+    // SET ALL SESSION DATA - INCLUDING JURISDICTION
+    // ============================================================
     SessionManager::regenerate();
     SessionManager::set('user_id', $user['id']);
     SessionManager::set('tenant_id', $user['tenant_id']);
@@ -179,6 +192,19 @@ function loginUser($user, $remember, $db) {
     SessionManager::set('login_time', time());
     SessionManager::set('last_activity', time());
     SessionManager::set('session_token', $token);
+    
+    // ============================================================
+    // CRITICAL FIX: Store Jurisdiction Data
+    // ============================================================
+    SessionManager::set('state_id', $user['state_id']);
+    SessionManager::set('lga_id', $user['lga_id']);
+    SessionManager::set('ward_id', $user['ward_id']);
+    SessionManager::set('pu_id', $user['pu_id']);
+    SessionManager::set('senatorial_id', $user['senatorial_id']);
+    SessionManager::set('federal_constituency_id', $user['federal_constituency_id']);
+    
+    // Log what we're storing
+    error_log("Login - Storing jurisdiction: senatorial_id=" . ($user['senatorial_id'] ?? 'NULL') . ", state_id=" . ($user['state_id'] ?? 'NULL'));
     
     if (isset($role['permissions_json'])) {
         $permissions = json_decode($role['permissions_json'], true);
@@ -199,16 +225,18 @@ function loginUser($user, $remember, $db) {
     unset($_SESSION['login_attempts']);
     unset($_SESSION['captcha_text']);
     
-    // Redirect based on role level
+    // ============================================================
+    // REDIRECT BASED ON ROLE LEVEL
+    // ============================================================
     $dashboardMap = [
         'super_admin' => '../dashboard/super-admin/',
         'client_admin' => '../dashboard/client-admin/',
-        'national' => '../dashboard/Coordinator/',
-        'state' => '../dashboard/Coordinator/',
-        'senatorial' => '../dashboard/Coordinator/',
-        'federal_constituency' => '../dashboard/Coordinator/',
-        'lga' => '../dashboard/Coordinator/',
-        'ward' => '../dashboard/Coordinator/',
+        'national' => '../dashboard/national/',
+        'state' => '../dashboard/state/',
+        'senatorial' => '../dashboard/senatorial/',
+        'federal_constituency' => '../dashboard/federal-constituency/',
+        'lga' => '../dashboard/lga/',
+        'ward' => '../dashboard/ward/',
         'pu_agent' => '../dashboard/agent/',
         'party_agent' => '../dashboard/party-agent/',
         'volunteer' => '../dashboard/volunteer/',
@@ -430,12 +458,11 @@ function loginUser($user, $remember, $db) {
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // OTP Input handling - FIXED
+    // OTP Input handling
     const otpInputs = document.querySelectorAll('.otp-input');
     if (otpInputs.length) {
         otpInputs.forEach((input, index) => {
             input.addEventListener('input', function(e) {
-                // Only allow digits
                 this.value = this.value.replace(/\D/g, '');
                 
                 if (this.value.length === 1) {
@@ -478,7 +505,6 @@ document.addEventListener('DOMContentLoaded', function() {
         inputs.forEach(input => code += input.value);
         document.getElementById('otp_code').value = code;
         
-        // Auto-submit when all 6 digits are entered
         if (code.length === 6) {
             document.getElementById('otpForm').submit();
         }
@@ -523,7 +549,6 @@ document.addEventListener('DOMContentLoaded', function() {
                         this.textContent = 'Resend OTP';
                         this.disabled = false;
                     }, 3000);
-                    // Refresh the page to show new OTP form
                     location.reload();
                 } else {
                     this.textContent = 'Failed. Try again';

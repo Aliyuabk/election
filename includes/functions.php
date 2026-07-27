@@ -483,7 +483,7 @@ function getUserById($userId) {
             SELECT u.*, r.level as role_level, r.permissions_json 
             FROM users u 
             LEFT JOIN roles r ON u.role_id = r.id 
-            WHERE u.id = ? AND u.status = 'active'
+            WHERE u.id = ?
         ");
         $stmt->execute([$userId]);
         return $stmt->fetch();
