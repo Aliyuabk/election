@@ -4,7 +4,7 @@
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
-require_once '../../includes/functions.php'; 
+require_once '../../includes/functions.php';
 
 SessionManager::start();
 
@@ -18,17 +18,17 @@ if (SessionManager::get('role_level') !== 'client_admin') {
     exit();
 }
 
-$db = Database::getInstance()->getConnection();
+$db = getDB();
 $user_id = SessionManager::get('user_id');
 $tenant_id = SessionManager::get('tenant_id');
 
 // ============================================================
-// FETCH ROLES (Only roles the client admin can assign)
+// FETCH ROLES - CLIENT ADMIN CAN ONLY ASSIGN SPECIFIC ROLES
 // ============================================================
 $roles = [];
 try {
-    // Client admins can assign: national, state, senatorial, federal_constituency, lga, ward, pu_agent, volunteer, observer
-    $allowed_levels = ['national', 'state', 'senatorial', 'federal_constituency', 'lga', 'ward', 'pu_agent', 'volunteer', 'observer'];
+    // Only allow client admin to assign these roles
+    $allowed_levels = ['national', 'state', 'senatorial', 'federal_constituency', 'lga', 'ward', 'pu_agent'];
     $placeholders = implode(',', array_fill(0, count($allowed_levels), '?'));
     
     $stmt = $db->prepare("
@@ -37,13 +37,13 @@ try {
         WHERE (r.tenant_id = ? OR r.tenant_id IS NULL) 
         AND r.is_active = 1 
         AND r.level IN ($placeholders)
-        ORDER BY FIELD(r.level, 'client_admin', 'national', 'state', 'senatorial', 'federal_constituency', 'lga', 'ward', 'pu_agent', 'volunteer', 'observer'), r.name
+        ORDER BY FIELD(r.level, 'national', 'state', 'senatorial', 'federal_constituency', 'lga', 'ward', 'pu_agent'), r.name
     ");
     $params = array_merge([$tenant_id], $allowed_levels);
     $stmt->execute($params);
     $roles = $stmt->fetchAll();
 } catch (Exception $e) {
-    error_log("Error fetching roles: " . $e->getMessage());
+    // Continue
 }
 
 // ============================================================
@@ -55,7 +55,7 @@ try {
     $stmt->execute();
     $states = $stmt->fetchAll();
 } catch (Exception $e) {
-    error_log("Error fetching states: " . $e->getMessage());
+    // Continue
 }
 
 // ============================================================
@@ -87,9 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $senatorial_id = isset($_POST['senatorial_id']) ? (int)$_POST['senatorial_id'] : 0;
     $constituency_id = isset($_POST['constituency_id']) ? (int)$_POST['constituency_id'] : 0;
     
-    $errors = [];
-    
-    // Store form data for repopulation
+    // Store form data for repopulation on error
     $form_data = [
         'first_name' => $first_name,
         'last_name' => $last_name,
@@ -109,7 +107,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'constituency_id' => $constituency_id
     ];
     
-    // Validation
+    $errors = [];
+    
     if (empty($first_name)) $errors[] = 'First name is required.';
     if (empty($last_name)) $errors[] = 'Last name is required.';
     if (empty($email)) $errors[] = 'Email is required.';
@@ -134,7 +133,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     // ============================================================
-    // JURISDICTION VALIDATION BASED ON ROLE
+    // JURISDICTION VALIDATION - FIXED MAP
     // ============================================================
     $jurisdiction_map = [
         'state' => ['state_id' => 'State'],
@@ -143,8 +142,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'lga' => ['state_id' => 'State', 'lga_id' => 'LGA'],
         'ward' => ['state_id' => 'State', 'lga_id' => 'LGA', 'ward_id' => 'Ward'],
         'pu_agent' => ['state_id' => 'State', 'lga_id' => 'LGA', 'ward_id' => 'Ward', 'pu_id' => 'Polling Unit'],
-        'volunteer' => ['state_id' => 'State', 'lga_id' => 'LGA', 'ward_id' => 'Ward', 'pu_id' => 'Polling Unit'],
-        'observer' => ['state_id' => 'State', 'lga_id' => 'LGA', 'ward_id' => 'Ward', 'pu_id' => 'Polling Unit'],
         'national' => [],
         'client_admin' => []
     ];
@@ -167,7 +164,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $errors[] = 'Email already registered.';
             }
         } catch (Exception $e) {
-            error_log("Email check error: " . $e->getMessage());
+            // Continue
         }
     }
     
@@ -213,10 +210,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             $new_user_id = $db->lastInsertId();
             
-            // Log activity
-            logActivity($user_id, 'user_created', "Created user: $first_name $last_name (ID: $new_user_id) with role: $role_name");
-            
             $db->commit();
+            
+            logActivity($user_id, 'user_created', "Created user: $first_name $last_name (ID: $new_user_id) with role: $role_name");
             
             // Send welcome email
             try {
@@ -259,6 +255,7 @@ include 'includes/sidebar.php';
 ?>
 
 <style>
+/* ===== YOUR EXISTING CSS ===== */
 .page-header {
     display: flex;
     justify-content: space-between;
@@ -610,11 +607,11 @@ include 'includes/sidebar.php';
                     </div>
 
                     <!-- Jurisdiction -->
-                    <div class="form-section-title hidden" id="jurisdictionTitle">
+                    <div class="form-section-title" id="jurisdictionTitle">
                         <i class="fas fa-map-marker-alt"></i> Jurisdiction <span class="required">*</span>
                     </div>
                     
-                    <div class="jurisdiction-hint hidden" id="jurisdictionHint">
+                    <div class="jurisdiction-hint" id="jurisdictionHint">
                         <i class="fas fa-info-circle"></i>
                         Please select the jurisdiction for this user based on their role.
                     </div>
@@ -622,7 +619,7 @@ include 'includes/sidebar.php';
                     <!-- State -->
                     <div class="form-group hidden" id="stateField">
                         <label>State <span class="required">*</span></label>
-                        <select name="state_id" id="stateSelect" onchange="loadLGAs()">
+                        <select name="state_id" id="stateSelect" onchange="loadLGAs(); loadSenatorialDistricts(); loadFederalConstituencies();">
                             <option value="">Select State</option>
                             <?php foreach ($states as $state): ?>
                                 <option value="<?php echo $state['id']; ?>" <?php echo (isset($form_data['state_id']) && $form_data['state_id'] == $state['id']) ? 'selected' : ''; ?>>
@@ -637,6 +634,9 @@ include 'includes/sidebar.php';
                         <label>LGA <span class="required">*</span></label>
                         <select name="lga_id" id="lgaSelect" onchange="loadWards()">
                             <option value="">Select LGA</option>
+                            <?php if (isset($form_data['lga_id']) && $form_data['lga_id'] > 0): ?>
+                                <option value="<?php echo $form_data['lga_id']; ?>" selected>Loading...</option>
+                            <?php endif; ?>
                         </select>
                     </div>
                     
@@ -645,6 +645,9 @@ include 'includes/sidebar.php';
                         <label>Ward <span class="required">*</span></label>
                         <select name="ward_id" id="wardSelect" onchange="loadPollingUnits()">
                             <option value="">Select Ward</option>
+                            <?php if (isset($form_data['ward_id']) && $form_data['ward_id'] > 0): ?>
+                                <option value="<?php echo $form_data['ward_id']; ?>" selected>Loading...</option>
+                            <?php endif; ?>
                         </select>
                     </div>
                     
@@ -653,6 +656,9 @@ include 'includes/sidebar.php';
                         <label>Polling Unit <span class="required">*</span></label>
                         <select name="pu_id" id="puSelect">
                             <option value="">Select Polling Unit</option>
+                            <?php if (isset($form_data['pu_id']) && $form_data['pu_id'] > 0): ?>
+                                <option value="<?php echo $form_data['pu_id']; ?>" selected>Loading...</option>
+                            <?php endif; ?>
                         </select>
                     </div>
 
@@ -661,6 +667,9 @@ include 'includes/sidebar.php';
                         <label>Senatorial District <span class="required">*</span></label>
                         <select name="senatorial_id" id="senatorialSelect">
                             <option value="">Select Senatorial District</option>
+                            <?php if (isset($form_data['senatorial_id']) && $form_data['senatorial_id'] > 0): ?>
+                                <option value="<?php echo $form_data['senatorial_id']; ?>" selected>Loading...</option>
+                            <?php endif; ?>
                         </select>
                     </div>
 
@@ -669,6 +678,9 @@ include 'includes/sidebar.php';
                         <label>Federal Constituency <span class="required">*</span></label>
                         <select name="constituency_id" id="constituencySelect">
                             <option value="">Select Federal Constituency</option>
+                            <?php if (isset($form_data['constituency_id']) && $form_data['constituency_id'] > 0): ?>
+                                <option value="<?php echo $form_data['constituency_id']; ?>" selected>Loading...</option>
+                            <?php endif; ?>
                         </select>
                     </div>
 
@@ -713,22 +725,20 @@ const roleJurisdictionMap = {
     'lga': ['stateField', 'lgaField'],
     'ward': ['stateField', 'lgaField', 'wardField'],
     'pu_agent': ['stateField', 'lgaField', 'wardField', 'puField'],
-    'volunteer': ['stateField', 'lgaField', 'wardField', 'puField'],
-    'observer': ['stateField', 'lgaField', 'wardField', 'puField'],
     'national': [],
     'client_admin': []
 };
 
 // ============================================================
-// PRESELECTED VALUES FOR DROPDOWNS
+// PRESELECTED VALUES FROM PHP
 // ============================================================
-const preselected = {
-    state_id: <?php echo json_encode($form_data['state_id'] ?? 0); ?>,
-    lga_id: <?php echo json_encode($form_data['lga_id'] ?? 0); ?>,
-    ward_id: <?php echo json_encode($form_data['ward_id'] ?? 0); ?>,
-    pu_id: <?php echo json_encode($form_data['pu_id'] ?? 0); ?>,
-    senatorial_id: <?php echo json_encode($form_data['senatorial_id'] ?? 0); ?>,
-    constituency_id: <?php echo json_encode($form_data['constituency_id'] ?? 0); ?>
+var preselected = {
+    state_id: <?php echo isset($form_data['state_id']) ? (int)$form_data['state_id'] : 0; ?>,
+    lga_id: <?php echo isset($form_data['lga_id']) ? (int)$form_data['lga_id'] : 0; ?>,
+    ward_id: <?php echo isset($form_data['ward_id']) ? (int)$form_data['ward_id'] : 0; ?>,
+    pu_id: <?php echo isset($form_data['pu_id']) ? (int)$form_data['pu_id'] : 0; ?>,
+    senatorial_id: <?php echo isset($form_data['senatorial_id']) ? (int)$form_data['senatorial_id'] : 0; ?>,
+    constituency_id: <?php echo isset($form_data['constituency_id']) ? (int)$form_data['constituency_id'] : 0; ?>
 };
 
 // ============================================================
@@ -781,6 +791,31 @@ function updateJurisdictionFields() {
     
     // Reset dependent dropdowns
     resetDropdowns();
+    
+    // If we have preselected values, load them
+    if (preselected.state_id > 0 && fieldsToShow.length > 0) {
+        loadPreselectedData(fieldsToShow);
+    }
+}
+
+// ============================================================
+// LOAD PRESELECTED DATA
+// ============================================================
+function loadPreselectedData(fieldsToShow) {
+    // Load LGAs if needed
+    if (fieldsToShow.includes('lgaField') || fieldsToShow.includes('wardField') || fieldsToShow.includes('puField')) {
+        loadLGAs(true);
+    }
+    
+    // Load Senatorial Districts if needed
+    if (fieldsToShow.includes('senatorialField')) {
+        loadSenatorialDistricts();
+    }
+    
+    // Load Federal Constituencies if needed
+    if (fieldsToShow.includes('constituencyField')) {
+        loadFederalConstituencies();
+    }
 }
 
 // ============================================================
@@ -793,15 +828,21 @@ function resetDropdowns() {
     var senatorialSelect = document.getElementById('senatorialSelect');
     var constituencySelect = document.getElementById('constituencySelect');
     
-    lgaSelect.innerHTML = '<option value="">Select LGA</option>';
-    wardSelect.innerHTML = '<option value="">Select Ward</option>';
-    puSelect.innerHTML = '<option value="">Select Polling Unit</option>';
-    senatorialSelect.innerHTML = '<option value="">Select Senatorial District</option>';
-    constituencySelect.innerHTML = '<option value="">Select Federal Constituency</option>';
-    
-    // If we have preselected values, load them
-    if (preselected.state_id > 0) {
-        loadLGAs(true);
+    // Only reset if no preselected values
+    if (preselected.lga_id <= 0) {
+        lgaSelect.innerHTML = '<option value="">Select LGA</option>';
+    }
+    if (preselected.ward_id <= 0) {
+        wardSelect.innerHTML = '<option value="">Select Ward</option>';
+    }
+    if (preselected.pu_id <= 0) {
+        puSelect.innerHTML = '<option value="">Select Polling Unit</option>';
+    }
+    if (preselected.senatorial_id <= 0) {
+        senatorialSelect.innerHTML = '<option value="">Select Senatorial District</option>';
+    }
+    if (preselected.constituency_id <= 0) {
+        constituencySelect.innerHTML = '<option value="">Select Federal Constituency</option>';
     }
 }
 
