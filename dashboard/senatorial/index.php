@@ -6,7 +6,6 @@ require_once '../../config/config.php';
 require_once '../../includes/session.php';
 require_once '../../includes/functions.php';
 
-// Start session
 SessionManager::start();
 
 if (!SessionManager::isLoggedIn()) {
@@ -14,7 +13,6 @@ if (!SessionManager::isLoggedIn()) {
     exit();
 }
 
-// Only Senatorial coordinator can access
 if (SessionManager::get('role_level') !== 'senatorial') {
     header('Location: ../client-admin/');
     exit();
@@ -22,16 +20,13 @@ if (SessionManager::get('role_level') !== 'senatorial') {
 
 $user_name = SessionManager::get('user_name', 'Coordinator');
 $user_id = SessionManager::get('user_id');
-$user_email = SessionManager::get('user_email');
 $senatorial_id = SessionManager::get('senatorial_id');
 $state_id = SessionManager::get('state_id');
 $tenant_id = SessionManager::get('tenant_id');
 
 $db = getDB();
 
-// ============================================================
-// FETCH SENATORIAL DISTRICT AND STATE NAMES
-// ============================================================
+// Get Senatorial District name
 $district_name = 'Senatorial District';
 $state_name = 'State';
 try {
@@ -54,10 +49,6 @@ try {
     $state_name = 'State';
 }
 
-// ============================================================
-// FETCH DASHBOARD STATISTICS
-// ============================================================
-
 // Get LGAs in this senatorial district
 $lga_ids = [];
 try {
@@ -74,8 +65,10 @@ try {
 $lga_list = !empty($lga_ids) ? implode(',', array_map('intval', $lga_ids)) : '0';
 
 // ============================================================
-// FETCH FEDERAL CONSTITUENCIES IN THIS SENATORIAL DISTRICT
+// FETCH DASHBOARD STATISTICS
 // ============================================================
+
+// Get Federal Constituencies in this senatorial district
 $federal_constituencies = [];
 try {
     if (!empty($lga_ids)) {
@@ -115,9 +108,7 @@ try {
     $lga_stats = ['total_lgas' => 0, 'total_wards' => 0, 'total_pus' => 0];
 }
 
-// ============================================================
-// COORDINATOR STATISTICS
-// ============================================================
+// Coordinator Statistics
 $coordinator_stats = ['federal_constituency' => 0, 'lga' => 0, 'ward' => 0];
 try {
     if (!empty($lga_ids)) {
@@ -162,9 +153,7 @@ try {
     $coordinator_stats = ['federal_constituency' => 0, 'lga' => 0, 'ward' => 0];
 }
 
-// ============================================================
-// AGENT STATISTICS
-// ============================================================
+// Agent Statistics
 $agent_stats = ['pu_agents' => 0, 'party_agents' => 0, 'observers' => 0, 'volunteers' => 0];
 try {
     if (!empty($lga_ids)) {
@@ -228,54 +217,7 @@ try {
     $agent_stats = ['pu_agents' => 0, 'party_agents' => 0, 'observers' => 0, 'volunteers' => 0];
 }
 
-// Election Statistics
-$election_stats = [];
-try {
-    if (!empty($lga_ids)) {
-        $stmt = $db->prepare("
-            SELECT 
-                COUNT(*) as total,
-                SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active,
-                SUM(CASE WHEN status = 'upcoming' THEN 1 ELSE 0 END) as upcoming,
-                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
-                SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END) as draft
-            FROM elections 
-            WHERE tenant_id = ? AND deleted_at IS NULL
-        ");
-        $stmt->execute([$tenant_id]);
-        $election_stats = $stmt->fetch();
-    } else {
-        $election_stats = ['total' => 0, 'active' => 0, 'upcoming' => 0, 'completed' => 0, 'draft' => 0];
-    }
-} catch (Exception $e) {
-    $election_stats = ['total' => 0, 'active' => 0, 'upcoming' => 0, 'completed' => 0, 'draft' => 0];
-}
-
-// ============================================================
-// POLLING UNIT REPORTING STATUS
-// ============================================================
-$pu_reporting_status = ['submitted' => 0, 'pending' => 0, 'verified' => 0, 'total' => 0];
-try {
-    if (!empty($lga_ids)) {
-        $stmt = $db->prepare("
-            SELECT 
-                COUNT(DISTINCT pu.id) as total,
-                SUM(CASE WHEN r.id IS NOT NULL THEN 1 ELSE 0 END) as submitted,
-                SUM(CASE WHEN r.id IS NOT NULL AND r.status = 'verified' THEN 1 ELSE 0 END) as verified,
-                SUM(CASE WHEN r.id IS NULL OR r.status = 'pending' THEN 1 ELSE 0 END) as pending
-            FROM polling_units pu
-            JOIN wards w ON pu.ward_id = w.id
-            LEFT JOIN results_ec8a r ON r.pu_id = pu.id AND r.tenant_id = ?
-            WHERE w.lga_id IN ($lga_list) AND pu.is_active = 1
-        ");
-        $stmt->execute([$tenant_id]);
-        $pu_reporting_status = $stmt->fetch();
-    }
-} catch (Exception $e) {
-    $pu_reporting_status = ['submitted' => 0, 'pending' => 0, 'verified' => 0, 'total' => 0];
-}
-
-// Result Statistics for this Senatorial District
+// Result Statistics
 $result_stats = [];
 try {
     if (!empty($lga_ids)) {
@@ -300,7 +242,7 @@ try {
     $result_stats = ['total_results' => 0, 'verified' => 0, 'pending' => 0, 'flagged' => 0, 'rejected' => 0];
 }
 
-// Incident Statistics for this Senatorial District
+// Incident Statistics
 $incident_stats = [];
 try {
     if (!empty($lga_ids)) {
@@ -324,30 +266,26 @@ try {
     $incident_stats = ['total' => 0, 'reported' => 0, 'investigating' => 0, 'resolved' => 0, 'critical' => 0, 'high' => 0];
 }
 
-// LGA Performance
-$lga_performance = [];
+// PU Reporting Status
+$pu_reporting_status = ['submitted' => 0, 'pending' => 0, 'verified' => 0, 'total' => 0];
 try {
     if (!empty($lga_ids)) {
         $stmt = $db->prepare("
             SELECT 
-                l.id as lga_id,
-                l.name as lga_name,
-                COUNT(r.id) as verified_count,
-                COUNT(DISTINCT pu.id) as total_pus,
-                ROUND((COUNT(r.id) / COUNT(DISTINCT pu.id)) * 100, 1) as completion_rate
-            FROM lgas l
-            LEFT JOIN wards w ON w.lga_id = l.id
-            LEFT JOIN polling_units pu ON pu.ward_id = w.id AND pu.is_active = 1
-            LEFT JOIN results_ec8a r ON r.pu_id = pu.id AND r.status = 'verified'
-            WHERE l.id IN ($lga_list)
-            GROUP BY l.id, l.name
-            ORDER BY completion_rate DESC, verified_count DESC
+                COUNT(DISTINCT pu.id) as total,
+                SUM(CASE WHEN r.id IS NOT NULL THEN 1 ELSE 0 END) as submitted,
+                SUM(CASE WHEN r.id IS NOT NULL AND r.status = 'verified' THEN 1 ELSE 0 END) as verified,
+                SUM(CASE WHEN r.id IS NULL OR r.status = 'pending' THEN 1 ELSE 0 END) as pending
+            FROM polling_units pu
+            JOIN wards w ON pu.ward_id = w.id
+            LEFT JOIN results_ec8a r ON r.pu_id = pu.id AND r.tenant_id = ?
+            WHERE w.lga_id IN ($lga_list) AND pu.is_active = 1
         ");
-        $stmt->execute();
-        $lga_performance = $stmt->fetchAll();
+        $stmt->execute([$tenant_id]);
+        $pu_reporting_status = $stmt->fetch();
     }
 } catch (Exception $e) {
-    $lga_performance = [];
+    $pu_reporting_status = ['submitted' => 0, 'pending' => 0, 'verified' => 0, 'total' => 0];
 }
 
 // Recent Activities
@@ -373,7 +311,7 @@ try {
     $recent_activities = [];
 }
 
-// Broadcast Summary
+// Broadcast Stats
 $broadcast_stats = [];
 try {
     $stmt = $db->prepare("
@@ -383,23 +321,20 @@ try {
             SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END) as draft,
             SUM(CASE WHEN status = 'scheduled' THEN 1 ELSE 0 END) as scheduled
         FROM broadcasts 
-        WHERE tenant_id = ? AND (election_id IS NULL OR election_id IN (SELECT id FROM elections WHERE tenant_id = ? AND deleted_at IS NULL))
+        WHERE tenant_id = ?
     ");
-    $stmt->execute([$tenant_id, $tenant_id]);
+    $stmt->execute([$tenant_id]);
     $broadcast_stats = $stmt->fetch();
 } catch (Exception $e) {
     $broadcast_stats = ['total' => 0, 'sent' => 0, 'draft' => 0, 'scheduled' => 0];
 }
 
-// Include base and sidebar
+$page_title = 'Dashboard';
 include '../includes/base.php';
 include '../includes/sidebar.php';
 ?>
 
 <style>
-/* ============================================================
-   DASHBOARD STYLES - Senatorial Coordinator
-   ============================================================ */
 .welcome-section {
     margin-bottom: 24px;
 }
@@ -427,7 +362,6 @@ include '../includes/sidebar.php';
     color: var(--gray-600);
 }
 
-/* Stats Grid */
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -439,7 +373,6 @@ include '../includes/sidebar.php';
     border-radius: var(--radius);
     padding: 18px 20px;
     border: 1px solid var(--gray-200);
-    box-shadow: var(--shadow-sm);
     transition: var(--transition);
 }
 .stat-card:hover {
@@ -464,7 +397,6 @@ include '../includes/sidebar.php';
 .stat-card .stat-icon.red { background: #FEE2E2; color: #DC2626; }
 .stat-card .stat-icon.orange { background: #FFEDD5; color: #EA580C; }
 .stat-card .stat-icon.teal { background: #CCFBF1; color: #0D9488; }
-.stat-card .stat-icon.indigo { background: #E0E7FF; color: #4F46E5; }
 .stat-card .stat-number {
     font-size: 1.5rem;
     font-weight: 700;
@@ -482,10 +414,7 @@ include '../includes/sidebar.php';
     margin-top: 6px;
     color: var(--gray-400);
 }
-.stat-card .stat-change.up { color: var(--secondary); }
-.stat-card .stat-change.down { color: var(--danger); }
 
-/* Charts Grid */
 .charts-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -509,19 +438,11 @@ include '../includes/sidebar.php';
     font-weight: 600;
     margin: 0;
 }
-.chart-card .card-header .period {
-    font-size: 0.7rem;
-    color: var(--gray-400);
-    background: var(--gray-100);
-    padding: 2px 12px;
-    border-radius: 20px;
-}
 .chart-container {
     height: 200px;
     position: relative;
 }
 
-/* Activities Grid */
 .activities-grid {
     display: grid;
     grid-template-columns: 1.2fr 0.8fr;
@@ -598,7 +519,6 @@ include '../includes/sidebar.php';
     text-overflow: ellipsis;
 }
 
-/* Quick Actions */
 .quick-actions {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -629,7 +549,6 @@ include '../includes/sidebar.php';
     text-align: center;
 }
 
-/* Incident Summary */
 .incident-summary {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
@@ -653,22 +572,6 @@ include '../includes/sidebar.php';
     font-weight: 700;
 }
 
-/* Status Badges */
-.status-badge {
-    display: inline-block;
-    padding: 2px 10px;
-    border-radius: 20px;
-    font-size: 0.7rem;
-    font-weight: 600;
-}
-.status-badge.verified { background: #D1FAE5; color: #059669; }
-.status-badge.pending { background: #FEF3C7; color: #D97706; }
-.status-badge.flagged { background: #FEE2E2; color: #DC2626; }
-.status-badge.rejected { background: #FEE2E2; color: #DC2626; }
-.status-badge.active { background: #DBEAFE; color: #2563EB; }
-.status-badge.completed { background: #D1FAE5; color: #059669; }
-
-/* Responsive */
 @media (max-width: 1024px) {
     .charts-grid {
         grid-template-columns: 1fr;
@@ -684,9 +587,6 @@ include '../includes/sidebar.php';
     .quick-actions {
         grid-template-columns: 1fr;
     }
-    .incident-summary {
-        grid-template-columns: 1fr 1fr;
-    }
 }
 </style>
 
@@ -694,9 +594,7 @@ include '../includes/sidebar.php';
     <?php include '../includes/header.php'; ?>
     
     <div class="main-content-inner">
-        <!-- ============================================================
-        WELCOME SECTION
-        ============================================================ -->
+        <!-- Welcome Section -->
         <div class="welcome-section">
             <h2>Welcome, <?php echo htmlspecialchars($user_name); ?> 👋</h2>
             <p>Senatorial Coordinator - <?php echo htmlspecialchars($district_name); ?></p>
@@ -709,82 +607,53 @@ include '../includes/sidebar.php';
                 <span style="color:var(--primary);font-weight:500;">Dashboard</span>
             </div>
         </div>
-        
-        <!-- ============================================================
-        STATS CARDS
-        ============================================================ -->
+
+        <!-- Stats Cards -->
         <div class="stats-grid">
-            <!-- Federal Constituencies -->
             <div class="stat-card">
                 <div class="stat-icon blue"><i class="fas fa-building"></i></div>
                 <div class="stat-number"><?php echo number_format(count($federal_constituencies)); ?></div>
                 <div class="stat-label">Federal Constituencies</div>
                 <div class="stat-change"><i class="fas fa-layer-group"></i> <?php echo number_format($lga_stats['total_lgas'] ?? 0); ?> LGAs</div>
             </div>
-            
-            <!-- Polling Units -->
             <div class="stat-card">
                 <div class="stat-icon green"><i class="fas fa-flag-checkered"></i></div>
                 <div class="stat-number"><?php echo number_format($lga_stats['total_pus'] ?? 0); ?></div>
                 <div class="stat-label">Polling Units</div>
                 <div class="stat-change"><i class="fas fa-users"></i> <?php echo number_format($agent_stats['pu_agents'] ?? 0); ?> Agents</div>
             </div>
-            
-            <!-- Coordinators -->
             <div class="stat-card">
                 <div class="stat-icon purple"><i class="fas fa-user-tie"></i></div>
                 <div class="stat-number"><?php echo number_format(($coordinator_stats['federal_constituency'] ?? 0) + ($coordinator_stats['lga'] ?? 0) + ($coordinator_stats['ward'] ?? 0)); ?></div>
                 <div class="stat-label">Coordinators</div>
-                <div class="stat-change">
-                    <i class="fas fa-users"></i> 
-                    <?php echo ($coordinator_stats['federal_constituency'] ?? 0); ?> FC · 
-                    <?php echo ($coordinator_stats['lga'] ?? 0); ?> LGA · 
-                    <?php echo ($coordinator_stats['ward'] ?? 0); ?> Ward
-                </div>
+                <div class="stat-change"><?php echo ($coordinator_stats['federal_constituency'] ?? 0); ?> FC · <?php echo ($coordinator_stats['lga'] ?? 0); ?> LGA</div>
             </div>
-            
-            <!-- Results -->
             <div class="stat-card">
                 <div class="stat-icon yellow"><i class="fas fa-check-double"></i></div>
                 <div class="stat-number"><?php echo number_format($result_stats['verified'] ?? 0); ?></div>
                 <div class="stat-label">Verified Results</div>
-                <div class="stat-change">
-                    <span class="<?php echo ($result_stats['pending'] ?? 0) > 0 ? 'down' : ''; ?>">
-                        <i class="fas fa-clock"></i> <?php echo $result_stats['pending'] ?? 0; ?> pending
-                    </span>
-                </div>
+                <div class="stat-change"><i class="fas fa-clock"></i> <?php echo $result_stats['pending'] ?? 0; ?> pending</div>
             </div>
-            
-            <!-- Incidents -->
             <div class="stat-card">
                 <div class="stat-icon red"><i class="fas fa-exclamation-triangle"></i></div>
                 <div class="stat-number"><?php echo number_format($incident_stats['total'] ?? 0); ?></div>
                 <div class="stat-label">Incidents</div>
-                <div class="stat-change down">
-                    <i class="fas fa-clock"></i> <?php echo $incident_stats['reported'] ?? 0; ?> reported
-                    <?php if (($incident_stats['critical'] ?? 0) > 0): ?>
-                        <span style="color:var(--danger);font-weight:600;"> 🔴 <?php echo $incident_stats['critical']; ?> critical</span>
-                    <?php endif; ?>
-                </div>
+                <div class="stat-change"><?php echo $incident_stats['reported'] ?? 0; ?> reported · <?php echo $incident_stats['critical'] ?? 0; ?> critical</div>
             </div>
-            
-            <!-- Reporting Status -->
             <div class="stat-card">
                 <div class="stat-icon teal"><i class="fas fa-upload"></i></div>
-                <div class="stat-number"><?php echo number_format(($pu_reporting_status['submitted'] ?? 0) / max(($pu_reporting_status['total'] ?? 1), 1) * 100); ?>%</div>
+                <div class="stat-number"><?php 
+                    $total = $pu_reporting_status['total'] ?? 1;
+                    $submitted = $pu_reporting_status['submitted'] ?? 0;
+                    echo number_format(($submitted / $total) * 100, 1);
+                ?>%</div>
                 <div class="stat-label">Reporting Rate</div>
-                <div class="stat-change">
-                    <i class="fas fa-check-circle"></i> 
-                    <?php echo number_format($pu_reporting_status['submitted'] ?? 0); ?>/<?php echo number_format($pu_reporting_status['total'] ?? 0); ?> submitted
-                </div>
+                <div class="stat-change"><?php echo number_format($pu_reporting_status['submitted'] ?? 0); ?>/<?php echo number_format($pu_reporting_status['total'] ?? 0); ?> submitted</div>
             </div>
         </div>
 
-        <!-- ============================================================
-        CHARTS
-        ============================================================ -->
+        <!-- Charts -->
         <div class="charts-grid">
-            <!-- Result Progress Chart -->
             <div class="chart-card">
                 <div class="card-header">
                     <h3><i class="fas fa-chart-line" style="color:var(--primary);margin-right:6px;"></i> Result Verification Status</h3>
@@ -794,31 +663,26 @@ include '../includes/sidebar.php';
                     <canvas id="resultStatusChart"></canvas>
                 </div>
             </div>
-
-            <!-- LGA Performance Chart -->
             <div class="chart-card">
                 <div class="card-header">
-                    <h3><i class="fas fa-layer-group" style="color:var(--primary);margin-right:6px;"></i> LGA Performance</h3>
-                    <span class="period">Verified Results</span>
+                    <h3><i class="fas fa-layer-group" style="color:var(--primary);margin-right:6px;"></i> Agent Distribution</h3>
+                    <span class="period">By Role</span>
                 </div>
                 <div class="chart-container">
-                    <canvas id="lgaPerformanceChart"></canvas>
+                    <canvas id="agentDistributionChart"></canvas>
                 </div>
             </div>
         </div>
 
-        <!-- ============================================================
-        ACTIVITIES & QUICK ACTIONS
-        ============================================================ -->
+        <!-- Activities & Quick Actions -->
         <div class="activities-grid">
-            <!-- Recent Activities -->
             <div class="activity-card">
                 <div class="card-header">
                     <h3><i class="fas fa-clock" style="color:var(--primary);margin-right:6px;"></i> Recent Activities</h3>
-                    <a href="activity-logs.php">View All →</a>
+                    <a href="coordinator-activities.php">View All →</a>
                 </div>
                 <?php if (count($recent_activities) > 0): ?>
-                    <?php foreach (array_slice($recent_activities, 0, 10) as $activity): ?>
+                    <?php foreach (array_slice($recent_activities, 0, 8) as $activity): ?>
                         <div class="activity-item">
                             <div class="activity-icon <?php 
                                 if (strpos($activity['activity_type'] ?? '', 'login') !== false) echo 'login';
@@ -827,15 +691,13 @@ include '../includes/sidebar.php';
                                 elseif (strpos($activity['activity_type'] ?? '', 'user') !== false) echo 'user';
                                 else echo 'system';
                             ?>">
-                                <i class="fas 
-                                    <?php 
+                                <i class="fas <?php 
                                     if (strpos($activity['activity_type'] ?? '', 'login') !== false) echo 'fa-sign-in-alt';
                                     elseif (strpos($activity['activity_type'] ?? '', 'result') !== false) echo 'fa-file-alt';
                                     elseif (strpos($activity['activity_type'] ?? '', 'incident') !== false) echo 'fa-exclamation-triangle';
                                     elseif (strpos($activity['activity_type'] ?? '', 'user') !== false) echo 'fa-user';
                                     else echo 'fa-cog';
-                                    ?>
-                                "></i>
+                                ?>"></i>
                             </div>
                             <div class="activity-content">
                                 <div class="title text-truncate"><?php echo htmlspecialchars($activity['user_name'] ?? 'System'); ?></div>
@@ -849,9 +711,7 @@ include '../includes/sidebar.php';
                 <?php endif; ?>
             </div>
 
-            <!-- Quick Actions & Incident Summary -->
             <div>
-                <!-- Quick Actions -->
                 <div class="activity-card" style="margin-bottom:16px;">
                     <div class="card-header">
                         <h3><i class="fas fa-bolt" style="color:var(--primary);margin-right:6px;"></i> Quick Actions</h3>
@@ -863,22 +723,21 @@ include '../includes/sidebar.php';
                         <a href="broadcasts-create.php" class="quick-action-btn">
                             <i class="fas fa-bullhorn"></i> Broadcast
                         </a>
-                        <a href="analytics-district.php" class="quick-action-btn">
-                            <i class="fas fa-chart-pie"></i> Analytics
-                        </a>
-                        <a href="reports-district.php" class="quick-action-btn">
-                            <i class="fas fa-file-alt"></i> Generate Report
-                        </a>
                         <a href="view-results.php" class="quick-action-btn">
                             <i class="fas fa-chart-bar"></i> View Results
                         </a>
+                        <a href="reports.php" class="quick-action-btn">
+                            <i class="fas fa-file-alt"></i> Reports
+                        </a>
                         <a href="incidents.php" class="quick-action-btn">
-                            <i class="fas fa-exclamation-triangle"></i> View Incidents
+                            <i class="fas fa-exclamation-triangle"></i> Incidents
+                        </a>
+                        <a href="notifications.php" class="quick-action-btn">
+                            <i class="fas fa-bell"></i> Notifications
                         </a>
                     </div>
                 </div>
 
-                <!-- Incident Summary -->
                 <div class="activity-card">
                     <div class="card-header">
                         <h3><i class="fas fa-exclamation-triangle" style="color:var(--danger);margin-right:6px;"></i> Incident Summary</h3>
@@ -903,7 +762,7 @@ include '../includes/sidebar.php';
                             <span style="font-size:0.8rem;color:#DC2626;font-weight:600;">
                                 <i class="fas fa-exclamation-circle"></i> 
                                 <?php echo $incident_stats['critical'] ?? 0; ?> critical · 
-                                <?php echo $incident_stats['high'] ?? 0; ?> high priority incidents
+                                <?php echo $incident_stats['high'] ?? 0; ?> high priority
                             </span>
                         </div>
                     <?php endif; ?>
@@ -913,11 +772,8 @@ include '../includes/sidebar.php';
     </div>
 </main>
 
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-// ============================================================
-// CHARTS - Senatorial Coordinator Dashboard
-// ============================================================
-
 // ============================================================
 // RESULT STATUS CHART
 // ============================================================
@@ -957,25 +813,28 @@ new Chart(ctx1, {
 });
 
 // ============================================================
-// LGA PERFORMANCE CHART
+// AGENT DISTRIBUTION CHART
 // ============================================================
-const ctx2 = document.getElementById('lgaPerformanceChart').getContext('2d');
-const lgaData = <?php 
-    $lgas = array_column($lga_performance, 'lga_name');
-    $rates = array_column($lga_performance, 'completion_rate');
-    $counts = array_column($lga_performance, 'verified_count');
-    echo json_encode(['labels' => $lgas, 'rates' => $rates, 'counts' => $counts]);
-?>;
-
+const ctx2 = document.getElementById('agentDistributionChart').getContext('2d');
 new Chart(ctx2, {
     type: 'bar',
     data: {
-        labels: lgaData.labels.length > 0 ? lgaData.labels : ['No Data'],
+        labels: ['PU Agents', 'Party Agents', 'Observers', 'Volunteers'],
         datasets: [{
-            label: 'Completion Rate (%)',
-            data: lgaData.rates.length > 0 ? lgaData.rates : [0],
-            backgroundColor: 'rgba(124, 58, 237, 0.7)',
-            borderColor: '#7C3AED',
+            label: 'Number of Agents',
+            data: [
+                <?php echo $agent_stats['pu_agents'] ?? 0; ?>,
+                <?php echo $agent_stats['party_agents'] ?? 0; ?>,
+                <?php echo $agent_stats['observers'] ?? 0; ?>,
+                <?php echo $agent_stats['volunteers'] ?? 0; ?>
+            ],
+            backgroundColor: [
+                'rgba(37, 99, 235, 0.7)',
+                'rgba(124, 58, 237, 0.7)',
+                'rgba(234, 88, 12, 0.7)',
+                'rgba(5, 150, 105, 0.7)'
+            ],
+            borderColor: ['#2563EB', '#7C3AED', '#EA580C', '#059669'],
             borderWidth: 1,
             borderRadius: 4
         }]
@@ -984,31 +843,17 @@ new Chart(ctx2, {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-            legend: { display: false },
-            tooltip: {
-                callbacks: {
-                    label: function(context) {
-                        return context.parsed.y + '%';
-                    }
-                }
-            }
+            legend: { display: false }
         },
         scales: {
             y: {
                 beginAtZero: true,
-                max: 100,
                 grid: { color: 'rgba(0,0,0,0.04)' },
-                ticks: { 
-                    font: { size: 10 },
-                    callback: function(value) { return value + '%'; }
-                }
+                ticks: { font: { size: 10 } }
             },
             x: {
                 grid: { display: false },
-                ticks: { 
-                    font: { size: 10 },
-                    maxRotation: 45
-                }
+                ticks: { font: { size: 10 } }
             }
         }
     }
@@ -1055,9 +900,6 @@ window.addEventListener('resize', function() {
     }
 });
 
-// ============================================================
-// SIDEBAR DROPDOWNS
-// ============================================================
 document.querySelectorAll('.dropdown-toggle').forEach(function(toggle) {
     toggle.addEventListener('click', function(e) {
         e.preventDefault();
@@ -1071,9 +913,6 @@ document.querySelectorAll('.dropdown-toggle').forEach(function(toggle) {
     });
 });
 
-// ============================================================
-// PROFILE DROPDOWN
-// ============================================================
 var profileBtn = document.getElementById('profileBtn');
 var profileMenu = document.getElementById('profileMenu');
 
@@ -1089,57 +928,6 @@ if (profileBtn && profileMenu) {
     });
 }
 
-// ============================================================
-// SEARCH
-// ============================================================
-var searchInput = document.getElementById('searchInput');
-var searchResults = document.getElementById('searchResults');
-var searchTimeout;
-
-if (searchInput) {
-    searchInput.addEventListener('input', function() {
-        var query = this.value.trim();
-        clearTimeout(searchTimeout);
-        if (query.length < 2) {
-            if (searchResults) searchResults.classList.remove('active');
-            return;
-        }
-        searchTimeout = setTimeout(function() {
-            fetch('search.php?q=' + encodeURIComponent(query))
-                .then(function(response) { return response.json(); })
-                .then(function(data) {
-                    if (searchResults) {
-                        searchResults.innerHTML = '';
-                        if (data && data.length > 0) {
-                            data.forEach(function(item) {
-                                var div = document.createElement('a');
-                                div.className = 'result-item';
-                                div.href = item.url || '#';
-                                div.innerHTML = '<i class="fas ' + (item.icon || 'fa-file') + '"></i><span class="text-truncate">' + (item.label || item.name || '') + '</span><span class="result-type">' + ((item.type || '').charAt(0).toUpperCase() + (item.type || '').slice(1)) + '</span>';
-                                searchResults.appendChild(div);
-                            });
-                            searchResults.classList.add('active');
-                        } else {
-                            searchResults.innerHTML = '<div style="padding:12px;text-align:center;color:var(--gray-500);font-size:0.8rem;"><i class="fas fa-search" style="display:block;font-size:1.2rem;margin-bottom:4px;"></i>No results found</div>';
-                            searchResults.classList.add('active');
-                        }
-                    }
-                })
-                .catch(function() {});
-        }, 300);
-    });
-
-    document.addEventListener('click', function(e) {
-        var wrapper = document.querySelector('.search-wrapper');
-        if (wrapper && !wrapper.contains(e.target) && searchResults) {
-            searchResults.classList.remove('active');
-        }
-    });
-}
-
-// ============================================================
-// PRELOADER
-// ============================================================
 window.addEventListener('load', function() {
     var preloader = document.getElementById('preloader');
     if (preloader) {

@@ -49,7 +49,7 @@ try {
     $state_name = 'State';
 }
 
-// Get LGAs in this senatorial district
+// Get LGAs
 $lga_ids = [];
 try {
     $stmt = $db->prepare("SELECT lgas_json FROM senatorial_districts WHERE id = ?");
@@ -69,16 +69,9 @@ $federal_constituencies = [];
 try {
     if (!empty($lga_ids)) {
         $stmt = $db->prepare("
-            SELECT DISTINCT fc.id, fc.name, fc.code,
-                   COUNT(DISTINCT l.id) as lga_count,
-                   COUNT(DISTINCT w.id) as ward_count,
-                   COUNT(DISTINCT pu.id) as pu_count
+            SELECT DISTINCT fc.id, fc.name, fc.code
             FROM federal_constituencies fc
-            LEFT JOIN lgas l ON l.state_id = fc.state_id
-            LEFT JOIN wards w ON w.lga_id = l.id
-            LEFT JOIN polling_units pu ON pu.ward_id = w.id
             WHERE fc.state_id = ? AND fc.is_active = 1
-            GROUP BY fc.id, fc.name, fc.code
             ORDER BY fc.name ASC
         ");
         $stmt->execute([$state_id]);
@@ -88,19 +81,17 @@ try {
     $federal_constituencies = [];
 }
 
-// Get LGAs
+// Get LGAs with details
 $lgas = [];
 try {
     if (!empty($lga_ids)) {
         $stmt = $db->prepare("
             SELECT l.id, l.name, l.code,
                    COUNT(DISTINCT w.id) as ward_count,
-                   COUNT(DISTINCT pu.id) as pu_count,
-                   COUNT(DISTINCT u.id) as coordinator_count
+                   COUNT(DISTINCT pu.id) as pu_count
             FROM lgas l
-            LEFT JOIN wards w ON w.lga_id = l.id
-            LEFT JOIN polling_units pu ON pu.ward_id = w.id
-            LEFT JOIN users u ON u.lga_id = l.id AND u.role_id = (SELECT id FROM roles WHERE level = 'lga' LIMIT 1)
+            LEFT JOIN wards w ON w.lga_id = l.id AND w.is_active = 1
+            LEFT JOIN polling_units pu ON pu.ward_id = w.id AND pu.is_active = 1
             WHERE l.id IN ($lga_list) AND l.is_active = 1
             GROUP BY l.id, l.name, l.code
             ORDER BY l.name ASC
@@ -122,7 +113,7 @@ try {
                    COUNT(DISTINCT pu.id) as pu_count
             FROM wards w
             JOIN lgas l ON w.lga_id = l.id
-            LEFT JOIN polling_units pu ON pu.ward_id = w.id
+            LEFT JOIN polling_units pu ON pu.ward_id = w.id AND pu.is_active = 1
             WHERE l.id IN ($lga_list) AND w.is_active = 1
             GROUP BY w.id, w.name, w.code, w.lga_id, l.name
             ORDER BY w.name ASC
@@ -135,7 +126,7 @@ try {
     $wards = [];
 }
 
-// Get Polling Units
+// Get Polling Units with status
 $polling_units = [];
 try {
     if (!empty($lga_ids)) {
@@ -190,7 +181,7 @@ try {
                 SUM(CASE WHEN c.id IS NULL THEN 1 ELSE 0 END) as not_checked_in
             FROM polling_units pu
             JOIN wards w ON pu.ward_id = w.id
-            LEFT JOIN agent_checkins c ON c.pu_id = pu.id AND c.checkin_type = 'arrival'
+            LEFT JOIN agent_checkins c ON c.pu_id = pu.id AND c.checkin_type = 'arrival' AND c.created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
             WHERE w.lga_id IN ($lga_list) AND pu.is_active = 1
         ");
         $stmt->execute();
@@ -227,45 +218,40 @@ include '../includes/sidebar.php';
 ?>
 
 <style>
-/* Monitor District Styles */
-.stats-grid {
+.monitor-stats {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 16px;
     margin-bottom: 24px;
 }
-.stat-card {
+.stat-box {
     background: white;
     border-radius: var(--radius);
-    padding: 18px 20px;
+    padding: 20px;
     border: 1px solid var(--gray-200);
+    text-align: center;
 }
-.stat-card .stat-number {
-    font-size: 1.5rem;
+.stat-box .number {
+    font-size: 1.8rem;
     font-weight: 700;
-    color: var(--gray-800);
 }
-.stat-card .stat-label {
+.stat-box .label {
     font-size: 0.75rem;
     color: var(--gray-500);
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
-.stat-card .stat-change {
+.stat-box .sub {
     font-size: 0.7rem;
-    margin-top: 4px;
     color: var(--gray-400);
+    margin-top: 4px;
 }
-.stat-card .stat-icon {
-    font-size: 1.5rem;
-    margin-bottom: 8px;
-}
-.stat-icon.blue { color: #2563EB; }
-.stat-icon.green { color: #059669; }
-.stat-icon.purple { color: #7C3AED; }
-.stat-icon.orange { color: #EA580C; }
-.stat-icon.red { color: #DC2626; }
-.stat-icon.teal { color: #0D9488; }
+.stat-box.blue .number { color: #2563EB; }
+.stat-box.green .number { color: #059669; }
+.stat-box.purple .number { color: #7C3AED; }
+.stat-box.orange .number { color: #EA580C; }
+.stat-box.red .number { color: #DC2626; }
+.stat-box.teal .number { color: #0D9488; }
 
 .section-card {
     background: white;
@@ -315,6 +301,7 @@ include '../includes/sidebar.php';
 .table tr:hover td {
     background: var(--gray-50);
 }
+
 .status-badge {
     display: inline-block;
     padding: 2px 10px;
@@ -354,7 +341,7 @@ include '../includes/sidebar.php';
     .grid-2col {
         grid-template-columns: 1fr;
     }
-    .stats-grid {
+    .monitor-stats {
         grid-template-columns: repeat(2, 1fr);
     }
 }
@@ -385,45 +372,39 @@ include '../includes/sidebar.php';
             </div>
         </div>
 
-        <!-- Stats Cards -->
-        <div class="stats-grid">
-            <div class="stat-card">
-                <div class="stat-icon blue"><i class="fas fa-building"></i></div>
-                <div class="stat-number"><?php echo number_format(count($federal_constituencies)); ?></div>
-                <div class="stat-label">Federal Constituencies</div>
+        <!-- Stats -->
+        <div class="monitor-stats">
+            <div class="stat-box blue">
+                <div class="number"><?php echo number_format(count($federal_constituencies)); ?></div>
+                <div class="label">Federal Constituencies</div>
             </div>
-            <div class="stat-card">
-                <div class="stat-icon purple"><i class="fas fa-map-marker-alt"></i></div>
-                <div class="stat-number"><?php echo number_format(count($lgas)); ?></div>
-                <div class="stat-label">LGAs</div>
-                <div class="stat-change"><?php echo number_format(array_sum(array_column($lgas, 'ward_count'))); ?> wards</div>
+            <div class="stat-box purple">
+                <div class="number"><?php echo number_format(count($lgas)); ?></div>
+                <div class="label">LGAs</div>
+                <div class="sub"><?php echo number_format(array_sum(array_column($lgas, 'ward_count'))); ?> wards</div>
             </div>
-            <div class="stat-card">
-                <div class="stat-icon teal"><i class="fas fa-flag-checkered"></i></div>
-                <div class="stat-number"><?php echo number_format($election_progress['total_pus'] ?? 0); ?></div>
-                <div class="stat-label">Polling Units</div>
-                <div class="stat-change"><?php echo number_format($election_progress['results_submitted'] ?? 0); ?> submitted</div>
+            <div class="stat-box green">
+                <div class="number"><?php echo number_format($election_progress['total_pus'] ?? 0); ?></div>
+                <div class="label">Polling Units</div>
+                <div class="sub"><?php echo number_format($election_progress['results_submitted'] ?? 0); ?> submitted</div>
             </div>
-            <div class="stat-card">
-                <div class="stat-icon green"><i class="fas fa-check-circle"></i></div>
-                <div class="stat-number"><?php 
+            <div class="stat-box teal">
+                <div class="number"><?php 
                     $total = $election_progress['total_pus'] ?? 1;
                     $submitted = $election_progress['results_submitted'] ?? 0;
                     echo number_format(($submitted / $total) * 100, 1);
                 ?>%</div>
-                <div class="stat-label">Progress</div>
-                <div class="stat-change"><?php echo number_format($election_progress['results_verified'] ?? 0); ?> verified</div>
+                <div class="label">Progress</div>
+                <div class="sub"><?php echo number_format($election_progress['results_verified'] ?? 0); ?> verified</div>
             </div>
-            <div class="stat-card">
-                <div class="stat-icon orange"><i class="fas fa-user-check"></i></div>
-                <div class="stat-number"><?php echo number_format($checkin_status['checked_in'] ?? 0); ?></div>
-                <div class="stat-label">Checked In</div>
-                <div class="stat-change"><?php echo number_format($checkin_status['not_checked_in'] ?? 0); ?> not checked</div>
+            <div class="stat-box orange">
+                <div class="number"><?php echo number_format($checkin_status['checked_in'] ?? 0); ?></div>
+                <div class="label">Checked In</div>
+                <div class="sub"><?php echo number_format($checkin_status['not_checked_in'] ?? 0); ?> not checked</div>
             </div>
-            <div class="stat-card">
-                <div class="stat-icon red"><i class="fas fa-clock"></i></div>
-                <div class="stat-number"><?php echo number_format($election_progress['total_pus'] - $election_progress['results_submitted'] ?? 0); ?></div>
-                <div class="stat-label">Pending Results</div>
+            <div class="stat-box red">
+                <div class="number"><?php echo number_format(($election_progress['total_pus'] ?? 0) - ($election_progress['results_submitted'] ?? 0)); ?></div>
+                <div class="label">Pending Results</div>
             </div>
         </div>
 
@@ -597,7 +578,6 @@ include '../includes/sidebar.php';
 // FILTER FUNCTIONALITY
 // ============================================================
 function applyFilters() {
-    var constituency = document.getElementById('filterConstituency').value;
     var lga = document.getElementById('filterLGA').value;
     var ward = document.getElementById('filterWard').value;
     var status = document.getElementById('filterStatus').value;
@@ -611,14 +591,12 @@ function applyFilters() {
         
         if (cells.length < 8) return;
         
-        // Get values
         var rowLga = cells[3]?.textContent?.trim() || '';
         var rowWard = cells[2]?.textContent?.trim() || '';
         var rowStatus = cells[5]?.textContent?.trim().toLowerCase() || '';
         var rowName = cells[0]?.textContent?.trim().toLowerCase() || '';
         var rowCode = cells[1]?.textContent?.trim().toLowerCase() || '';
         
-        // Apply filters
         if (lga && rowLga !== lga) show = false;
         if (ward && rowWard !== ward) show = false;
         if (status && rowStatus !== status) show = false;
@@ -629,7 +607,7 @@ function applyFilters() {
 }
 
 // ============================================================
-// SIDEBAR TOGGLE
+// SIDEBAR TOGGLE (same as index.php)
 // ============================================================
 var sidebar = document.getElementById('sidebar');
 var sidebarToggle = document.getElementById('sidebarToggle');
@@ -669,9 +647,6 @@ window.addEventListener('resize', function() {
     }
 });
 
-// ============================================================
-// SIDEBAR DROPDOWNS
-// ============================================================
 document.querySelectorAll('.dropdown-toggle').forEach(function(toggle) {
     toggle.addEventListener('click', function(e) {
         e.preventDefault();
@@ -685,9 +660,6 @@ document.querySelectorAll('.dropdown-toggle').forEach(function(toggle) {
     });
 });
 
-// ============================================================
-// PROFILE DROPDOWN
-// ============================================================
 var profileBtn = document.getElementById('profileBtn');
 var profileMenu = document.getElementById('profileMenu');
 
@@ -703,9 +675,6 @@ if (profileBtn && profileMenu) {
     });
 }
 
-// ============================================================
-// PRELOADER
-// ============================================================
 window.addEventListener('load', function() {
     var preloader = document.getElementById('preloader');
     if (preloader) {
