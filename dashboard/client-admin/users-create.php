@@ -576,8 +576,8 @@ include 'includes/sidebar.php';
                     </div>
                     
                     <div class="form-group">
-                        <label>Phone Number</label>
-                        <input type="tel" name="phone" placeholder="+234 800 555 5555" value="<?php echo htmlspecialchars($form_data['phone'] ?? ''); ?>">
+                        <label>Phone Number <span class="required">*</span></label>
+                        <input type="tel" name="phone" placeholder="+234 800 555 5555" required value="<?php echo htmlspecialchars($form_data['phone'] ?? ''); ?>">
                     </div>
                     
                     <div class="form-group">
