@@ -254,44 +254,92 @@ $role_menus['state'] = [
 // ============================================================
 // 3. SENATORIAL COORDINATOR MENU
 // ============================================================
+// ============================================================
+// SENATORIAL COORDINATOR MENU - SIMPLIFIED
+// ============================================================
 $role_menus['senatorial'] = [
     'main' => [
         ['label' => 'Dashboard', 'icon' => 'fa-th-large', 'url' => 'index.php', 'active' => 'dashboard'],
         ['label' => 'Monitor Senatorial District', 'icon' => 'fa-university', 'url' => 'monitor-district.php'],
     ],
-    'structure' => [
-        ['label' => 'View LGAs', 'icon' => 'fa-map-marker-alt', 'url' => 'view-lgas.php'],
-        ['label' => 'View Coordinators', 'icon' => 'fa-user-tie', 'url' => 'view-coordinators.php'],
-        ['label' => 'Monitor Agents', 'icon' => 'fa-user-clock', 'url' => 'monitor-agents.php'],
+    'results' => [
+        ['label' => 'View Results', 'icon' => 'fa-chart-bar', 'dropdown' => true, 'id' => 'results-dropdown',
+            'items' => [
+                ['label' => 'By Federal Constituency', 'icon' => 'fa-building', 'url' => 'results-by-constituency.php'],
+                ['label' => 'By LGA', 'icon' => 'fa-map-marker-alt', 'url' => 'results-by-lga.php'],
+                ['label' => 'By Ward', 'icon' => 'fa-layer-group', 'url' => 'results-by-ward.php'],
+                ['label' => 'Polling Unit Results', 'icon' => 'fa-flag-checkered', 'url' => 'results-by-pu.php'],
+                ['label' => 'Compare Results', 'icon' => 'fa-balance-scale', 'url' => 'compare-results.php'],
+                ['label' => 'Result Status', 'icon' => 'fa-check-circle', 'url' => 'result-status.php'],
+                ['label' => 'Download Summary', 'icon' => 'fa-download', 'url' => 'download-results.php'],
+            ]
+        ]
     ],
-    'elections' => [
-        ['label' => 'View Elections', 'icon' => 'fa-vote-yea', 'url' => 'elections.php'],
-        ['label' => 'Upload Progress', 'icon' => 'fa-upload', 'url' => 'upload-progress.php'],
+    'reports' => [
+        ['label' => 'Reports', 'icon' => 'fa-file-alt', 'dropdown' => true, 'id' => 'reports-dropdown',
+            'items' => [
+                ['label' => 'Election Progress Report', 'icon' => 'fa-chart-line', 'url' => 'report-progress.php'],
+                ['label' => 'Federal Constituency Report', 'icon' => 'fa-building', 'url' => 'report-constituency.php'],
+                ['label' => 'LGA Report', 'icon' => 'fa-map-marker-alt', 'url' => 'report-lga.php'],
+                ['label' => 'Ward Report', 'icon' => 'fa-layer-group', 'url' => 'report-ward.php'],
+                ['label' => 'Polling Unit Report', 'icon' => 'fa-flag-checkered', 'url' => 'report-pu.php'],
+                ['label' => 'Result Summary Report', 'icon' => 'fa-file-alt', 'url' => 'report-results-summary.php'],
+                ['label' => 'Incident Report', 'icon' => 'fa-exclamation-triangle', 'url' => 'report-incidents.php'],
+                ['label' => 'Personnel Performance Report', 'icon' => 'fa-user-chart', 'url' => 'report-personnel.php'],
+                ['label' => 'Export PDF', 'icon' => 'fa-file-pdf', 'url' => 'export-pdf.php'],
+                ['label' => 'Export Excel', 'icon' => 'fa-file-excel', 'url' => 'export-excel.php'],
+                ['label' => 'Export CSV', 'icon' => 'fa-file-csv', 'url' => 'export-csv.php'],
+            ]
+        ]
     ],
     'communications' => [
         ['label' => 'Broadcast', 'icon' => 'fa-bullhorn', 'dropdown' => true, 'id' => 'broadcast-dropdown',
             'items' => [
                 ['label' => 'Create Broadcast', 'icon' => 'fa-plus', 'url' => 'broadcasts-create.php'],
+                ['label' => 'Edit Draft', 'icon' => 'fa-edit', 'url' => 'broadcasts-edit.php'],
+                ['label' => 'Delete Draft', 'icon' => 'fa-trash', 'url' => 'broadcasts-delete.php'],
+                ['label' => 'Send Broadcast', 'icon' => 'fa-paper-plane', 'url' => 'broadcasts-send.php'],
                 ['label' => 'Schedule Broadcast', 'icon' => 'fa-calendar-plus', 'url' => 'broadcasts-schedule.php'],
-                ['label' => 'View Broadcasts', 'icon' => 'fa-list', 'url' => 'broadcasts.php'],
-                ['label' => 'Delivery Status', 'icon' => 'fa-check-circle', 'url' => 'broadcasts-delivery.php'],
+                ['label' => 'Cancel Scheduled', 'icon' => 'fa-calendar-times', 'url' => 'broadcasts-cancel.php'],
+                ['label' => 'Broadcast History', 'icon' => 'fa-history', 'url' => 'broadcasts-history.php'],
+                ['label' => 'Search Broadcasts', 'icon' => 'fa-search', 'url' => 'broadcasts-search.php'],
+            ]
+        ],
+        ['label' => 'Incident Monitoring', 'icon' => 'fa-exclamation-triangle', 'dropdown' => true, 'id' => 'incident-dropdown',
+            'items' => [
+                ['label' => 'View Incidents', 'icon' => 'fa-list', 'url' => 'incidents.php'],
+                ['label' => 'Incident Details', 'icon' => 'fa-info-circle', 'url' => 'incident-details.php'],
+                ['label' => 'Search Incidents', 'icon' => 'fa-search', 'url' => 'incidents-search.php'],
+                ['label' => 'Filter by Status', 'icon' => 'fa-filter', 'url' => 'incidents-filter-status.php'],
+                ['label' => 'Filter by LGA', 'icon' => 'fa-map-marker-alt', 'url' => 'incidents-filter-lga.php'],
+                ['label' => 'Filter by Ward', 'icon' => 'fa-layer-group', 'url' => 'incidents-filter-ward.php'],
+                ['label' => 'Filter by Severity', 'icon' => 'fa-exclamation-circle', 'url' => 'incidents-filter-severity.php'],
+                ['label' => 'Update Status', 'icon' => 'fa-edit', 'url' => 'incident-update.php'],
+                ['label' => 'Assign Priority', 'icon' => 'fa-flag', 'url' => 'incident-priority.php'],
+                ['label' => 'Escalate to State', 'icon' => 'fa-arrow-up', 'url' => 'incident-escalate.php'],
+                ['label' => 'Close Incident', 'icon' => 'fa-times-circle', 'url' => 'incident-close.php'],
+                ['label' => 'Export Incident Report', 'icon' => 'fa-download', 'url' => 'incidents-export.php'],
             ]
         ]
     ],
-    'reports' => [
-        ['label' => 'Analytics', 'icon' => 'fa-chart-pie', 'dropdown' => true, 'id' => 'analytics-dropdown',
+    'notifications' => [
+        ['label' => 'Notifications', 'icon' => 'fa-bell', 'dropdown' => true, 'id' => 'notifications-dropdown',
             'items' => [
-                ['label' => 'District Performance', 'icon' => 'fa-chart-line', 'url' => 'analytics-district.php'],
-                ['label' => 'Upload Statistics', 'icon' => 'fa-upload', 'url' => 'analytics-uploads.php'],
-                ['label' => 'Incident Statistics', 'icon' => 'fa-exclamation-triangle', 'url' => 'analytics-incidents.php'],
-                ['label' => 'Agent Performance', 'icon' => 'fa-user-chart', 'url' => 'analytics-agents.php'],
+                ['label' => 'View All Notifications', 'icon' => 'fa-list', 'url' => 'notifications.php'],
+                ['label' => 'Mark as Read', 'icon' => 'fa-check-double', 'url' => 'notifications-mark-read.php'],
+                ['label' => 'Delete Notification', 'icon' => 'fa-trash', 'url' => 'notifications-delete.php'],
+                ['label' => 'Broadcast Alerts', 'icon' => 'fa-bullhorn', 'url' => 'notifications-broadcasts.php'],
+                ['label' => 'Incident Alerts', 'icon' => 'fa-exclamation-triangle', 'url' => 'notifications-incidents.php'],
             ]
-        ],
-        ['label' => 'Reports', 'icon' => 'fa-file-alt', 'dropdown' => true, 'id' => 'reports-dropdown',
+        ]
+    ],
+    'profile' => [
+        ['label' => 'Profile', 'icon' => 'fa-user', 'dropdown' => true, 'id' => 'profile-dropdown',
             'items' => [
-                ['label' => 'District Report', 'icon' => 'fa-file-pdf', 'url' => 'reports-district.php'],
-                ['label' => 'Election Summary', 'icon' => 'fa-file-alt', 'url' => 'reports-election-summary.php'],
-                ['label' => 'Agent Report', 'icon' => 'fa-file-alt', 'url' => 'reports-agents.php'],
+                ['label' => 'View Profile', 'icon' => 'fa-id-card', 'url' => 'profile.php'],
+                ['label' => 'Update Profile', 'icon' => 'fa-edit', 'url' => 'profile-edit.php'],
+                ['label' => 'Change Password', 'icon' => 'fa-key', 'url' => 'change-password.php'],
+                ['label' => 'Logout', 'icon' => 'fa-sign-out-alt', 'url' => '../../auth/logout.php'],
             ]
         ]
     ]
