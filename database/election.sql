@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost:3306
--- Generation Time: Jul 11, 2026 at 01:00 AM
+-- Generation Time: Jul 27, 2026 at 04:44 PM
 -- Server version: 8.0.41
 -- PHP Version: 8.4.21
 
@@ -359,7 +359,251 @@ INSERT INTO `activity_logs` (`id`, `user_id`, `tenant_id`, `activity_type`, `des
 (442, 21, NULL, 'logout', 'User logged out successfully', NULL, NULL, '10.59.66.251', NULL, '2026-07-10 13:34:56'),
 (443, 26, NULL, 'login', 'User logged in successfully', NULL, NULL, '10.59.66.251', NULL, '2026-07-10 13:35:02'),
 (444, 26, NULL, 'logout', 'User logged out successfully', NULL, NULL, '10.59.66.251', NULL, '2026-07-10 13:35:04'),
-(445, 27, NULL, 'login', 'User logged in successfully', NULL, NULL, '10.59.66.251', NULL, '2026-07-10 13:35:08');
+(445, 27, NULL, 'login', 'User logged in successfully', NULL, NULL, '10.59.66.251', NULL, '2026-07-10 13:35:08'),
+(446, 7, NULL, 'password_reset', 'Password reset requested', NULL, NULL, '102.89.83.93', NULL, '2026-07-10 22:04:31'),
+(447, 7, NULL, 'password_reset', 'Password reset requested', NULL, NULL, '102.89.83.93', NULL, '2026-07-10 22:10:46'),
+(448, 21, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.89.83.93', NULL, '2026-07-10 22:12:33'),
+(449, 21, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.89.83.93', NULL, '2026-07-10 22:13:54'),
+(450, 21, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.89.83.93', NULL, '2026-07-10 22:14:21'),
+(451, 21, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.89.83.93', NULL, '2026-07-10 22:14:26'),
+(452, 7, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.89.83.93', NULL, '2026-07-10 22:15:05'),
+(453, 7, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.89.83.93', NULL, '2026-07-10 22:19:28'),
+(454, 7, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.89.83.93', NULL, '2026-07-10 22:21:02'),
+(455, 7, NULL, 'user_created', 'Created user: Aliyu Yahaya (ID: 28) for tenant ID: 14', NULL, NULL, '102.89.83.93', NULL, '2026-07-10 22:22:27'),
+(456, 7, NULL, 'user_updated', 'Updated user: Aliyu Yahaya (ID: 28)', NULL, NULL, '102.89.83.93', NULL, '2026-07-10 22:22:47'),
+(457, 7, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.89.83.93', NULL, '2026-07-10 22:23:04'),
+(458, 28, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.89.83.93', NULL, '2026-07-10 22:23:17'),
+(459, 7, NULL, 'password_reset', 'Password reset requested', NULL, NULL, '102.89.83.93', NULL, '2026-07-10 22:25:08'),
+(460, 28, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.89.83.93', NULL, '2026-07-10 22:26:21'),
+(461, 28, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.89.83.93', NULL, '2026-07-10 22:26:24'),
+(462, 28, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.88.115.148', NULL, '2026-07-10 22:29:58'),
+(463, 28, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.103.45', NULL, '2026-07-10 23:26:28'),
+(464, 21, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.103.29', NULL, '2026-07-11 13:00:31'),
+(465, 21, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.103.29', NULL, '2026-07-11 13:02:07'),
+(466, 22, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.103.29', NULL, '2026-07-11 13:02:11'),
+(467, 22, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.103.29', NULL, '2026-07-11 13:02:21'),
+(468, 7, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.103.29', NULL, '2026-07-11 13:02:29'),
+(469, 7, NULL, 'user_created', 'Created user: Aliyu Abubakar (ID: 29) for tenant ID: 14', NULL, NULL, '102.91.103.29', NULL, '2026-07-11 13:03:12'),
+(470, 7, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.103.29', NULL, '2026-07-11 13:03:15'),
+(471, 29, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.103.29', NULL, '2026-07-11 13:03:59'),
+(472, 29, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.103.29', NULL, '2026-07-11 13:04:05'),
+(473, 28, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.104.170', NULL, '2026-07-11 13:48:58'),
+(474, 28, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.104.170', NULL, '2026-07-11 13:59:26'),
+(475, 28, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.92.135', NULL, '2026-07-11 14:13:19'),
+(476, 28, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.103.61', NULL, '2026-07-15 12:53:48'),
+(477, 28, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.77.202', NULL, '2026-07-15 21:04:50'),
+(478, 28, NULL, 'user_updated', 'Updated user: Aliyu Abubakar (ID: 26)', NULL, NULL, '102.91.77.202', NULL, '2026-07-15 21:05:44'),
+(479, 29, NULL, 'password_change', 'Password changed successfully', NULL, NULL, NULL, NULL, '2026-07-15 22:03:22'),
+(480, 28, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.77.202', NULL, '2026-07-15 22:05:20'),
+(481, 28, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.77.202', NULL, '2026-07-15 22:59:33'),
+(482, 28, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.77.202', NULL, '2026-07-15 23:00:16'),
+(483, 28, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.77.202', NULL, '2026-07-15 23:00:24'),
+(484, 28, NULL, 'user_updated', 'Updated user: ibrahim sule (ID: 23)', NULL, NULL, '102.91.77.202', NULL, '2026-07-15 23:00:47'),
+(485, 28, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.77.202', NULL, '2026-07-15 23:00:50'),
+(486, 23, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.77.202', NULL, '2026-07-15 23:00:53'),
+(487, 23, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.77.202', NULL, '2026-07-15 23:01:37'),
+(488, 28, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.77.202', NULL, '2026-07-15 23:01:44'),
+(489, 28, NULL, 'user_updated', 'Updated user: Aliyu Abubakar (ID: 25)', NULL, NULL, '102.91.77.202', NULL, '2026-07-15 23:02:07'),
+(490, 28, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.77.202', NULL, '2026-07-15 23:02:08'),
+(491, 25, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.77.202', NULL, '2026-07-15 23:02:13'),
+(492, 25, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.77.202', NULL, '2026-07-15 23:04:04'),
+(493, 28, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.77.202', NULL, '2026-07-15 23:04:18'),
+(494, 28, NULL, 'user_updated', 'Updated user: Aliyu Abubakar (ID: 27)', NULL, NULL, '102.91.77.202', NULL, '2026-07-15 23:04:43'),
+(495, 28, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.77.202', NULL, '2026-07-15 23:04:44'),
+(496, 27, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.77.202', NULL, '2026-07-15 23:04:50'),
+(497, 27, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.77.202', NULL, '2026-07-15 23:06:39'),
+(498, 7, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.77.202', NULL, '2026-07-15 23:06:46'),
+(499, 7, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.77.202', NULL, '2026-07-15 23:07:32'),
+(500, 22, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.77.202', NULL, '2026-07-15 23:07:38'),
+(501, 22, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.77.202', NULL, '2026-07-15 23:08:01'),
+(502, 7, NULL, 'password_reset', 'Password reset requested', NULL, NULL, '102.91.77.202', NULL, '2026-07-15 23:09:02'),
+(503, 28, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.77.202', NULL, '2026-07-15 23:09:37'),
+(504, 7, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.93.133', NULL, '2026-07-16 09:16:10'),
+(505, 7, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.93.133', NULL, '2026-07-16 09:31:46'),
+(506, 21, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.93.133', NULL, '2026-07-16 09:31:51'),
+(507, 21, NULL, 'agent_added', 'Added agent: ba sule jumbe', NULL, NULL, '102.91.93.133', NULL, '2026-07-16 09:33:49'),
+(508, 21, NULL, 'agent_assigned', 'Assigned agent ID: 30 to PU: 26', NULL, NULL, '102.91.93.133', NULL, '2026-07-16 09:34:16'),
+(509, 21, NULL, 'user_updated', 'Updated user: ba sule jumbe (ID: 30)', NULL, NULL, '102.91.93.133', NULL, '2026-07-16 09:34:54'),
+(510, 21, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.93.133', NULL, '2026-07-16 09:36:10'),
+(511, 28, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.93.133', NULL, '2026-07-16 09:36:16'),
+(512, 28, NULL, 'user_updated', 'Updated user: ba sule jumbe (ID: 30)', NULL, NULL, '102.91.93.133', NULL, '2026-07-16 09:40:52'),
+(513, 28, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.93.133', NULL, '2026-07-16 10:00:52'),
+(514, 7, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.93.133', NULL, '2026-07-16 10:01:00'),
+(515, 7, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.93.133', NULL, '2026-07-16 10:01:03'),
+(516, 21, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.93.133', NULL, '2026-07-16 10:01:11'),
+(517, 21, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.93.133', NULL, '2026-07-16 10:01:38'),
+(518, 28, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.93.133', NULL, '2026-07-16 10:01:47'),
+(519, 28, NULL, 'user_created', 'Created user: Aliyu Abubakar (ID: 31) for tenant ID: 14', NULL, NULL, '102.91.93.133', NULL, '2026-07-16 10:02:30'),
+(520, 28, NULL, 'user_updated', 'Updated user: Aliyu Abubakar (ID: 31)', NULL, NULL, '102.91.93.133', NULL, '2026-07-16 10:03:22'),
+(521, 28, NULL, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.187', NULL, '2026-07-18 15:59:03'),
+(522, 28, NULL, 'logout', 'User logged out successfully', NULL, NULL, '197.210.70.187', NULL, '2026-07-18 15:59:34'),
+(523, 22, NULL, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.187', NULL, '2026-07-18 15:59:39'),
+(524, 22, NULL, 'logout', 'User logged out successfully', NULL, NULL, '197.210.70.187', NULL, '2026-07-18 16:12:49'),
+(525, 28, NULL, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.187', NULL, '2026-07-18 16:13:00'),
+(526, 28, NULL, 'logout', 'User logged out successfully', NULL, NULL, '197.210.70.187', NULL, '2026-07-18 16:13:16'),
+(527, 27, NULL, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.187', NULL, '2026-07-18 16:13:22'),
+(528, 27, NULL, 'logout', 'User logged out successfully', NULL, NULL, '197.210.70.187', NULL, '2026-07-18 16:21:47'),
+(529, 21, NULL, 'password_reset', 'Password reset requested', NULL, NULL, '197.210.70.187', NULL, '2026-07-18 16:22:11'),
+(530, 21, NULL, 'password_reset', 'Password reset requested', NULL, NULL, '197.210.70.187', NULL, '2026-07-18 16:30:29'),
+(531, 21, NULL, 'password_reset', 'Password reset requested', NULL, NULL, '197.210.70.187', NULL, '2026-07-18 16:30:37'),
+(532, 28, NULL, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.187', NULL, '2026-07-18 16:31:14'),
+(533, 28, NULL, 'user_updated', 'Updated user: Aliyu Abubakar (ID: 21)', NULL, NULL, '197.210.70.187', NULL, '2026-07-18 16:31:27'),
+(534, 28, NULL, 'logout', 'User logged out successfully', NULL, NULL, '197.210.70.187', NULL, '2026-07-18 16:31:29'),
+(535, 28, NULL, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.187', NULL, '2026-07-18 16:31:40'),
+(536, 28, NULL, 'user_updated', 'Updated user: Aliyu Abubakar (ID: 21)', NULL, NULL, '197.210.70.187', NULL, '2026-07-18 16:31:57'),
+(537, 28, NULL, 'logout', 'User logged out successfully', NULL, NULL, '197.210.70.187', NULL, '2026-07-18 16:32:00'),
+(538, 21, NULL, 'password_reset', 'Password reset requested', NULL, NULL, '197.210.70.187', NULL, '2026-07-18 16:46:23'),
+(539, 21, NULL, 'password_reset', 'Password reset requested', NULL, NULL, '102.88.112.143', NULL, '2026-07-18 21:12:11'),
+(540, 21, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.88.112.143', 'fcf1660350ef203ae312963f5f777eebb485291d84a215757669fa95d9592db3', '2026-07-18 21:35:19'),
+(541, 21, NULL, 'password_reset', 'Password reset requested', NULL, NULL, '102.88.112.143', 'fcf1660350ef203ae312963f5f777eebb485291d84a215757669fa95d9592db3', '2026-07-18 21:36:09'),
+(542, 21, NULL, 'password_reset', 'Password reset requested', NULL, NULL, '102.88.112.143', 'fcf1660350ef203ae312963f5f777eebb485291d84a215757669fa95d9592db3', '2026-07-18 21:37:59'),
+(543, 21, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.88.112.143', 'fcf1660350ef203ae312963f5f777eebb485291d84a215757669fa95d9592db3', '2026-07-18 21:40:26'),
+(544, 21, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.88.112.143', 'fcf1660350ef203ae312963f5f777eebb485291d84a215757669fa95d9592db3', '2026-07-18 22:41:31'),
+(545, 21, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.88.112.143', 'fcf1660350ef203ae312963f5f777eebb485291d84a215757669fa95d9592db3', '2026-07-18 22:41:47'),
+(546, 21, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.88.112.143', 'fcf1660350ef203ae312963f5f777eebb485291d84a215757669fa95d9592db3', '2026-07-18 22:47:35'),
+(547, 21, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.88.112.143', 'fcf1660350ef203ae312963f5f777eebb485291d84a215757669fa95d9592db3', '2026-07-18 22:47:38'),
+(548, 21, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.88.112.143', 'fcf1660350ef203ae312963f5f777eebb485291d84a215757669fa95d9592db3', '2026-07-18 22:57:43'),
+(549, 21, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.88.112.143', 'fcf1660350ef203ae312963f5f777eebb485291d84a215757669fa95d9592db3', '2026-07-18 22:57:44'),
+(550, 21, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.88.112.143', 'fcf1660350ef203ae312963f5f777eebb485291d84a215757669fa95d9592db3', '2026-07-18 22:57:59'),
+(551, 21, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.88.112.143', 'fcf1660350ef203ae312963f5f777eebb485291d84a215757669fa95d9592db3', '2026-07-18 22:58:34'),
+(552, 28, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.88.112.143', 'fcf1660350ef203ae312963f5f777eebb485291d84a215757669fa95d9592db3', '2026-07-18 22:58:39'),
+(553, 28, NULL, 'user_updated', 'Updated user: Aliyu Yahaya (ID: 28)', NULL, NULL, '102.88.112.143', 'fcf1660350ef203ae312963f5f777eebb485291d84a215757669fa95d9592db3', '2026-07-18 22:59:49');
+INSERT INTO `activity_logs` (`id`, `user_id`, `tenant_id`, `activity_type`, `description`, `entity_type`, `entity_id`, `ip_address`, `device_id`, `created_at`) VALUES
+(554, 28, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.88.112.143', 'fcf1660350ef203ae312963f5f777eebb485291d84a215757669fa95d9592db3', '2026-07-18 22:59:51'),
+(555, 25, NULL, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.43', 'a478559d003940cee9d0c1731b2cf8557cafe9361d7a8e99ee56c41ed2a2a03d', '2026-07-19 11:32:11'),
+(556, 25, NULL, 'logout', 'User logged out successfully', NULL, NULL, '197.210.70.43', 'a478559d003940cee9d0c1731b2cf8557cafe9361d7a8e99ee56c41ed2a2a03d', '2026-07-19 11:32:20'),
+(557, 21, NULL, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.43', 'a478559d003940cee9d0c1731b2cf8557cafe9361d7a8e99ee56c41ed2a2a03d', '2026-07-19 11:32:59'),
+(558, 21, NULL, 'logout', 'User logged out successfully', NULL, NULL, '197.210.70.43', 'a478559d003940cee9d0c1731b2cf8557cafe9361d7a8e99ee56c41ed2a2a03d', '2026-07-19 11:33:13'),
+(559, 21, NULL, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.43', 'a478559d003940cee9d0c1731b2cf8557cafe9361d7a8e99ee56c41ed2a2a03d', '2026-07-19 11:33:40'),
+(560, 21, NULL, 'user_updated', 'Updated user: Aliyu Abubakar (ID: 27)', NULL, NULL, '197.210.70.43', 'a478559d003940cee9d0c1731b2cf8557cafe9361d7a8e99ee56c41ed2a2a03d', '2026-07-19 11:34:08'),
+(561, 21, NULL, 'logout', 'User logged out successfully', NULL, NULL, '197.210.70.43', 'a478559d003940cee9d0c1731b2cf8557cafe9361d7a8e99ee56c41ed2a2a03d', '2026-07-19 11:34:11'),
+(562, 27, NULL, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.43', 'a478559d003940cee9d0c1731b2cf8557cafe9361d7a8e99ee56c41ed2a2a03d', '2026-07-19 11:34:31'),
+(563, 27, NULL, 'broadcast_pu_agents', 'Sent broadcast to PU Agents: hello (1 recipients)', 'broadcasts', 13, '197.210.70.43', 'a478559d003940cee9d0c1731b2cf8557cafe9361d7a8e99ee56c41ed2a2a03d', '2026-07-19 11:37:23'),
+(564, 27, NULL, 'broadcast_pu_agents', 'Sent broadcast to PU Agents: hello (1 recipients)', 'broadcasts', 14, '197.210.70.43', 'a478559d003940cee9d0c1731b2cf8557cafe9361d7a8e99ee56c41ed2a2a03d', '2026-07-19 11:37:48'),
+(565, 27, NULL, 'logout', 'User logged out successfully', NULL, NULL, '197.210.70.43', 'a478559d003940cee9d0c1731b2cf8557cafe9361d7a8e99ee56c41ed2a2a03d', '2026-07-19 12:23:36'),
+(566, 27, NULL, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.43', 'a478559d003940cee9d0c1731b2cf8557cafe9361d7a8e99ee56c41ed2a2a03d', '2026-07-19 12:23:38'),
+(567, 27, NULL, 'agent_suspended', 'Suspended agent ID: 26', 'user', 26, '197.210.70.43', 'a478559d003940cee9d0c1731b2cf8557cafe9361d7a8e99ee56c41ed2a2a03d', '2026-07-19 13:13:21'),
+(568, 27, NULL, 'profile_photo_updated', 'Profile photo updated', 'user', 27, '197.210.70.43', 'a478559d003940cee9d0c1731b2cf8557cafe9361d7a8e99ee56c41ed2a2a03d', '2026-07-19 13:44:34'),
+(569, 27, NULL, 'agent_activated', 'Activated agent ID: 26', 'user', 26, '197.210.70.43', 'a478559d003940cee9d0c1731b2cf8557cafe9361d7a8e99ee56c41ed2a2a03d', '2026-07-19 14:14:30'),
+(570, 26, 14, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.43', NULL, '2026-07-19 14:59:01'),
+(571, 26, 14, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.43', NULL, '2026-07-19 14:59:06'),
+(572, 26, 14, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.43', NULL, '2026-07-19 14:59:09'),
+(573, 26, 14, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.43', NULL, '2026-07-19 14:59:11'),
+(574, 26, 14, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.43', NULL, '2026-07-19 15:00:37'),
+(575, 26, 14, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.43', NULL, '2026-07-19 15:00:39'),
+(576, 21, NULL, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.43', 'a478559d003940cee9d0c1731b2cf8557cafe9361d7a8e99ee56c41ed2a2a03d', '2026-07-19 15:03:51'),
+(577, 26, 14, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.43', NULL, '2026-07-19 15:04:23'),
+(578, 26, 14, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.43', NULL, '2026-07-19 15:04:51'),
+(579, 26, 14, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.43', NULL, '2026-07-19 15:05:06'),
+(580, 26, 14, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.43', NULL, '2026-07-19 15:05:14'),
+(581, 26, 14, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.43', NULL, '2026-07-19 15:09:38'),
+(582, 26, 14, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.43', NULL, '2026-07-19 15:12:50'),
+(583, 29, 14, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.43', NULL, '2026-07-19 15:15:18'),
+(584, 31, 14, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.43', NULL, '2026-07-19 15:16:45'),
+(585, 30, 15, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.43', NULL, '2026-07-19 15:17:35'),
+(586, 29, 14, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.43', NULL, '2026-07-19 15:18:37'),
+(587, 26, 14, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.43', NULL, '2026-07-19 16:09:47'),
+(588, 26, 14, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.43', NULL, '2026-07-19 16:09:57'),
+(589, 26, 14, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.43', NULL, '2026-07-19 16:10:04'),
+(590, 26, 14, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.43', NULL, '2026-07-19 16:10:19'),
+(591, 26, NULL, 'password_change', 'Password changed successfully', NULL, NULL, NULL, NULL, '2026-07-19 16:17:07'),
+(592, 27, NULL, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.43', 'a478559d003940cee9d0c1731b2cf8557cafe9361d7a8e99ee56c41ed2a2a03d', '2026-07-19 16:27:22'),
+(593, 26, 14, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.43', NULL, '2026-07-19 16:28:26'),
+(594, 26, 14, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.43', NULL, '2026-07-19 16:38:35'),
+(595, 27, NULL, 'logout', 'User logged out successfully', NULL, NULL, '197.210.70.43', 'a478559d003940cee9d0c1731b2cf8557cafe9361d7a8e99ee56c41ed2a2a03d', '2026-07-19 16:54:49'),
+(596, 26, 14, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.43', NULL, '2026-07-19 16:55:40'),
+(597, 26, NULL, 'password_change', 'Password changed successfully', NULL, NULL, NULL, NULL, '2026-07-19 16:56:06'),
+(598, 31, 14, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.43', NULL, '2026-07-19 16:56:41'),
+(599, 29, 14, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.43', NULL, '2026-07-19 16:57:16'),
+(600, 30, 15, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.43', NULL, '2026-07-19 16:57:43'),
+(601, 26, 14, 'login', 'User logged in successfully', NULL, NULL, '197.210.70.43', NULL, '2026-07-19 17:04:48'),
+(602, 26, 14, 'login', 'User logged in successfully', NULL, NULL, '102.91.77.164', NULL, '2026-07-20 19:18:32'),
+(603, 27, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.103.170', '9b9bd6260fcaddd147a31695595902b936b448e2f0b8007640f93a97ecd67767', '2026-07-23 15:46:28'),
+(604, 27, NULL, 'broadcast_created', 'Created broadcast: aasd (ID: 15)', 'broadcasts', 15, '102.91.103.170', '9b9bd6260fcaddd147a31695595902b936b448e2f0b8007640f93a97ecd67767', '2026-07-23 16:20:14'),
+(605, 27, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.104.59', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', '2026-07-24 13:33:17'),
+(606, 27, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.104.59', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', '2026-07-24 14:03:27'),
+(607, 27, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.104.59', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', '2026-07-24 14:27:33'),
+(608, 21, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.104.59', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', '2026-07-24 14:28:14'),
+(609, 21, NULL, 'user_created', 'Created user: Aliyu Abubakar (ID: 32)', NULL, NULL, '102.91.104.59', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', '2026-07-24 14:29:16'),
+(610, 21, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.104.59', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', '2026-07-24 14:29:22'),
+(611, 32, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.104.59', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', '2026-07-24 14:29:25'),
+(612, 32, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.104.59', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', '2026-07-24 14:29:30'),
+(613, 27, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.104.59', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', '2026-07-24 14:29:40'),
+(614, 27, NULL, 'volunteer_assigned', 'Assigned volunteer: Aliyu Abubakar (ID: 32) to PU: KANGIRE PRI. SCH. II. (ID: 26)', 'user', 32, '102.91.104.59', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', '2026-07-24 15:38:17'),
+(615, 27, NULL, 'task_assigned', 'Assigned task to volunteer ID: 32 - Good', 'volunteer_tasks', 1, '102.91.104.59', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', '2026-07-24 15:38:57'),
+(616, 27, NULL, 'task_status_updated', 'Updated task ID: 1 from \'pending\' to \'in_progress\'', 'volunteer_tasks', 1, '102.91.104.59', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', '2026-07-24 16:01:46'),
+(617, 27, NULL, 'task_status_updated', 'Updated task ID: 1 from \'in_progress\' to \'completed\'', 'volunteer_tasks', 1, '102.91.104.59', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', '2026-07-24 16:02:16'),
+(618, 27, NULL, 'volunteer_assigned', 'Assigned volunteer: Aliyu Abubakar (ID: 32) to PU: FIRYA (ID: 28)', 'user', 32, '102.91.104.59', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', '2026-07-24 16:03:54'),
+(619, 27, NULL, 'agent_reassigned', 'Reassigned agent ID: 26 to PU: 17', 'user', 26, '102.91.104.59', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', '2026-07-24 16:06:47'),
+(620, 27, NULL, 'agent_reassigned', 'Reassigned agent ID: 26 to PU: 12', 'user', 26, '102.91.104.59', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', '2026-07-24 16:07:12'),
+(621, 27, NULL, 'agent_assigned', 'Assigned agent: Aliyu Abubakar (ID: 26) to PU: KANGIRE GABAS/KANGIRE FILI (ID: 3)', 'user', 26, '102.91.104.59', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', '2026-07-24 16:20:26'),
+(622, 27, NULL, 'chat_message', 'Sent message to Aliyu Abubakar (ID: 26)', 'chat', 1, '102.91.104.59', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', '2026-07-24 16:39:45'),
+(623, 27, NULL, 'chat_message', 'Sent message to Aliyu Abubakar (ID: 32)', 'chat', 2, '102.91.104.59', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', '2026-07-24 16:44:52'),
+(624, 27, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.104.59', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', '2026-07-24 16:49:15'),
+(625, 27, NULL, 'chat_message', 'Sent message to Aliyu Abubakar (ID: 26)', 'chat', 1, '102.91.104.59', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', '2026-07-24 16:53:13'),
+(626, 26, 14, 'login', 'User logged in successfully', NULL, NULL, '102.91.104.59', NULL, '2026-07-24 16:59:20'),
+(627, 27, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.104.59', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', '2026-07-24 17:27:55'),
+(628, 26, 14, 'login', 'User logged in successfully', NULL, NULL, '102.91.104.59', NULL, '2026-07-24 17:38:32'),
+(629, 26, 14, 'login', 'User logged in successfully', NULL, NULL, '102.91.104.59', NULL, '2026-07-24 17:52:05'),
+(630, 27, NULL, 'chat_message', 'Sent message to Aliyu Abubakar (ID: 26)', 'chat', 1, '102.91.104.59', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', '2026-07-24 17:56:59'),
+(631, 26, 14, 'login', 'User logged in successfully', NULL, NULL, '102.91.104.59', NULL, '2026-07-24 18:01:58'),
+(632, 27, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.104.59', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', '2026-07-24 18:10:28'),
+(633, 27, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.104.59', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', '2026-07-24 18:10:45'),
+(634, 27, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.105.161', '9161a7e307dc2c1fa53c878bc0f2367a061e14095e5735af1246b23b0b22dcac', '2026-07-24 18:31:49'),
+(635, 27, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.105.161', '9161a7e307dc2c1fa53c878bc0f2367a061e14095e5735af1246b23b0b22dcac', '2026-07-24 18:32:04'),
+(636, 29, 14, 'login', 'User logged in successfully', NULL, NULL, '102.91.105.161', NULL, '2026-07-24 18:32:27'),
+(637, 27, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.105.161', '9161a7e307dc2c1fa53c878bc0f2367a061e14095e5735af1246b23b0b22dcac', '2026-07-24 18:34:25'),
+(638, 27, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.105.161', '9161a7e307dc2c1fa53c878bc0f2367a061e14095e5735af1246b23b0b22dcac', '2026-07-24 18:34:44'),
+(639, 29, 14, 'login', 'User logged in successfully', NULL, NULL, '102.91.105.161', NULL, '2026-07-24 18:35:34'),
+(640, 27, NULL, 'chat_message', 'Sent message to Aliyu Abubakar (ID: 29)', 'chat', 3, '102.91.105.161', '9161a7e307dc2c1fa53c878bc0f2367a061e14095e5735af1246b23b0b22dcac', '2026-07-24 18:36:30'),
+(641, 27, NULL, 'chat_message', 'Sent message to Aliyu Abubakar (ID: 29)', 'chat', 3, '102.91.105.161', '9161a7e307dc2c1fa53c878bc0f2367a061e14095e5735af1246b23b0b22dcac', '2026-07-24 18:37:22'),
+(642, 27, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.92.216', 'f5828db79f1e3f5bac52690d9499d62aa54315ca12caaf090ed03ab01cd751d6', '2026-07-25 20:19:51'),
+(643, 26, 14, 'login', 'User logged in successfully', NULL, NULL, '102.91.92.216', NULL, '2026-07-25 20:40:29'),
+(644, 27, NULL, 'chat_message', 'Sent message to Aliyu Abubakar (ID: 26)', 'chat', 1, '102.91.92.216', 'f5828db79f1e3f5bac52690d9499d62aa54315ca12caaf090ed03ab01cd751d6', '2026-07-25 20:43:49'),
+(645, 27, NULL, 'chat_message', 'Sent message to Aliyu Abubakar (ID: 26)', 'chat', 1, '102.91.92.216', 'f5828db79f1e3f5bac52690d9499d62aa54315ca12caaf090ed03ab01cd751d6', '2026-07-25 20:44:04'),
+(646, 27, NULL, 'chat_message', 'Sent message to Aliyu Abubakar (ID: 26)', 'chat', 1, '102.91.92.216', 'f5828db79f1e3f5bac52690d9499d62aa54315ca12caaf090ed03ab01cd751d6', '2026-07-25 20:45:18'),
+(647, 27, NULL, 'chat_message', 'Sent message to Aliyu Abubakar (ID: 26)', 'chat', 1, '102.91.92.216', 'f5828db79f1e3f5bac52690d9499d62aa54315ca12caaf090ed03ab01cd751d6', '2026-07-25 20:46:02'),
+(648, 27, NULL, 'chat_message', 'Sent message to Aliyu Abubakar (ID: 26)', 'chat', 1, '102.91.92.216', 'f5828db79f1e3f5bac52690d9499d62aa54315ca12caaf090ed03ab01cd751d6', '2026-07-25 20:53:37'),
+(649, 27, NULL, 'chat_message', 'Sent message to Aliyu Abubakar (ID: 26)', 'chat', 1, '102.91.92.216', 'f5828db79f1e3f5bac52690d9499d62aa54315ca12caaf090ed03ab01cd751d6', '2026-07-25 20:54:04'),
+(650, 27, NULL, 'login', 'User logged in successfully', NULL, NULL, '197.210.53.133', '94f663f7190b5b7a6c9ace22e788bb55e7bdf3a7bc8e8df84cf12df3aa3f377f', '2026-07-26 11:04:06'),
+(651, 27, NULL, 'login', 'User logged in successfully', NULL, NULL, '197.210.53.133', '94f663f7190b5b7a6c9ace22e788bb55e7bdf3a7bc8e8df84cf12df3aa3f377f', '2026-07-26 11:05:14'),
+(652, 29, 14, 'login', 'User logged in successfully', NULL, NULL, '197.210.53.133', NULL, '2026-07-26 11:06:02'),
+(653, 26, 14, 'login', 'User logged in successfully', NULL, NULL, '197.210.53.133', NULL, '2026-07-26 11:09:40'),
+(654, 26, 14, 'login', 'User logged in successfully', NULL, NULL, '197.210.53.133', NULL, '2026-07-26 11:16:24'),
+(655, 27, NULL, 'login', 'User logged in successfully', NULL, NULL, '197.210.53.133', '94f663f7190b5b7a6c9ace22e788bb55e7bdf3a7bc8e8df84cf12df3aa3f377f', '2026-07-26 11:28:46'),
+(656, 26, 14, 'login', 'User logged in successfully', NULL, NULL, '197.210.53.133', NULL, '2026-07-26 11:29:22'),
+(657, 27, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', '2026-07-27 10:05:39'),
+(658, 27, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', '2026-07-27 10:06:38'),
+(659, 7, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', '2026-07-27 10:07:01'),
+(660, 7, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', '2026-07-27 12:26:40'),
+(661, 7, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', '2026-07-27 12:29:43'),
+(662, 21, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', '2026-07-27 12:30:15'),
+(663, 21, NULL, 'user_created', 'Created user: federal cons (ID: 33) with role: Federal Constituency Coordinator', NULL, NULL, '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', '2026-07-27 12:56:05'),
+(664, 21, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', '2026-07-27 12:56:11'),
+(665, 33, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', '2026-07-27 12:56:16'),
+(666, 33, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', '2026-07-27 12:56:49'),
+(667, 27, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', '2026-07-27 12:57:15'),
+(668, 27, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', '2026-07-27 12:57:21'),
+(669, 21, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', '2026-07-27 12:58:39'),
+(670, 21, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', '2026-07-27 13:02:35'),
+(671, 21, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', '2026-07-27 13:03:33'),
+(672, 21, NULL, 'user_created', 'Created user: senatorial cood (ID: 34) with role: Senatorial Coordinator', NULL, NULL, '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', '2026-07-27 13:06:44'),
+(673, 21, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', '2026-07-27 13:06:50'),
+(674, 34, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', '2026-07-27 13:08:52'),
+(675, 34, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', '2026-07-27 13:14:11'),
+(676, 27, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', '2026-07-27 13:14:46'),
+(677, 27, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', '2026-07-27 13:14:54'),
+(678, 21, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', '2026-07-27 13:15:32'),
+(679, 21, NULL, '2fa_disabled', '2FA disabled', NULL, NULL, '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', '2026-07-27 13:16:21'),
+(680, 21, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', '2026-07-27 13:16:33'),
+(681, 21, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', '2026-07-27 13:16:37'),
+(682, 21, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', '2026-07-27 13:31:26'),
+(683, 34, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', '2026-07-27 13:31:35'),
+(684, 34, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', '2026-07-27 13:38:49'),
+(685, 21, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', '2026-07-27 13:39:01'),
+(686, 21, NULL, 'user_updated', 'Updated user: senatorial cood (ID: 34)', NULL, NULL, '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', '2026-07-27 13:39:35'),
+(687, 21, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', '2026-07-27 13:39:44'),
+(688, 34, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', '2026-07-27 13:39:57');
 
 -- --------------------------------------------------------
 
@@ -390,7 +634,13 @@ CREATE TABLE `agent_assignments` (
 
 INSERT INTO `agent_assignments` (`id`, `tenant_id`, `election_id`, `user_id`, `pu_id`, `ward_id`, `lga_id`, `state_id`, `assignment_type`, `status`, `assigned_by`, `assigned_at`, `completed_at`, `notes`) VALUES
 (1, 14, 11, 24, 28, 1, 1, 1, 'party_agent', 'reassigned', 21, '2026-07-09 22:11:42', NULL, ''),
-(2, 14, 11, 24, 22, 1, 1, 1, 'party_agent', 'pending', 21, '2026-07-09 22:12:35', NULL, '');
+(2, 14, 11, 24, 22, 1, 1, 1, 'party_agent', 'pending', 21, '2026-07-09 22:12:35', NULL, ''),
+(3, 14, 15, 30, 26, 1, 1, 1, 'volunteer', 'pending', 21, '2026-07-16 09:34:16', NULL, ''),
+(4, 14, 11, 32, 26, 1, 1, 1, 'volunteer', 'active', 27, '2026-07-24 15:38:17', NULL, ''),
+(5, 14, 11, 32, 28, 1, 1, 1, 'volunteer', 'active', 27, '2026-07-24 16:03:54', NULL, ''),
+(6, 14, 11, 26, 17, 1, 1, 1, 'data_agent', 'reassigned', 27, '2026-07-24 16:06:47', NULL, ''),
+(7, 14, 11, 26, 12, 1, 1, 1, 'data_agent', 'reassigned', 27, '2026-07-24 16:07:12', NULL, ''),
+(8, 14, 11, 26, 3, 1, 1, 1, 'data_agent', 'active', 27, '2026-07-24 16:20:26', NULL, '');
 
 -- --------------------------------------------------------
 
@@ -575,7 +825,10 @@ INSERT INTO `broadcasts` (`id`, `tenant_id`, `election_id`, `sender_id`, `title`
 (9, 14, NULL, 24, 'aaadsds', 'dsfgrg', 'state', '[1]', NULL, '[\"email\",\"in_app\"]', NULL, '2026-07-10 00:28:46', 'sent', 0, 0, '2026-07-10 00:28:46'),
 (10, 14, NULL, 24, 'aaa', 'asass', 'all', '[1]', NULL, '[\"email\",\"in_app\"]', NULL, '2026-07-10 00:29:07', 'sent', 0, 0, '2026-07-10 00:29:07'),
 (11, 14, NULL, 24, 'aqdfddfgf', 'sdfbndfb', 'all', '[1]', NULL, '[\"email\",\"in_app\"]', NULL, '2026-07-10 00:52:01', 'sent', 0, 3, '2026-07-10 00:50:58'),
-(12, 14, NULL, 24, 'TTTddv', 'dnbcdbc', 'lga', NULL, NULL, '[\"email\"]', NULL, '2026-07-10 09:52:57', 'failed', 0, 0, '2026-07-10 09:52:57');
+(12, 14, NULL, 24, 'TTTddv', 'dnbcdbc', 'lga', NULL, NULL, '[\"email\"]', NULL, '2026-07-10 09:52:57', 'failed', 0, 0, '2026-07-10 09:52:57'),
+(13, 14, NULL, 27, 'hello', 'how are', 'role_specific', '[26]', NULL, '[\"email\"]', NULL, '2026-07-19 11:37:23', 'sent', 0, 1, '2026-07-19 11:37:23'),
+(14, 14, NULL, 27, 'hello', 'how are', 'role_specific', '[26]', NULL, '[\"email\"]', NULL, '2026-07-19 11:37:48', 'sent', 0, 1, '2026-07-19 11:37:48'),
+(15, 14, NULL, 27, 'aasd', 'dwdwe', 'all', NULL, NULL, '[\"email\",\"in_app\"]', NULL, '2026-07-23 16:20:23', 'sent', 0, 10, '2026-07-23 16:20:14');
 
 -- --------------------------------------------------------
 
@@ -641,17 +894,49 @@ CREATE TABLE `chat_messages` (
   `id` bigint UNSIGNED NOT NULL,
   `room_id` bigint UNSIGNED NOT NULL,
   `sender_id` bigint UNSIGNED NOT NULL,
+  `receiver_id` bigint UNSIGNED DEFAULT NULL,
   `message_type` enum('text','image','video','audio','file','location','system') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'text',
   `content` text COLLATE utf8mb4_unicode_ci NOT NULL,
   `media_url` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `media_size` bigint UNSIGNED DEFAULT NULL,
   `media_sha256` varchar(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `is_read` tinyint(1) NOT NULL DEFAULT '0',
+  `read_at` timestamp NULL DEFAULT NULL,
   `gps_lat` decimal(10,8) DEFAULT NULL,
   `gps_lng` decimal(11,8) DEFAULT NULL,
   `is_offline_sync` tinyint(1) NOT NULL DEFAULT '0',
   `is_deleted` tinyint(1) NOT NULL DEFAULT '0',
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `chat_messages`
+--
+
+INSERT INTO `chat_messages` (`id`, `room_id`, `sender_id`, `receiver_id`, `message_type`, `content`, `media_url`, `media_size`, `media_sha256`, `is_read`, `read_at`, `gps_lat`, `gps_lng`, `is_offline_sync`, `is_deleted`, `created_at`) VALUES
+(1, 1, 29, 2, 'text', 'hello', NULL, NULL, NULL, 0, NULL, NULL, NULL, 0, 0, '2026-07-15 22:01:12'),
+(2, 1, 29, 2, 'text', '', NULL, NULL, NULL, 0, NULL, NULL, NULL, 0, 0, '2026-07-15 22:01:23'),
+(3, 1, 31, 2, 'text', 'okay i observ', NULL, NULL, NULL, 0, NULL, NULL, NULL, 0, 0, '2026-07-16 10:17:59'),
+(4, 1, 30, 2, 'text', 'hello', NULL, NULL, NULL, 0, NULL, NULL, NULL, 0, 0, '2026-07-19 12:00:45'),
+(5, 1, 27, 26, 'text', 'hi', '', NULL, NULL, 1, '2026-07-24 17:56:03', NULL, NULL, 0, 0, '2026-07-24 16:39:45'),
+(6, 2, 27, 32, 'text', 'hi', '', NULL, NULL, 0, NULL, NULL, NULL, 0, 0, '2026-07-24 16:44:52'),
+(7, 1, 27, 26, 'location', '📍 Location: 10.470059, 9.830564\r\nhttps://maps.google.com/?q=10.470059,9.830564', '', NULL, NULL, 1, '2026-07-24 17:56:03', NULL, NULL, 0, 0, '2026-07-24 16:53:13'),
+(8, 1, 26, 27, 'text', 'how are you', '', NULL, NULL, 1, '2026-07-24 17:56:43', NULL, NULL, 0, 0, '2026-07-24 17:56:34'),
+(9, 1, 27, 26, 'text', 'i am fine', '', NULL, NULL, 1, '2026-07-24 17:57:11', NULL, NULL, 0, 0, '2026-07-24 17:56:59'),
+(10, 1, 26, 27, 'text', 'Can you see this message normally?', '', NULL, NULL, 1, '2026-07-24 17:59:05', NULL, NULL, 0, 0, '2026-07-24 17:58:59'),
+(11, 1, 26, 27, 'text', '📍 Location shared', '', NULL, NULL, 1, '2026-07-24 18:11:13', NULL, NULL, 0, 0, '2026-07-24 18:10:54'),
+(12, 3, 27, 29, 'text', 'Hello', '', NULL, NULL, 1, '2026-07-24 18:36:47', NULL, NULL, 0, 0, '2026-07-24 18:36:30'),
+(13, 3, 29, 27, 'text', 'hi', '', NULL, NULL, 1, '2026-07-24 18:37:03', NULL, NULL, 0, 0, '2026-07-24 18:36:58'),
+(14, 3, 27, 29, 'location', '📍 Location: 9.056700, 7.496900\r\nhttps://maps.google.com/?q=9.056700,7.496900', '', NULL, NULL, 1, '2026-07-24 18:37:37', NULL, NULL, 0, 0, '2026-07-24 18:37:22'),
+(15, 3, 29, 27, 'text', '📍 Location shared', '', NULL, NULL, 1, '2026-07-24 18:37:37', NULL, NULL, 0, 0, '2026-07-24 18:37:29'),
+(16, 1, 27, 26, 'location', '📍 Yali, Bauchi State: 10.470769, 9.830348', '', NULL, NULL, 1, '2026-07-25 20:45:23', NULL, NULL, 0, 0, '2026-07-25 20:43:49'),
+(17, 1, 27, 26, 'text', '📍 Yali, Bauchi State: 10.470769, 9.830348', '', NULL, NULL, 1, '2026-07-25 20:45:23', NULL, NULL, 0, 0, '2026-07-25 20:44:04'),
+(18, 1, 26, 27, 'text', 'Agent is typing', '', NULL, NULL, 1, '2026-07-25 20:44:36', NULL, NULL, 0, 0, '2026-07-25 20:44:34'),
+(19, 1, 26, 27, 'text', 'hi', '', NULL, NULL, 1, '2026-07-25 20:45:12', NULL, NULL, 0, 0, '2026-07-25 20:45:11'),
+(20, 1, 27, 26, 'text', 'hhh', '', NULL, NULL, 1, '2026-07-25 20:45:23', NULL, NULL, 0, 0, '2026-07-25 20:45:18'),
+(21, 1, 27, 26, 'image', '', '/election/uploads/chat/1785012347_0ac4fc099d33d726.png', NULL, NULL, 0, NULL, NULL, NULL, 0, 0, '2026-07-25 20:46:02'),
+(22, 1, 27, 26, 'file', '{\"url\":\"\\/election\\/uploads\\/chat\\/1785012815_4d9b2e3f12b978e0.png\",\"filename\":\"a6bce81ec9baf9009ab9603fc67dc510.png\",\"filesize\":1193480,\"filetype\":\"png\"}', '/election/uploads/chat/1785012815_4d9b2e3f12b978e0.png', NULL, NULL, 0, NULL, NULL, NULL, 0, 0, '2026-07-25 20:53:37'),
+(23, 1, 27, 26, 'location', '📍 Yali, Bauchi State: 10.470769, 9.830348', '', NULL, NULL, 0, NULL, NULL, NULL, 0, 0, '2026-07-25 20:54:04');
 
 -- --------------------------------------------------------
 
@@ -672,6 +957,15 @@ CREATE TABLE `chat_rooms` (
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+--
+-- Dumping data for table `chat_rooms`
+--
+
+INSERT INTO `chat_rooms` (`id`, `tenant_id`, `name`, `type`, `election_id`, `jurisdiction_type`, `jurisdiction_id`, `created_by`, `is_active`, `created_at`) VALUES
+(1, 14, 'Chat between Aliyu Abubakar and Aliyu Abubakar', 'direct', NULL, NULL, NULL, 27, 1, '2026-07-24 16:39:45'),
+(2, 14, 'Chat between Aliyu Abubakar and Aliyu Abubakar', 'direct', NULL, NULL, NULL, 27, 1, '2026-07-24 16:44:52'),
+(3, 14, 'Chat between Aliyu Abubakar and Aliyu Abubakar', 'direct', NULL, NULL, NULL, 27, 1, '2026-07-24 18:36:30');
+
 -- --------------------------------------------------------
 
 --
@@ -686,6 +980,38 @@ CREATE TABLE `chat_room_members` (
   `last_read_message_id` bigint UNSIGNED DEFAULT NULL,
   `joined_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `chat_room_members`
+--
+
+INSERT INTO `chat_room_members` (`id`, `room_id`, `user_id`, `role`, `last_read_message_id`, `joined_at`) VALUES
+(1, 1, 27, 'member', NULL, '2026-07-24 16:39:45'),
+(2, 1, 26, 'member', NULL, '2026-07-24 16:39:45'),
+(3, 2, 27, 'member', NULL, '2026-07-24 16:44:52'),
+(4, 2, 32, 'member', NULL, '2026-07-24 16:44:52'),
+(5, 3, 27, 'member', NULL, '2026-07-24 18:36:30'),
+(6, 3, 29, 'member', NULL, '2026-07-24 18:36:30');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `community_reports`
+--
+
+CREATE TABLE `community_reports` (
+  `id` bigint UNSIGNED NOT NULL,
+  `volunteer_id` bigint UNSIGNED NOT NULL,
+  `title` varchar(255) NOT NULL,
+  `category` varchar(100) NOT NULL,
+  `description` text NOT NULL,
+  `location` varchar(255) DEFAULT NULL,
+  `image_url` varchar(500) DEFAULT NULL,
+  `video_url` varchar(500) DEFAULT NULL,
+  `status` enum('draft','submitted','approved','rejected') DEFAULT 'draft',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
 
@@ -721,11 +1047,41 @@ CREATE TABLE `elections` (
 --
 
 INSERT INTO `elections` (`id`, `tenant_id`, `name`, `type`, `cycle`, `election_date`, `start_time`, `end_time`, `states_json`, `lgas_json`, `wards_json`, `pus_json`, `status`, `description`, `logo_url`, `settings_json`, `created_by`, `created_at`, `updated_at`, `deleted_at`) VALUES
-(11, 14, '2027 Governorship Election', 'governorship', '2031', '2026-07-09', '18:29:00', NULL, '[1]', '[]', '[]', '[]', 'active', '', NULL, NULL, 7, '2026-07-09 14:31:57', '2026-07-09 22:42:47', NULL),
+(11, 14, '2027 Governorship Election', 'governorship', '2031', '2026-07-09', '18:29:00', NULL, '[1]', '[]', '[\"1\"]', '[]', 'active', '', NULL, NULL, 7, '2026-07-09 14:31:57', '2026-07-24 15:14:39', NULL),
 (12, 14, '2027 Governorship Election', 'governorship', '2031', '2026-07-31', NULL, NULL, '[1]', NULL, NULL, NULL, 'draft', '', NULL, NULL, 24, '2026-07-10 00:26:31', '2026-07-10 00:26:31', NULL),
 (13, 14, '2027 Governorship Election', 'governorship', '2031', '2026-07-24', NULL, NULL, '[1]', NULL, NULL, NULL, 'draft', '', NULL, NULL, 24, '2026-07-10 00:27:09', '2026-07-10 00:27:09', NULL),
 (14, 14, '2027 Governorship Election', 'house_of_reps', '2031', '2026-07-09', NULL, NULL, '[1]', NULL, NULL, NULL, 'draft', '', NULL, NULL, 24, '2026-07-10 00:41:38', '2026-07-10 00:41:38', NULL),
 (15, 14, '2027 Governorship Election', 'governorship', '2031', '2026-07-11', NULL, NULL, '[1]', '[]', '[]', '[]', 'upcoming', '', NULL, NULL, 24, '2026-07-10 00:45:14', '2026-07-10 00:45:14', NULL);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `election_checklists`
+--
+
+CREATE TABLE `election_checklists` (
+  `id` bigint UNSIGNED NOT NULL,
+  `user_id` bigint UNSIGNED NOT NULL,
+  `election_id` bigint UNSIGNED DEFAULT NULL,
+  `pu_id` int UNSIGNED DEFAULT NULL,
+  `materials_arrived` tinyint(1) NOT NULL DEFAULT '0',
+  `poll_opened` tinyint(1) NOT NULL DEFAULT '0',
+  `accreditation_started` tinyint(1) NOT NULL DEFAULT '0',
+  `voting_started` tinyint(1) NOT NULL DEFAULT '0',
+  `counting_started` tinyint(1) NOT NULL DEFAULT '0',
+  `poll_closed` tinyint(1) NOT NULL DEFAULT '0',
+  `status` enum('draft','submitted','completed') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'draft',
+  `submitted_at` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `election_checklists`
+--
+
+INSERT INTO `election_checklists` (`id`, `user_id`, `election_id`, `pu_id`, `materials_arrived`, `poll_opened`, `accreditation_started`, `voting_started`, `counting_started`, `poll_closed`, `status`, `submitted_at`, `created_at`, `updated_at`) VALUES
+(1, 26, NULL, NULL, 0, 0, 0, 0, 1, 0, 'submitted', '2026-07-15 22:50:04', '2026-07-15 22:50:00', '2026-07-15 22:50:04');
 
 -- --------------------------------------------------------
 
@@ -747,6 +1103,19 @@ CREATE TABLE `election_materials` (
   `condition` enum('excellent','good','fair','poor','missing') COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `photo_url` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `notes` text COLLATE utf8mb4_unicode_ci,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `election_polling_units`
+--
+
+CREATE TABLE `election_polling_units` (
+  `id` bigint UNSIGNED NOT NULL,
+  `election_id` bigint UNSIGNED NOT NULL,
+  `pu_id` int UNSIGNED NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -792,6 +1161,23 @@ CREATE TABLE `federal_constituencies` (
   `lgas_json` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   `is_active` tinyint(1) NOT NULL DEFAULT '1'
 ) ;
+
+--
+-- Dumping data for table `federal_constituencies`
+--
+
+INSERT INTO `federal_constituencies` (`id`, `state_id`, `code`, `name`, `lgas_json`, `is_active`) VALUES
+(1, 1, 'FC01', 'Babura/Garki', '[\"Babura\",\"Garki\"]', 1),
+(2, 1, 'FC02', 'Gumel/Maigatari/Gagarawa/Sule Tankarkar', '[\"Gumel\",\"Maigatari\",\"Gagarawa\",\"Sule Tankarkar\"]', 1),
+(3, 1, 'FC03', 'Kazaure/Roni/Gwiwa/Yankwashi', '[\"Kazaure\",\"Roni\",\"Gwiwa\",\"Yankwashi\"]', 1),
+(4, 1, 'FC04', 'Ringim/Taura', '[\"Ringim\",\"Taura\"]', 1),
+(5, 1, 'FC05', 'Hadejia/Kafin Hausa', '[\"Hadejia\",\"Kafin Hausa\"]', 1),
+(6, 1, 'FC06', 'Mallam Madori/Kaugama', '[\"Mallam Madori\",\"Kaugama\"]', 1),
+(7, 1, 'FC07', 'Birnin Kudu/Buji', '[\"Birnin Kudu\",\"Buji\"]', 1),
+(8, 1, 'FC08', 'Birniwa/Guri/Kirikasamma', '[\"Birniwa\",\"Guri\",\"Kirikasamma\"]', 1),
+(9, 1, 'FC09', 'Dutse/Kiyawa', '[\"Dutse\",\"Kiyawa\"]', 1),
+(10, 1, 'FC10', 'Gwaram', '[\"Gwaram\"]', 1),
+(11, 1, 'FC11', 'Jahun/Miga', '[\"Jahun\",\"Miga\"]', 1);
 
 -- --------------------------------------------------------
 
@@ -1014,7 +1400,123 @@ INSERT INTO `login_attempts` (`id`, `user_id`, `email`, `ip_address`, `user_agen
 (147, NULL, 'agent1@mail.com', '10.59.66.251', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 0, '2026-07-10 13:17:42'),
 (148, 21, 'lubunaaliyuabk@gmail.com', '10.59.66.251', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-10 13:17:56'),
 (149, 26, 'agent1@gmail.com', '10.59.66.251', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-10 13:35:02'),
-(150, 27, 'abarshiaminu2005@gmail.com', '10.59.66.251', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-10 13:35:08');
+(150, 27, 'abarshiaminu2005@gmail.com', '10.59.66.251', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-10 13:35:08'),
+(151, NULL, 'aliyuabubakar11117@gmail.com', '102.89.83.93', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 0, '2026-07-10 22:04:15'),
+(152, NULL, 'aliyuabubakar11117@gmail.com', '102.89.83.93', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 0, '2026-07-10 22:04:23'),
+(153, NULL, 'aliyuabubakar11117@gmail.com', '102.89.83.93', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Mobile Safari/537.36', 'login', 0, '2026-07-10 22:05:18'),
+(154, 21, 'lubunaaliyuabk@gmail.com', '102.89.83.93', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-10 22:12:33'),
+(155, NULL, 'aliyuabubakar11117@gmail.com', '102.89.83.93', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 0, '2026-07-10 22:14:03'),
+(156, 21, 'lubunaaliyuabk@gmail.com', '102.89.83.93', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-10 22:14:21'),
+(157, 7, 'aliyuabubakar11117@gmail.com', '102.89.83.93', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-10 22:15:05'),
+(158, 7, 'aliyuabubakar11117@gmail.com', '102.89.83.93', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-10 22:21:02'),
+(159, 28, 'kowagurutechltd@gmail.com', '102.89.83.93', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-10 22:23:17'),
+(160, NULL, 'admin@karamalogistics.com', '102.89.83.93', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 0, '2026-07-10 22:25:01'),
+(161, 28, 'kowagurutechltd@gmail.com', '102.89.83.93', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-10 22:26:24'),
+(162, 28, 'kowagurutechltd@gmail.com', '102.88.115.148', 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36', 'login', 1, '2026-07-10 22:29:58'),
+(163, 28, 'kowagurutechltd@gmail.com', '102.91.103.45', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-10 23:26:28'),
+(164, 21, 'lubunaaliyuabk@gmail.com', '102.91.103.29', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-11 13:00:31'),
+(165, 22, 'aliyuabubakardh@gmail.com', '102.91.103.29', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-11 13:02:11'),
+(166, 7, 'aliyuabubakar11117@gmail.com', '102.91.103.29', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-11 13:02:29'),
+(167, 29, 'agent2@gmail.com', '102.91.103.29', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-11 13:03:59'),
+(168, 28, 'kowagurutechltd@gmail.com', '102.91.104.170', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Mobile Safari/537.36', 'login', 1, '2026-07-11 13:48:58'),
+(169, 28, 'kowagurutechltd@gmail.com', '102.91.104.170', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-11 13:59:26'),
+(170, 28, 'kowagurutechltd@gmail.com', '102.91.92.135', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36', 'login', 1, '2026-07-11 14:13:19'),
+(171, 28, 'kowagurutechltd@gmail.com', '102.91.103.61', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-15 12:53:48'),
+(172, 28, 'kowagurutechltd@gmail.com', '102.91.77.202', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-15 21:04:50'),
+(173, 28, 'kowagurutechltd@gmail.com', '102.91.77.202', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-15 22:05:20'),
+(174, 28, 'kowagurutechltd@gmail.com', '102.91.77.202', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-15 22:59:33'),
+(175, NULL, 'ibrahim@gmail.com', '102.91.77.202', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 0, '2026-07-15 23:00:20'),
+(176, 28, 'kowagurutechltd@gmail.com', '102.91.77.202', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-15 23:00:24'),
+(177, 23, 'ibrahim@gmail.com', '102.91.77.202', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-15 23:00:53'),
+(178, 28, 'kowagurutechltd@gmail.com', '102.91.77.202', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-15 23:01:44'),
+(179, 25, 'aliyuabubakar1111@gmail.com', '102.91.77.202', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-15 23:02:13'),
+(180, NULL, 'abarshiaminu2005@gmail.com', '102.91.77.202', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 0, '2026-07-15 23:04:08'),
+(181, 28, 'kowagurutechltd@gmail.com', '102.91.77.202', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-15 23:04:18'),
+(182, 27, 'abarshiaminu2005@gmail.com', '102.91.77.202', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-15 23:04:50'),
+(183, 7, 'aliyuabubakar11117@gmail.com', '102.91.77.202', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-15 23:06:46'),
+(184, 22, 'aliyuabubakardh@gmail.com', '102.91.77.202', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-15 23:07:38'),
+(185, 28, 'kowagurutechltd@gmail.com', '102.91.77.202', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', 'login', 1, '2026-07-15 23:09:37'),
+(186, 7, 'aliyuabubakar11117@gmail.com', '102.91.93.133', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-16 09:16:10'),
+(187, 21, 'lubunaaliyuabk@gmail.com', '102.91.93.133', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-16 09:31:51'),
+(188, 28, 'kowagurutechltd@gmail.com', '102.91.93.133', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-16 09:36:16'),
+(189, 7, 'aliyuabubakar11117@gmail.com', '102.91.93.133', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-16 10:01:00'),
+(190, 21, 'lubunaaliyuabk@gmail.com', '102.91.93.133', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-16 10:01:11'),
+(191, 28, 'kowagurutechltd@gmail.com', '102.91.93.133', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-16 10:01:47'),
+(192, 28, 'kowagurutechltd@gmail.com', '197.210.70.187', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-18 15:59:03'),
+(193, 22, 'aliyuabubakardh@gmail.com', '197.210.70.187', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-18 15:59:39'),
+(194, 28, 'kowagurutechltd@gmail.com', '197.210.70.187', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-18 16:13:00'),
+(195, 27, 'abarshiaminu2005@gmail.com', '197.210.70.187', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-18 16:13:22'),
+(196, 28, 'kowagurutechltd@gmail.com', '197.210.70.187', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-18 16:31:14'),
+(197, NULL, 'lubunaaliyuabk@gmail.com', '197.210.70.187', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 0, '2026-07-18 16:31:34'),
+(198, 28, 'kowagurutechltd@gmail.com', '197.210.70.187', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-18 16:31:40'),
+(199, 21, 'lubunaaliyuabk@gmail.com', '102.88.112.143', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-18 21:35:19'),
+(200, 21, 'lubunaaliyuabk@gmail.com', '102.88.112.143', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-18 22:41:31'),
+(201, 21, 'lubunaaliyuabk@gmail.com', '102.88.112.143', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-18 22:47:35'),
+(202, 21, 'lubunaaliyuabk@gmail.com', '102.88.112.143', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-18 22:57:43'),
+(203, 21, 'lubunaaliyuabk@gmail.com', '102.88.112.143', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-18 22:57:59'),
+(204, 28, 'kowagurutechltd@gmail.com', '102.88.112.143', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-18 22:58:39'),
+(205, 25, 'aliyuabubakar1111@gmail.com', '197.210.70.43', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-19 11:32:11'),
+(206, 21, 'lubunaaliyuabk@gmail.com', '197.210.70.43', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-19 11:32:59'),
+(207, NULL, 'abarshiaminu2005@gmail.com', '197.210.70.43', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 0, '2026-07-19 11:33:23'),
+(208, 21, 'lubunaaliyuabk@gmail.com', '197.210.70.43', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-19 11:33:40'),
+(209, NULL, 'abarshiaminu2005@gmail.com', '197.210.70.43', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 0, '2026-07-19 11:34:23'),
+(210, 27, 'abarshiaminu2005@gmail.com', '197.210.70.43', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-19 11:34:31'),
+(211, 27, 'abarshiaminu2005@gmail.com', '197.210.70.43', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-19 12:23:38'),
+(212, 21, 'lubunaaliyuabk@gmail.com', '197.210.70.43', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-19 15:03:51'),
+(213, 27, 'abarshiaminu2005@gmail.com', '197.210.70.43', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-19 16:27:22'),
+(214, 27, 'abarshiaminu2005@gmail.com', '102.91.103.170', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-23 15:46:28'),
+(215, 27, 'abarshiaminu2005@gmail.com', '102.91.104.59', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-24 13:33:17'),
+(216, 27, 'abarshiaminu2005@gmail.com', '102.91.104.59', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-24 14:03:27'),
+(217, 21, 'lubunaaliyuabk@gmail.com', '102.91.104.59', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-24 14:28:14'),
+(218, 32, 'volunteer@gmail.com', '102.91.104.59', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-24 14:29:25'),
+(219, 27, 'abarshiaminu2005@gmail.com', '102.91.104.59', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-24 14:29:40'),
+(220, 27, 'abarshiaminu2005@gmail.com', '102.91.104.59', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-24 16:49:15'),
+(221, 27, 'abarshiaminu2005@gmail.com', '102.91.104.59', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-24 17:27:55'),
+(222, 27, 'abarshiaminu2005@gmail.com', '102.91.104.59', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-24 18:10:45'),
+(223, 27, 'abarshiaminu2005@gmail.com', '102.91.105.161', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-24 18:32:04'),
+(224, 27, 'abarshiaminu2005@gmail.com', '102.91.105.161', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-24 18:34:44'),
+(225, 27, 'abarshiaminu2005@gmail.com', '102.91.92.216', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-25 20:19:51'),
+(226, 27, 'abarshiaminu2005@gmail.com', '197.210.53.133', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-26 11:04:06'),
+(227, 27, 'abarshiaminu2005@gmail.com', '197.210.53.133', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-26 11:05:14'),
+(228, 27, 'abarshiaminu2005@gmail.com', '197.210.53.133', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-26 11:28:46'),
+(229, 27, 'abarshiaminu2005@gmail.com', '102.91.103.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-27 10:05:39'),
+(230, NULL, 'aliyuabubakarjdh@gmail.com', '102.91.103.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 0, '2026-07-27 10:06:53'),
+(231, 7, 'aliyuabubakar11117@gmail.com', '102.91.103.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-27 10:07:01'),
+(232, 7, 'aliyuabubakar11117@gmail.com', '102.91.103.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-27 12:26:40'),
+(233, 21, 'lubunaaliyuabk@gmail.com', '102.91.103.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-27 12:30:15'),
+(234, 33, 'federal@gmail.com', '102.91.103.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-27 12:56:16'),
+(235, 27, 'abarshiaminu2005@gmail.com', '102.91.103.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-27 12:57:15'),
+(236, 21, 'lubunaaliyuabk@gmail.com', '102.91.103.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-27 12:58:39'),
+(237, NULL, 'senatorial@gmail.com', '102.91.103.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 0, '2026-07-27 13:02:42'),
+(238, NULL, 'senatorial@gmail.com', '102.91.103.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 0, '2026-07-27 13:02:51'),
+(239, 21, 'lubunaaliyuabk@gmail.com', '102.91.103.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-27 13:03:33'),
+(240, 34, 'senatorial@gmail.com', '102.91.103.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-27 13:08:52'),
+(241, 27, 'abarshiaminu2005@gmail.com', '102.91.103.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-27 13:14:46'),
+(242, 21, 'lubunaaliyuabk@gmail.com', '102.91.103.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-27 13:15:32'),
+(243, 21, 'lubunaaliyuabk@gmail.com', '102.91.103.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-27 13:16:37'),
+(244, 34, 'senatorial@gmail.com', '102.91.103.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-27 13:31:35'),
+(245, 21, 'lubunaaliyuabk@gmail.com', '102.91.103.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-27 13:39:01'),
+(246, 34, 'senatorial@gmail.com', '102.91.103.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-27 13:39:57');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `media_uploads`
+--
+
+CREATE TABLE `media_uploads` (
+  `id` bigint UNSIGNED NOT NULL,
+  `user_id` bigint UNSIGNED NOT NULL,
+  `tenant_id` bigint UNSIGNED DEFAULT NULL,
+  `election_id` bigint UNSIGNED DEFAULT NULL,
+  `pu_id` int UNSIGNED DEFAULT NULL,
+  `filename` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `original_name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `file_type` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `file_size` bigint UNSIGNED NOT NULL,
+  `file_path` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
@@ -1034,6 +1536,65 @@ CREATE TABLE `notifications` (
   `read_at` timestamp NULL DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `observer_assignments`
+--
+
+CREATE TABLE `observer_assignments` (
+  `id` bigint UNSIGNED NOT NULL,
+  `observer_id` bigint UNSIGNED NOT NULL,
+  `coordinator_id` bigint UNSIGNED NOT NULL,
+  `election_id` bigint UNSIGNED NOT NULL,
+  `pu_id` int UNSIGNED NOT NULL,
+  `status` enum('active','inactive') DEFAULT 'active',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `observer_incidents`
+--
+
+CREATE TABLE `observer_incidents` (
+  `id` bigint UNSIGNED NOT NULL,
+  `observer_id` bigint UNSIGNED NOT NULL,
+  `polling_unit_id` int UNSIGNED NOT NULL,
+  `type` varchar(100) NOT NULL,
+  `title` varchar(255) NOT NULL,
+  `description` text NOT NULL,
+  `location` varchar(255) DEFAULT NULL,
+  `image_url` varchar(500) DEFAULT NULL,
+  `video_url` varchar(500) DEFAULT NULL,
+  `status` enum('reported','investigating','resolved') DEFAULT 'reported',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `observer_observations`
+--
+
+CREATE TABLE `observer_observations` (
+  `id` bigint UNSIGNED NOT NULL,
+  `observer_id` bigint UNSIGNED NOT NULL,
+  `polling_unit_id` int UNSIGNED NOT NULL,
+  `title` varchar(255) NOT NULL,
+  `category` varchar(100) NOT NULL,
+  `description` text NOT NULL,
+  `location` varchar(255) DEFAULT NULL,
+  `time` varchar(10) DEFAULT NULL,
+  `image_url` varchar(500) DEFAULT NULL,
+  `video_url` varchar(500) DEFAULT NULL,
+  `status` enum('draft','submitted','approved','rejected') DEFAULT 'draft',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
 
@@ -1072,7 +1633,7 @@ CREATE TABLE `otp_verifications` (
   `otp_code` varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL,
   `type` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'login',
   `channel` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'email',
-  `expires_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `expires_at` timestamp NOT NULL,
   `used` tinyint(1) NOT NULL DEFAULT '0',
   `used_at` timestamp NULL DEFAULT NULL,
   `attempts` tinyint UNSIGNED NOT NULL DEFAULT '0',
@@ -1112,7 +1673,34 @@ INSERT INTO `otp_verifications` (`id`, `user_id`, `otp_code`, `type`, `channel`,
 (26, 21, '661256', 'login', 'email', '2026-07-09 22:14:24', 1, '2026-07-09 22:14:24', 0, '2026-07-09 22:14:05'),
 (27, 21, '698121', 'login', 'email', '2026-07-09 22:23:37', 1, '2026-07-09 22:23:37', 0, '2026-07-09 22:23:17'),
 (28, 21, '072251', 'login', 'email', '2026-07-09 22:49:03', 0, NULL, 0, '2026-07-09 22:44:03'),
-(29, 21, '805160', 'login', 'email', '2026-07-09 22:49:33', 0, NULL, 0, '2026-07-09 22:44:33');
+(29, 21, '805160', 'login', 'email', '2026-07-09 22:49:33', 0, NULL, 0, '2026-07-09 22:44:33'),
+(30, 7, '997134', 'login', 'email', '2026-07-10 20:24:32', 0, NULL, 0, '2026-07-10 22:19:32'),
+(31, 7, '614223', 'login', 'email', '2026-07-10 20:25:23', 0, NULL, 0, '2026-07-10 22:20:23'),
+(32, 21, '369939', 'login', 'email', '2026-07-18 14:37:11', 0, NULL, 0, '2026-07-18 16:32:11'),
+(33, 21, '451873', 'login', 'email', '2026-07-18 19:07:26', 0, NULL, 0, '2026-07-18 21:02:26'),
+(34, 21, '621865', 'login', 'email', '2026-07-18 19:16:48', 0, NULL, 0, '2026-07-18 21:11:48'),
+(35, 21, '736733', 'login', 'email', '2026-07-18 19:46:23', 0, NULL, 0, '2026-07-18 21:41:23'),
+(36, 21, '637259', 'login', 'email', '2026-07-18 19:49:50', 0, NULL, 0, '2026-07-18 21:44:50'),
+(37, 21, '901908', 'login', 'email', '2026-07-18 19:50:17', 0, NULL, 0, '2026-07-18 21:45:17'),
+(38, 21, '709873', 'login', 'email', '2026-07-18 19:50:32', 0, NULL, 0, '2026-07-18 21:45:32'),
+(39, 21, '593119', 'login', 'email', '2026-07-18 22:45:22', 0, NULL, 0, '2026-07-18 22:40:22'),
+(40, 21, '724860', 'login', 'email', '2026-07-18 22:45:31', 0, NULL, 0, '2026-07-18 22:40:31'),
+(41, 21, '348805', 'login', 'email', '2026-07-18 22:45:48', 0, NULL, 0, '2026-07-18 22:40:48'),
+(42, 21, '267452', 'login', 'email', '2026-07-18 22:46:15', 1, '2026-07-18 22:41:31', 0, '2026-07-18 22:41:15'),
+(43, 21, '421448', 'login', 'email', '2026-07-18 22:52:21', 1, '2026-07-18 22:47:35', 0, '2026-07-18 22:47:21'),
+(44, 21, '737472', 'login', 'email', '2026-07-18 23:02:31', 1, '2026-07-18 22:57:43', 0, '2026-07-18 22:57:31'),
+(45, 21, '009427', 'login', 'email', '2026-07-18 23:02:47', 1, '2026-07-18 22:57:59', 0, '2026-07-18 22:57:47'),
+(46, 28, '083591', 'login', 'email', '2026-07-18 23:04:53', 0, NULL, 0, '2026-07-18 22:59:53'),
+(47, 28, '650573', 'login', 'email', '2026-07-19 11:36:56', 0, NULL, 0, '2026-07-19 11:31:56'),
+(48, 21, '052778', 'login', 'email', '2026-07-19 11:37:25', 1, '2026-07-19 11:32:59', 0, '2026-07-19 11:32:25'),
+(49, 21, '636609', 'login', 'email', '2026-07-19 11:38:27', 1, '2026-07-19 11:33:40', 0, '2026-07-19 11:33:27'),
+(50, 21, '069074', 'login', 'email', '2026-07-19 15:07:35', 1, '2026-07-19 15:03:51', 0, '2026-07-19 15:02:35'),
+(51, 21, '127244', 'login', 'email', '2026-07-24 14:32:44', 1, '2026-07-24 14:28:14', 0, '2026-07-24 14:27:44'),
+(52, 21, '957395', 'login', 'email', '2026-07-27 12:34:51', 1, '2026-07-27 12:30:15', 0, '2026-07-27 12:29:51'),
+(53, 21, '882564', 'login', 'email', '2026-07-27 13:02:31', 0, NULL, 0, '2026-07-27 12:57:31'),
+(54, 21, '734165', 'login', 'email', '2026-07-27 13:02:58', 1, '2026-07-27 12:58:39', 0, '2026-07-27 12:57:58'),
+(55, 21, '291391', 'login', 'email', '2026-07-27 13:07:58', 1, '2026-07-27 13:03:33', 0, '2026-07-27 13:02:58'),
+(56, 21, '044142', 'login', 'email', '2026-07-27 13:20:08', 1, '2026-07-27 13:15:32', 0, '2026-07-27 13:15:08');
 
 -- --------------------------------------------------------
 
@@ -1123,25 +1711,12 @@ INSERT INTO `otp_verifications` (`id`, `user_id`, `otp_code`, `type`, `channel`,
 CREATE TABLE `password_resets` (
   `id` bigint UNSIGNED NOT NULL,
   `user_id` bigint UNSIGNED NOT NULL,
-  `token` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `expires_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `token` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `expires_at` timestamp NOT NULL,
   `used` tinyint(1) NOT NULL DEFAULT '0',
   `used_at` timestamp NULL DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Dumping data for table `password_resets`
---
-
-INSERT INTO `password_resets` (`id`, `user_id`, `token`, `expires_at`, `used`, `used_at`, `created_at`) VALUES
-(3, 2, 'afde518473b108c9c1cbe54043fb05c0778a573d5079b2702469f4b4dbcd868a', '2026-07-02 05:53:15', 1, '2026-07-02 05:53:15', '2026-07-02 05:52:47'),
-(5, 8, '4d0f11ddf15291017b335a2559ec51bef996e98260b651ba6077577a65199409', '2026-07-02 17:56:03', 1, '2026-07-02 17:56:03', '2026-07-02 17:54:55'),
-(7, 21, '11b39d49582fd8ac8e8b5134931e833081a23bde6c04ed6b98c2041d1b6304d7', '2026-07-09 15:33:34', 1, '2026-07-09 15:33:34', '2026-07-09 15:32:19'),
-(8, 23, '$2y$10$/NL.qHvXlSNK8iGGdIsd.eP4faVsqQahzZsNq2.cTaXyoikoYnYpu', '2026-07-10 23:17:38', 0, NULL, '2026-07-09 23:17:38'),
-(9, 24, '$2y$10$keKMGdty.2TuKBEqp6MvHOavxe6Lxl31auETclee0MQNaW0SUBs3m', '2026-07-10 23:25:06', 0, NULL, '2026-07-09 23:25:06'),
-(10, 25, '$2y$10$T9nPjn3U4aFqBb9B8I.XNe/VLvCJyx8hoB3M0lJ.7wTs04dYFlCHS', '2026-07-10 23:32:21', 0, NULL, '2026-07-09 23:32:21'),
-(12, 7, '583fe49c29706934a2016df84374248d7e3a07208cfc1e8313e1e060b196894b', '2026-07-10 10:12:08', 0, NULL, '2026-07-10 09:12:08');
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- --------------------------------------------------------
 
@@ -1527,7 +2102,8 @@ INSERT INTO `roles` (`id`, `tenant_id`, `name`, `slug`, `level`, `description`, 
 (11, NULL, 'Observer', 'observer', 'observer', 'Observes election process', '{\"view_results\": true, \"report_incidents\": true}', 1, 1, '2026-07-03 23:29:50', '2026-07-03 23:29:50'),
 (12, NULL, 'Situation Room', 'situation_room', 'situation_room', 'Manages election situation room operations', '{\"view_all_results\": true, \"manage_incidents\": true, \"monitor_elections\": true, \"view_reports\": true}', 1, 1, '2026-07-03 23:29:50', '2026-07-03 23:29:50'),
 (13, NULL, 'Finance Officer', 'finance_officer', 'finance_officer', 'Manages financial aspects of election activities', '{\"manage_budgets\": true, \"manage_expenses\": true, \"manage_payments\": true, \"view_financial_reports\": true}', 1, 1, '2026-07-03 23:29:50', '2026-07-03 23:29:50'),
-(14, NULL, 'Citizen', 'citizen', 'citizen', 'Regular citizen with view-only access', '{\"view_public_results\": true, \"report_incidents\": true}', 1, 1, '2026-07-03 23:29:50', '2026-07-03 23:29:50');
+(14, NULL, 'Citizen', 'citizen', 'citizen', 'Regular citizen with view-only access', '{\"view_public_results\": true, \"report_incidents\": true}', 1, 1, '2026-07-03 23:29:50', '2026-07-03 23:29:50'),
+(15, NULL, 'Volunteer', 'volunteer', 'volunteer', 'Volunteeer election process', '{\n    \"login\": true,\n    \"dashboard\": true,\n    \"assigned_tasks\": true,\n    \"community_reports\": true,\n    \"upload_media\": true,\n    \"chat\": true,\n    \"voice_chat\": true,\n    \"file_sharing\": true,\n    \"notifications\": true,\n    \"profile\": true\n}', 0, 1, '2026-07-19 11:57:27', '2026-07-24 14:36:02');
 
 -- --------------------------------------------------------
 
@@ -1830,7 +2406,160 @@ INSERT INTO `security_events` (`id`, `tenant_id`, `user_id`, `event_type`, `desc
 (235, NULL, 21, 'logout', 'User logged out from IP: 10.59.66.251', '10.59.66.251', 'a1eac6408331efd7d538b964c6b01411ba465d414a9e33463151c387ef2f8ca8', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-10 13:34:56'),
 (236, NULL, 26, 'login', 'Successful login from IP: 10.59.66.251', '10.59.66.251', 'a1eac6408331efd7d538b964c6b01411ba465d414a9e33463151c387ef2f8ca8', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-10 13:35:02'),
 (237, NULL, 26, 'logout', 'User logged out from IP: 10.59.66.251', '10.59.66.251', 'a1eac6408331efd7d538b964c6b01411ba465d414a9e33463151c387ef2f8ca8', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-10 13:35:04'),
-(238, NULL, 27, 'login', 'Successful login from IP: 10.59.66.251', '10.59.66.251', 'a1eac6408331efd7d538b964c6b01411ba465d414a9e33463151c387ef2f8ca8', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-10 13:35:08');
+(238, NULL, 27, 'login', 'Successful login from IP: 10.59.66.251', '10.59.66.251', 'a1eac6408331efd7d538b964c6b01411ba465d414a9e33463151c387ef2f8ca8', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-10 13:35:08'),
+(239, NULL, 7, 'password_reset', 'Password reset requested from IP: 102.89.83.93', '102.89.83.93', 'f80c32747451414de1a1fda16c5bda7fbc56e01058e440f49dc05b8bb239bf2a', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-10 22:10:46'),
+(240, NULL, 21, 'login', 'Successful login from IP: 102.89.83.93', '102.89.83.93', 'f80c32747451414de1a1fda16c5bda7fbc56e01058e440f49dc05b8bb239bf2a', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-10 22:12:33'),
+(241, NULL, 21, 'logout', 'User logged out from IP: 102.89.83.93', '102.89.83.93', 'f80c32747451414de1a1fda16c5bda7fbc56e01058e440f49dc05b8bb239bf2a', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-10 22:13:54'),
+(242, NULL, 21, 'login', 'Successful login from IP: 102.89.83.93', '102.89.83.93', 'f80c32747451414de1a1fda16c5bda7fbc56e01058e440f49dc05b8bb239bf2a', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-10 22:14:21'),
+(243, NULL, 21, 'logout', 'User logged out from IP: 102.89.83.93', '102.89.83.93', 'f80c32747451414de1a1fda16c5bda7fbc56e01058e440f49dc05b8bb239bf2a', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-10 22:14:26'),
+(244, NULL, 7, 'login', 'Successful login from IP: 102.89.83.93', '102.89.83.93', 'f80c32747451414de1a1fda16c5bda7fbc56e01058e440f49dc05b8bb239bf2a', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-10 22:15:05'),
+(245, NULL, 7, 'logout', 'User logged out from IP: 102.89.83.93', '102.89.83.93', 'f80c32747451414de1a1fda16c5bda7fbc56e01058e440f49dc05b8bb239bf2a', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-10 22:19:28'),
+(246, NULL, 7, 'login', 'Successful login from IP: 102.89.83.93', '102.89.83.93', 'f80c32747451414de1a1fda16c5bda7fbc56e01058e440f49dc05b8bb239bf2a', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-10 22:21:02'),
+(247, NULL, 7, 'logout', 'User logged out from IP: 102.89.83.93', '102.89.83.93', 'f80c32747451414de1a1fda16c5bda7fbc56e01058e440f49dc05b8bb239bf2a', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-10 22:23:04'),
+(248, NULL, 28, 'login', 'Successful login from IP: 102.89.83.93', '102.89.83.93', 'f80c32747451414de1a1fda16c5bda7fbc56e01058e440f49dc05b8bb239bf2a', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-10 22:23:17'),
+(249, NULL, 7, 'password_reset', 'Password reset requested from IP: 102.89.83.93', '102.89.83.93', 'f80c32747451414de1a1fda16c5bda7fbc56e01058e440f49dc05b8bb239bf2a', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-10 22:25:08'),
+(250, NULL, 28, 'logout', 'User logged out from IP: 102.89.83.93', '102.89.83.93', 'f80c32747451414de1a1fda16c5bda7fbc56e01058e440f49dc05b8bb239bf2a', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-10 22:26:21'),
+(251, NULL, 28, 'login', 'Successful login from IP: 102.89.83.93', '102.89.83.93', 'f80c32747451414de1a1fda16c5bda7fbc56e01058e440f49dc05b8bb239bf2a', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-10 22:26:24'),
+(252, NULL, 28, 'login', 'Successful login from IP: 102.88.115.148', '102.88.115.148', 'aab9a5d60b16af51ae0bc446d37a7f46291804f146a380ac2d1964db17dce571', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-10 22:29:58'),
+(253, NULL, 28, 'login', 'Successful login from IP: 102.91.103.45', '102.91.103.45', '0ab3a1a7c3c255d97ad36a930f16547ce0bdea8df526c8c00a7267d91c981ef3', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-10 23:26:28'),
+(254, NULL, 21, 'login', 'Successful login from IP: 102.91.103.29', '102.91.103.29', '39efd42b46b61b96c194f3b9966cd708e2c3590971a1adeabf023e80852f83f2', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-11 13:00:31'),
+(255, NULL, 21, 'logout', 'User logged out from IP: 102.91.103.29', '102.91.103.29', '39efd42b46b61b96c194f3b9966cd708e2c3590971a1adeabf023e80852f83f2', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-11 13:02:07'),
+(256, NULL, 22, 'login', 'Successful login from IP: 102.91.103.29', '102.91.103.29', '39efd42b46b61b96c194f3b9966cd708e2c3590971a1adeabf023e80852f83f2', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-11 13:02:11'),
+(257, NULL, 22, 'logout', 'User logged out from IP: 102.91.103.29', '102.91.103.29', '39efd42b46b61b96c194f3b9966cd708e2c3590971a1adeabf023e80852f83f2', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-11 13:02:21'),
+(258, NULL, 7, 'login', 'Successful login from IP: 102.91.103.29', '102.91.103.29', '39efd42b46b61b96c194f3b9966cd708e2c3590971a1adeabf023e80852f83f2', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-11 13:02:29');
+INSERT INTO `security_events` (`id`, `tenant_id`, `user_id`, `event_type`, `description`, `ip_address`, `device_id`, `gps_lat`, `gps_lng`, `risk_score`, `resolved`, `resolved_by`, `resolved_at`, `created_at`) VALUES
+(259, NULL, 7, 'logout', 'User logged out from IP: 102.91.103.29', '102.91.103.29', '39efd42b46b61b96c194f3b9966cd708e2c3590971a1adeabf023e80852f83f2', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-11 13:03:15'),
+(260, NULL, 29, 'login', 'Successful login from IP: 102.91.103.29', '102.91.103.29', '39efd42b46b61b96c194f3b9966cd708e2c3590971a1adeabf023e80852f83f2', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-11 13:03:59'),
+(261, NULL, 29, 'logout', 'User logged out from IP: 102.91.103.29', '102.91.103.29', '39efd42b46b61b96c194f3b9966cd708e2c3590971a1adeabf023e80852f83f2', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-11 13:04:05'),
+(262, NULL, 28, 'login', 'Successful login from IP: 102.91.104.170', '102.91.104.170', 'e94c934aed781183f918b54585376a63bfe639d25f80032384e2a58ec9517a05', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-11 13:48:58'),
+(263, NULL, 28, 'login', 'Successful login from IP: 102.91.104.170', '102.91.104.170', '9ce7f450064053f72a15eefe50245efa182b4fef095ed6bcbf1f99f48857dcdf', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-11 13:59:26'),
+(264, NULL, 28, 'login', 'Successful login from IP: 102.91.92.135', '102.91.92.135', 'ca593686404cf83fd1f2a1d22e731b0a765dfb51330beba05bb8621cbf8f2516', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-11 14:13:20'),
+(265, NULL, 28, 'login', 'Successful login from IP: 102.91.103.61', '102.91.103.61', 'c5b54ee590e12da9bc0c342aa5c150c2f6e63ed8a8e6d5865a11a6d5bfa0ac9d', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-15 12:53:48'),
+(266, NULL, 28, 'login', 'Successful login from IP: 102.91.77.202', '102.91.77.202', '961501809bcc275ddb0bdccf6376d84511768d0309bb5184eeae9b70b2fb00b8', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-15 21:04:50'),
+(267, NULL, 28, 'login', 'Successful login from IP: 102.91.77.202', '102.91.77.202', '961501809bcc275ddb0bdccf6376d84511768d0309bb5184eeae9b70b2fb00b8', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-15 22:05:20'),
+(268, NULL, 28, 'login', 'Successful login from IP: 102.91.77.202', '102.91.77.202', '961501809bcc275ddb0bdccf6376d84511768d0309bb5184eeae9b70b2fb00b8', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-15 22:59:33'),
+(269, NULL, 28, 'logout', 'User logged out from IP: 102.91.77.202', '102.91.77.202', '961501809bcc275ddb0bdccf6376d84511768d0309bb5184eeae9b70b2fb00b8', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-15 23:00:16'),
+(270, NULL, 28, 'login', 'Successful login from IP: 102.91.77.202', '102.91.77.202', '961501809bcc275ddb0bdccf6376d84511768d0309bb5184eeae9b70b2fb00b8', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-15 23:00:25'),
+(271, NULL, 28, 'logout', 'User logged out from IP: 102.91.77.202', '102.91.77.202', '961501809bcc275ddb0bdccf6376d84511768d0309bb5184eeae9b70b2fb00b8', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-15 23:00:50'),
+(272, NULL, 23, 'login', 'Successful login from IP: 102.91.77.202', '102.91.77.202', '961501809bcc275ddb0bdccf6376d84511768d0309bb5184eeae9b70b2fb00b8', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-15 23:00:53'),
+(273, NULL, 23, 'logout', 'User logged out from IP: 102.91.77.202', '102.91.77.202', '961501809bcc275ddb0bdccf6376d84511768d0309bb5184eeae9b70b2fb00b8', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-15 23:01:37'),
+(274, NULL, 28, 'login', 'Successful login from IP: 102.91.77.202', '102.91.77.202', '961501809bcc275ddb0bdccf6376d84511768d0309bb5184eeae9b70b2fb00b8', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-15 23:01:44'),
+(275, NULL, 28, 'logout', 'User logged out from IP: 102.91.77.202', '102.91.77.202', '961501809bcc275ddb0bdccf6376d84511768d0309bb5184eeae9b70b2fb00b8', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-15 23:02:08'),
+(276, NULL, 25, 'login', 'Successful login from IP: 102.91.77.202', '102.91.77.202', '961501809bcc275ddb0bdccf6376d84511768d0309bb5184eeae9b70b2fb00b8', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-15 23:02:13'),
+(277, NULL, 25, 'logout', 'User logged out from IP: 102.91.77.202', '102.91.77.202', '961501809bcc275ddb0bdccf6376d84511768d0309bb5184eeae9b70b2fb00b8', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-15 23:04:04'),
+(278, NULL, 28, 'login', 'Successful login from IP: 102.91.77.202', '102.91.77.202', '961501809bcc275ddb0bdccf6376d84511768d0309bb5184eeae9b70b2fb00b8', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-15 23:04:18'),
+(279, NULL, 28, 'logout', 'User logged out from IP: 102.91.77.202', '102.91.77.202', '961501809bcc275ddb0bdccf6376d84511768d0309bb5184eeae9b70b2fb00b8', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-15 23:04:45'),
+(280, NULL, 27, 'login', 'Successful login from IP: 102.91.77.202', '102.91.77.202', '961501809bcc275ddb0bdccf6376d84511768d0309bb5184eeae9b70b2fb00b8', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-15 23:04:50'),
+(281, NULL, 27, 'logout', 'User logged out from IP: 102.91.77.202', '102.91.77.202', '961501809bcc275ddb0bdccf6376d84511768d0309bb5184eeae9b70b2fb00b8', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-15 23:06:39'),
+(282, NULL, 7, 'login', 'Successful login from IP: 102.91.77.202', '102.91.77.202', '961501809bcc275ddb0bdccf6376d84511768d0309bb5184eeae9b70b2fb00b8', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-15 23:06:46'),
+(283, NULL, 7, 'logout', 'User logged out from IP: 102.91.77.202', '102.91.77.202', '961501809bcc275ddb0bdccf6376d84511768d0309bb5184eeae9b70b2fb00b8', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-15 23:07:32'),
+(284, NULL, 22, 'login', 'Successful login from IP: 102.91.77.202', '102.91.77.202', '961501809bcc275ddb0bdccf6376d84511768d0309bb5184eeae9b70b2fb00b8', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-15 23:07:38'),
+(285, NULL, 22, 'logout', 'User logged out from IP: 102.91.77.202', '102.91.77.202', '961501809bcc275ddb0bdccf6376d84511768d0309bb5184eeae9b70b2fb00b8', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-15 23:08:02'),
+(286, NULL, 7, 'password_reset', 'Password reset requested from IP: 102.91.77.202', '102.91.77.202', '961501809bcc275ddb0bdccf6376d84511768d0309bb5184eeae9b70b2fb00b8', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-15 23:09:02'),
+(287, NULL, 28, 'login', 'Successful login from IP: 102.91.77.202', '102.91.77.202', '77465f4c7b38a07d3999eb8f7c243b0f681088e3c1d8d3f088fbf87bf83a5730', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-15 23:09:37'),
+(288, NULL, 7, 'login', 'Successful login from IP: 102.91.93.133', '102.91.93.133', 'e165bc07aeec3a0019903490a1fa30662a83689d13fbf4b96f0fa0233c9950b5', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-16 09:16:10'),
+(289, NULL, 7, 'logout', 'User logged out from IP: 102.91.93.133', '102.91.93.133', 'e165bc07aeec3a0019903490a1fa30662a83689d13fbf4b96f0fa0233c9950b5', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-16 09:31:46'),
+(290, NULL, 21, 'login', 'Successful login from IP: 102.91.93.133', '102.91.93.133', 'e165bc07aeec3a0019903490a1fa30662a83689d13fbf4b96f0fa0233c9950b5', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-16 09:31:51'),
+(291, NULL, 21, 'logout', 'User logged out from IP: 102.91.93.133', '102.91.93.133', 'e165bc07aeec3a0019903490a1fa30662a83689d13fbf4b96f0fa0233c9950b5', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-16 09:36:10'),
+(292, NULL, 28, 'login', 'Successful login from IP: 102.91.93.133', '102.91.93.133', 'e165bc07aeec3a0019903490a1fa30662a83689d13fbf4b96f0fa0233c9950b5', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-16 09:36:16'),
+(293, NULL, 28, 'logout', 'User logged out from IP: 102.91.93.133', '102.91.93.133', 'e165bc07aeec3a0019903490a1fa30662a83689d13fbf4b96f0fa0233c9950b5', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-16 10:00:52'),
+(294, NULL, 7, 'login', 'Successful login from IP: 102.91.93.133', '102.91.93.133', 'e165bc07aeec3a0019903490a1fa30662a83689d13fbf4b96f0fa0233c9950b5', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-16 10:01:00'),
+(295, NULL, 7, 'logout', 'User logged out from IP: 102.91.93.133', '102.91.93.133', 'e165bc07aeec3a0019903490a1fa30662a83689d13fbf4b96f0fa0233c9950b5', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-16 10:01:03'),
+(296, NULL, 21, 'login', 'Successful login from IP: 102.91.93.133', '102.91.93.133', 'e165bc07aeec3a0019903490a1fa30662a83689d13fbf4b96f0fa0233c9950b5', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-16 10:01:11'),
+(297, NULL, 21, 'logout', 'User logged out from IP: 102.91.93.133', '102.91.93.133', 'e165bc07aeec3a0019903490a1fa30662a83689d13fbf4b96f0fa0233c9950b5', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-16 10:01:38'),
+(298, NULL, 28, 'login', 'Successful login from IP: 102.91.93.133', '102.91.93.133', 'e165bc07aeec3a0019903490a1fa30662a83689d13fbf4b96f0fa0233c9950b5', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-16 10:01:47'),
+(299, NULL, 28, 'login', 'Successful login from IP: 197.210.70.187', '197.210.70.187', '2d0efc8e9906ba0552bb6f625465f865147298005c19ff96f6a58a9cae19ef0b', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-18 15:59:03'),
+(300, NULL, 28, 'logout', 'User logged out from IP: 197.210.70.187', '197.210.70.187', '2d0efc8e9906ba0552bb6f625465f865147298005c19ff96f6a58a9cae19ef0b', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-18 15:59:34'),
+(301, NULL, 22, 'login', 'Successful login from IP: 197.210.70.187', '197.210.70.187', '2d0efc8e9906ba0552bb6f625465f865147298005c19ff96f6a58a9cae19ef0b', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-18 15:59:39'),
+(302, NULL, 22, 'logout', 'User logged out from IP: 197.210.70.187', '197.210.70.187', '2d0efc8e9906ba0552bb6f625465f865147298005c19ff96f6a58a9cae19ef0b', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-18 16:12:49'),
+(303, NULL, 28, 'login', 'Successful login from IP: 197.210.70.187', '197.210.70.187', '2d0efc8e9906ba0552bb6f625465f865147298005c19ff96f6a58a9cae19ef0b', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-18 16:13:00'),
+(304, NULL, 28, 'logout', 'User logged out from IP: 197.210.70.187', '197.210.70.187', '2d0efc8e9906ba0552bb6f625465f865147298005c19ff96f6a58a9cae19ef0b', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-18 16:13:16'),
+(305, NULL, 27, 'login', 'Successful login from IP: 197.210.70.187', '197.210.70.187', '2d0efc8e9906ba0552bb6f625465f865147298005c19ff96f6a58a9cae19ef0b', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-18 16:13:22'),
+(306, NULL, 27, 'logout', 'User logged out from IP: 197.210.70.187', '197.210.70.187', '2d0efc8e9906ba0552bb6f625465f865147298005c19ff96f6a58a9cae19ef0b', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-18 16:21:47'),
+(307, NULL, 21, 'password_reset', 'Password reset requested from IP: 197.210.70.187', '197.210.70.187', '2d0efc8e9906ba0552bb6f625465f865147298005c19ff96f6a58a9cae19ef0b', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-18 16:22:11'),
+(308, NULL, 21, 'password_reset', 'Password reset requested from IP: 197.210.70.187', '197.210.70.187', '2d0efc8e9906ba0552bb6f625465f865147298005c19ff96f6a58a9cae19ef0b', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-18 16:30:29'),
+(309, NULL, 21, 'password_reset', 'Password reset requested from IP: 197.210.70.187', '197.210.70.187', '2d0efc8e9906ba0552bb6f625465f865147298005c19ff96f6a58a9cae19ef0b', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-18 16:30:37'),
+(310, NULL, 28, 'login', 'Successful login from IP: 197.210.70.187', '197.210.70.187', '2d0efc8e9906ba0552bb6f625465f865147298005c19ff96f6a58a9cae19ef0b', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-18 16:31:14'),
+(311, NULL, 28, 'logout', 'User logged out from IP: 197.210.70.187', '197.210.70.187', '2d0efc8e9906ba0552bb6f625465f865147298005c19ff96f6a58a9cae19ef0b', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-18 16:31:29'),
+(312, NULL, 28, 'login', 'Successful login from IP: 197.210.70.187', '197.210.70.187', '2d0efc8e9906ba0552bb6f625465f865147298005c19ff96f6a58a9cae19ef0b', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-18 16:31:40'),
+(313, NULL, 28, 'logout', 'User logged out from IP: 197.210.70.187', '197.210.70.187', '2d0efc8e9906ba0552bb6f625465f865147298005c19ff96f6a58a9cae19ef0b', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-18 16:32:00'),
+(314, NULL, 21, 'password_reset', 'Password reset requested from IP: 197.210.70.187', '197.210.70.187', '2d0efc8e9906ba0552bb6f625465f865147298005c19ff96f6a58a9cae19ef0b', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-18 16:46:23'),
+(315, NULL, 21, 'password_reset', 'Password reset requested from IP: 102.88.112.143', '102.88.112.143', 'fcf1660350ef203ae312963f5f777eebb485291d84a215757669fa95d9592db3', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-18 21:12:11'),
+(316, NULL, NULL, 'csrf_validation_failed', 'CSRF token validation failed on forgot password', '102.88.112.143', 'fcf1660350ef203ae312963f5f777eebb485291d84a215757669fa95d9592db3', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-18 21:30:31'),
+(317, NULL, NULL, 'rate_limit_exceeded', 'Password reset rate limit exceeded for email: lubunaaliyuabk@gmail.com', '102.88.112.143', 'fcf1660350ef203ae312963f5f777eebb485291d84a215757669fa95d9592db3', NULL, NULL, 50, 0, NULL, NULL, '2026-07-18 21:38:42'),
+(318, NULL, 21, 'logout', 'User logged out from IP: 102.88.112.143', '102.88.112.143', 'fcf1660350ef203ae312963f5f777eebb485291d84a215757669fa95d9592db3', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-18 21:40:26'),
+(319, NULL, 21, 'login', 'Successful login from IP: 102.88.112.143', '102.88.112.143', 'fcf1660350ef203ae312963f5f777eebb485291d84a215757669fa95d9592db3', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-18 22:41:31'),
+(320, NULL, 21, 'logout', 'User logged out from IP: 102.88.112.143', '102.88.112.143', 'fcf1660350ef203ae312963f5f777eebb485291d84a215757669fa95d9592db3', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-18 22:41:47'),
+(321, NULL, 21, 'login', 'Successful login from IP: 102.88.112.143', '102.88.112.143', 'fcf1660350ef203ae312963f5f777eebb485291d84a215757669fa95d9592db3', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-18 22:47:35'),
+(322, NULL, 21, 'logout', 'User logged out from IP: 102.88.112.143', '102.88.112.143', 'fcf1660350ef203ae312963f5f777eebb485291d84a215757669fa95d9592db3', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-18 22:47:38'),
+(323, NULL, 21, 'login', 'Successful login from IP: 102.88.112.143', '102.88.112.143', 'fcf1660350ef203ae312963f5f777eebb485291d84a215757669fa95d9592db3', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-18 22:57:43'),
+(324, NULL, 21, 'logout', 'User logged out from IP: 102.88.112.143', '102.88.112.143', 'fcf1660350ef203ae312963f5f777eebb485291d84a215757669fa95d9592db3', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-18 22:57:44'),
+(325, NULL, 21, 'login', 'Successful login from IP: 102.88.112.143', '102.88.112.143', 'fcf1660350ef203ae312963f5f777eebb485291d84a215757669fa95d9592db3', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-18 22:57:59'),
+(326, NULL, 21, 'logout', 'User logged out from IP: 102.88.112.143', '102.88.112.143', 'fcf1660350ef203ae312963f5f777eebb485291d84a215757669fa95d9592db3', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-18 22:58:34'),
+(327, NULL, 28, 'login', 'Successful login from IP: 102.88.112.143', '102.88.112.143', 'fcf1660350ef203ae312963f5f777eebb485291d84a215757669fa95d9592db3', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-18 22:58:39'),
+(328, NULL, 28, 'logout', 'User logged out from IP: 102.88.112.143', '102.88.112.143', 'fcf1660350ef203ae312963f5f777eebb485291d84a215757669fa95d9592db3', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-18 22:59:51'),
+(329, NULL, 25, 'login', 'Successful login from IP: 197.210.70.43', '197.210.70.43', 'a478559d003940cee9d0c1731b2cf8557cafe9361d7a8e99ee56c41ed2a2a03d', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-19 11:32:11'),
+(330, NULL, 25, 'logout', 'User logged out from IP: 197.210.70.43', '197.210.70.43', 'a478559d003940cee9d0c1731b2cf8557cafe9361d7a8e99ee56c41ed2a2a03d', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-19 11:32:20'),
+(331, NULL, 21, 'login', 'Successful login from IP: 197.210.70.43', '197.210.70.43', 'a478559d003940cee9d0c1731b2cf8557cafe9361d7a8e99ee56c41ed2a2a03d', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-19 11:32:59'),
+(332, NULL, 21, 'logout', 'User logged out from IP: 197.210.70.43', '197.210.70.43', 'a478559d003940cee9d0c1731b2cf8557cafe9361d7a8e99ee56c41ed2a2a03d', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-19 11:33:13'),
+(333, NULL, 21, 'login', 'Successful login from IP: 197.210.70.43', '197.210.70.43', 'a478559d003940cee9d0c1731b2cf8557cafe9361d7a8e99ee56c41ed2a2a03d', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-19 11:33:40'),
+(334, NULL, 21, 'logout', 'User logged out from IP: 197.210.70.43', '197.210.70.43', 'a478559d003940cee9d0c1731b2cf8557cafe9361d7a8e99ee56c41ed2a2a03d', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-19 11:34:11'),
+(335, NULL, 27, 'login', 'Successful login from IP: 197.210.70.43', '197.210.70.43', 'a478559d003940cee9d0c1731b2cf8557cafe9361d7a8e99ee56c41ed2a2a03d', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-19 11:34:31'),
+(336, NULL, 27, 'logout', 'User logged out from IP: 197.210.70.43', '197.210.70.43', 'a478559d003940cee9d0c1731b2cf8557cafe9361d7a8e99ee56c41ed2a2a03d', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-19 12:23:36'),
+(337, NULL, 27, 'login', 'Successful login from IP: 197.210.70.43', '197.210.70.43', 'a478559d003940cee9d0c1731b2cf8557cafe9361d7a8e99ee56c41ed2a2a03d', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-19 12:23:38'),
+(338, NULL, 21, 'login', 'Successful login from IP: 197.210.70.43', '197.210.70.43', 'a478559d003940cee9d0c1731b2cf8557cafe9361d7a8e99ee56c41ed2a2a03d', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-19 15:03:51'),
+(339, NULL, 27, 'login', 'Successful login from IP: 197.210.70.43', '197.210.70.43', 'a478559d003940cee9d0c1731b2cf8557cafe9361d7a8e99ee56c41ed2a2a03d', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-19 16:27:22'),
+(340, NULL, 27, 'logout', 'User logged out from IP: 197.210.70.43', '197.210.70.43', 'a478559d003940cee9d0c1731b2cf8557cafe9361d7a8e99ee56c41ed2a2a03d', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-19 16:54:49'),
+(341, NULL, 27, 'login', 'Successful login from IP: 102.91.103.170', '102.91.103.170', '9b9bd6260fcaddd147a31695595902b936b448e2f0b8007640f93a97ecd67767', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-23 15:46:28'),
+(342, NULL, 27, 'login', 'Successful login from IP: 102.91.104.59', '102.91.104.59', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-24 13:33:17'),
+(343, NULL, 27, 'login', 'Successful login from IP: 102.91.104.59', '102.91.104.59', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-24 14:03:27'),
+(344, NULL, 27, 'logout', 'User logged out from IP: 102.91.104.59', '102.91.104.59', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-24 14:27:33'),
+(345, NULL, 21, 'login', 'Successful login from IP: 102.91.104.59', '102.91.104.59', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-24 14:28:14'),
+(346, NULL, 21, 'logout', 'User logged out from IP: 102.91.104.59', '102.91.104.59', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-24 14:29:22'),
+(347, NULL, 32, 'login', 'Successful login from IP: 102.91.104.59', '102.91.104.59', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-24 14:29:25'),
+(348, NULL, 32, 'logout', 'User logged out from IP: 102.91.104.59', '102.91.104.59', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-24 14:29:30'),
+(349, NULL, 27, 'login', 'Successful login from IP: 102.91.104.59', '102.91.104.59', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-24 14:29:40'),
+(350, NULL, 27, 'login', 'Successful login from IP: 102.91.104.59', '102.91.104.59', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-24 16:49:15'),
+(351, NULL, 27, 'login', 'Successful login from IP: 102.91.104.59', '102.91.104.59', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-24 17:27:55'),
+(352, NULL, 27, 'logout', 'User logged out from IP: 102.91.104.59', '102.91.104.59', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-24 18:10:28'),
+(353, NULL, 27, 'login', 'Successful login from IP: 102.91.104.59', '102.91.104.59', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-24 18:10:45'),
+(354, NULL, 27, 'logout', 'User logged out from IP: 102.91.105.161', '102.91.105.161', '9161a7e307dc2c1fa53c878bc0f2367a061e14095e5735af1246b23b0b22dcac', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-24 18:31:49'),
+(355, NULL, 27, 'login', 'Successful login from IP: 102.91.105.161', '102.91.105.161', '9161a7e307dc2c1fa53c878bc0f2367a061e14095e5735af1246b23b0b22dcac', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-24 18:32:04'),
+(356, NULL, 27, 'logout', 'User logged out from IP: 102.91.105.161', '102.91.105.161', '9161a7e307dc2c1fa53c878bc0f2367a061e14095e5735af1246b23b0b22dcac', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-24 18:34:25'),
+(357, NULL, 27, 'login', 'Successful login from IP: 102.91.105.161', '102.91.105.161', '9161a7e307dc2c1fa53c878bc0f2367a061e14095e5735af1246b23b0b22dcac', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-24 18:34:44'),
+(358, NULL, 27, 'login', 'Successful login from IP: 102.91.92.216', '102.91.92.216', 'f5828db79f1e3f5bac52690d9499d62aa54315ca12caaf090ed03ab01cd751d6', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-25 20:19:51'),
+(359, NULL, 27, 'login', 'Successful login from IP: 197.210.53.133', '197.210.53.133', '94f663f7190b5b7a6c9ace22e788bb55e7bdf3a7bc8e8df84cf12df3aa3f377f', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-26 11:04:06'),
+(360, NULL, 27, 'login', 'Successful login from IP: 197.210.53.133', '197.210.53.133', '94f663f7190b5b7a6c9ace22e788bb55e7bdf3a7bc8e8df84cf12df3aa3f377f', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-26 11:05:14'),
+(361, NULL, 27, 'login', 'Successful login from IP: 197.210.53.133', '197.210.53.133', '94f663f7190b5b7a6c9ace22e788bb55e7bdf3a7bc8e8df84cf12df3aa3f377f', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-26 11:28:46'),
+(362, NULL, 27, 'login', 'Successful login from IP: 102.91.103.236', '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-27 10:05:39'),
+(363, NULL, 27, 'logout', 'User logged out from IP: 102.91.103.236', '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-27 10:06:38'),
+(364, NULL, 7, 'login', 'Successful login from IP: 102.91.103.236', '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-27 10:07:01'),
+(365, NULL, 7, 'login', 'Successful login from IP: 102.91.103.236', '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-27 12:26:40'),
+(366, NULL, 7, 'logout', 'User logged out from IP: 102.91.103.236', '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-27 12:29:43'),
+(367, NULL, 21, 'login', 'Successful login from IP: 102.91.103.236', '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-27 12:30:15'),
+(368, NULL, 21, 'logout', 'User logged out from IP: 102.91.103.236', '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-27 12:56:11'),
+(369, NULL, 33, 'login', 'Successful login from IP: 102.91.103.236', '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-27 12:56:16'),
+(370, NULL, 33, 'logout', 'User logged out from IP: 102.91.103.236', '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-27 12:56:49'),
+(371, NULL, 27, 'login', 'Successful login from IP: 102.91.103.236', '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-27 12:57:15'),
+(372, NULL, 27, 'logout', 'User logged out from IP: 102.91.103.236', '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-27 12:57:21'),
+(373, NULL, 21, 'login', 'Successful login from IP: 102.91.103.236', '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-27 12:58:39'),
+(374, NULL, 21, 'logout', 'User logged out from IP: 102.91.103.236', '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-27 13:02:35'),
+(375, NULL, 21, 'login', 'Successful login from IP: 102.91.103.236', '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-27 13:03:33'),
+(376, NULL, 21, 'logout', 'User logged out from IP: 102.91.103.236', '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-27 13:06:50'),
+(377, NULL, 34, 'login', 'Successful login from IP: 102.91.103.236', '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-27 13:08:52'),
+(378, NULL, 34, 'logout', 'User logged out from IP: 102.91.103.236', '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-27 13:14:11'),
+(379, NULL, 27, 'login', 'Successful login from IP: 102.91.103.236', '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-27 13:14:46'),
+(380, NULL, 27, 'logout', 'User logged out from IP: 102.91.103.236', '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-27 13:14:54'),
+(381, NULL, 21, 'login', 'Successful login from IP: 102.91.103.236', '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-27 13:15:32'),
+(382, NULL, 21, '2fa_disabled', '2FA disabled from IP: 102.91.103.236', '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-27 13:16:21'),
+(383, NULL, 21, 'logout', 'User logged out from IP: 102.91.103.236', '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-27 13:16:33'),
+(384, NULL, 21, 'login', 'Successful login from IP: 102.91.103.236', '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-27 13:16:37'),
+(385, NULL, 21, 'logout', 'User logged out from IP: 102.91.103.236', '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-27 13:31:26'),
+(386, NULL, 34, 'login', 'Successful login from IP: 102.91.103.236', '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-27 13:31:35'),
+(387, NULL, 34, 'logout', 'User logged out from IP: 102.91.103.236', '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-27 13:38:49'),
+(388, NULL, 21, 'login', 'Successful login from IP: 102.91.103.236', '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-27 13:39:01'),
+(389, NULL, 21, 'logout', 'User logged out from IP: 102.91.103.236', '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-27 13:39:44'),
+(390, NULL, 34, 'login', 'Successful login from IP: 102.91.103.236', '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-27 13:39:57');
 
 -- --------------------------------------------------------
 
@@ -1846,6 +2575,15 @@ CREATE TABLE `senatorial_districts` (
   `lgas_json` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
   `is_active` tinyint(1) NOT NULL DEFAULT '1'
 ) ;
+
+--
+-- Dumping data for table `senatorial_districts`
+--
+
+INSERT INTO `senatorial_districts` (`id`, `state_id`, `code`, `name`, `lgas_json`, `is_active`) VALUES
+(1, 1, 'JN', 'Jigawa North West', '[\"Garki\",\"Babura\",\"Gumel\",\"Maigatari\",\"Gagarawa\",\"Sule Tankarkar\",\"Kazaure\",\"Roni\",\"Gwiwa\",\"Yankwashi\",\"Ringim\",\"Taura\"]', 1),
+(2, 1, 'JE', 'Jigawa North East', '[\"Hadejia\",\"Kafin Hausa\",\"Mallam Madori\",\"Kaugama\"]', 1),
+(3, 1, 'JS', 'Jigawa South West', '[\"Birnin Kudu\",\"Buji\",\"Birniwa\",\"Guri\",\"Kirikasamma\",\"Dutse\",\"Kiyawa\",\"Gwaram\",\"Jahun\",\"Miga\"]', 1);
 
 -- --------------------------------------------------------
 
@@ -2161,14 +2899,21 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`id`, `tenant_id`, `user_code`, `role_id`, `first_name`, `last_name`, `email`, `google_id`, `avatar`, `phone`, `phone_verified_at`, `password_hash`, `remember_token`, `two_factor_secret`, `two_factor_enabled`, `two_factor_verified_at`, `gender`, `date_of_birth`, `photograph_url`, `nin`, `bvn`, `bank_name`, `account_number`, `account_name`, `emergency_contact_name`, `emergency_contact_phone`, `next_of_kin_name`, `next_of_kin_phone`, `residential_address`, `state_id`, `lga_id`, `ward_id`, `pu_id`, `senatorial_id`, `federal_constituency_id`, `jurisdiction_type`, `jurisdiction_id`, `device_id`, `device_fingerprint`, `device_bound`, `last_login_at`, `last_login_ip`, `last_login_device`, `last_login_gps_lat`, `last_login_gps_lng`, `login_attempts`, `locked_until`, `status`, `email_verified_at`, `created_by`, `created_at`, `updated_at`, `deleted_at`) VALUES
-(7, NULL, 'ADMIN001', 1, 'Super', 'Admin', 'aliyuabubakar11117@gmail.com', NULL, NULL, '+2348005555555', NULL, '$2y$10$C3W32vOzLL/BGP.Y3B2L5egybRmbvQyjSQJz8iH6I2sxenyoYK5G.', NULL, NULL, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-09 23:24:48', '10.59.66.251', NULL, NULL, NULL, 0, NULL, 'active', '2026-07-02 17:23:24', NULL, '2026-07-02 17:23:24', '2026-07-09 23:24:48', NULL),
-(21, 14, 'USR000014', 2, 'Aliyu', 'Abubakar', 'lubunaaliyuabk@gmail.com', NULL, NULL, '+2348034897638', NULL, '$2y$10$gPZC.B3tnq9mjtLvr4SxseQzsfZzlkaSzzzktAIlSpeSd0qp1ldIO', NULL, NULL, 0, NULL, 'male', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-10 13:17:56', '10.59.66.251', NULL, NULL, NULL, 0, NULL, 'active', '2026-07-09 14:16:04', 7, '2026-07-09 14:16:04', '2026-07-10 13:17:56', NULL),
-(22, 14, 'USR000002', 3, 'Aliyu', 'Abubakar', 'aliyuabubakardh@gmail.com', NULL, NULL, '+2349027702002', NULL, '$2y$10$Gk2pc7ug2HrHsICzhnAwSuRNwtJJFJtnzXX4EwzTcUybZ/qqb6T6q', NULL, NULL, 0, NULL, 'male', '2002-02-24', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-09 23:24:03', '10.59.66.251', NULL, NULL, NULL, 0, NULL, 'active', NULL, 7, '2026-07-09 14:23:04', '2026-07-09 23:24:03', NULL),
-(23, 14, 'USR000003', 4, 'ibrahim', 'sule', 'ibrahim@gmail.com', NULL, NULL, '+2348034907634', NULL, '$2y$10$f78Cxeroe/mA58nW3AqG8ep4LbKwDV.ElBixx7ubKGGJXQTfwkiQK', NULL, NULL, 0, NULL, 'male', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, NULL, NULL, NULL, NULL, NULL, 'state', 1, NULL, NULL, 1, NULL, NULL, NULL, NULL, NULL, 0, NULL, 'active', NULL, 21, '2026-07-09 15:25:02', '2026-07-09 23:17:38', NULL),
+(7, NULL, 'ADMIN001', 1, 'Super', 'Admin', 'aliyuabubakar11117@gmail.com', NULL, NULL, '+2348005555555', NULL, '$2y$10$gPZC.B3tnq9mjtLvr4SxseQzsfZzlkaSzzzktAIlSpeSd0qp1ldIO', NULL, NULL, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-27 12:26:40', '102.91.103.236', NULL, NULL, NULL, 0, NULL, 'active', '2026-07-02 17:23:24', NULL, '2026-07-02 17:23:24', '2026-07-27 12:26:40', NULL),
+(21, 14, 'USR000014', 2, 'Aliyu', 'Abubakar', 'lubunaaliyuabk@gmail.com', NULL, NULL, '+2348034897638', NULL, '$2y$10$Ji4dxGUlacL6Sy3Dk7ncUu0J8nJJ7e3.D4X5t5GImMZSLNL3gRiPC', NULL, NULL, 0, NULL, 'male', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-27 13:39:01', '102.91.103.236', NULL, NULL, NULL, 0, NULL, 'active', '2026-07-09 14:16:04', 7, '2026-07-09 14:16:04', '2026-07-27 13:39:01', NULL),
+(22, 14, 'USR000002', 3, 'Aliyu', 'Abubakar', 'aliyuabubakardh@gmail.com', NULL, NULL, '+2349027702002', NULL, '$2y$10$Gk2pc7ug2HrHsICzhnAwSuRNwtJJFJtnzXX4EwzTcUybZ/qqb6T6q', NULL, NULL, 0, NULL, 'male', '2002-02-24', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-18 15:59:39', '197.210.70.187', NULL, NULL, NULL, 0, NULL, 'active', NULL, 7, '2026-07-09 14:23:04', '2026-07-18 15:59:39', NULL),
+(23, 14, 'USR000003', 4, 'ibrahim', 'sule', 'ibrahim@gmail.com', NULL, NULL, '+2348034907634', NULL, '$2y$10$8ec1HFTe/V2ngpXvR9jc8OeY5VdY3MuqdzHE84dBUy6xcoKQwdZy.', NULL, NULL, 0, NULL, 'male', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, NULL, NULL, NULL, NULL, NULL, 'state', 1, NULL, NULL, 1, '2026-07-15 23:00:53', '102.91.77.202', NULL, NULL, NULL, 0, NULL, 'active', NULL, 21, '2026-07-09 15:25:02', '2026-07-15 23:00:53', NULL),
 (24, 14, 'AGT13713', 4, 'isah', 'Musa', 'agent@gmail.com', NULL, NULL, '80335673727', NULL, '$2y$10$XzaBC1oT6nxMUj5qgRL3COpmlhDmAPNNN3zIyXoGzw1NshtN.7tXi', NULL, NULL, 0, NULL, 'male', '2010-02-09', '/election/uploads/profiles/profile_24_1783680306.png', '79476978233', NULL, 'Sterling', '8034897634', 'Aliyu Abubakar', NULL, NULL, NULL, NULL, '', 1, NULL, NULL, NULL, NULL, NULL, 'state', 1, NULL, NULL, 1, '2026-07-10 10:50:51', '10.59.66.251', NULL, NULL, NULL, 0, NULL, 'active', NULL, 21, '2026-07-09 22:06:13', '2026-07-10 10:50:51', NULL),
-(25, 14, 'LGA000005', 7, 'Aliyu', 'Abubakar', 'aliyuabubakar1111@gmail.com', NULL, NULL, '+23484897634', NULL, '$2y$12$fe5iw/V7RjLSMxXY/gjCd.EpoBF/iBEjSVkDFi/G3gnIvwn.qA9nK', NULL, NULL, 0, NULL, 'male', NULL, '/election/uploads/profiles/profile_25_1783683350.jpg', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, 1, NULL, NULL, NULL, NULL, 'lga', 1, NULL, NULL, 1, '2026-07-10 10:52:02', '10.59.66.251', NULL, NULL, NULL, 0, NULL, 'active', NULL, 24, '2026-07-09 23:32:21', '2026-07-10 11:35:50', NULL),
-(26, 14, 'AGT93914', 9, 'Aliyu', 'Abubakar', 'agent1@gmail.com', NULL, NULL, '+2348034897634', NULL, '$2y$12$uQphMil5bbRWKwSMqFtJMu.6SLpUl.nU2xxddr57LIrDK1huOuAEO', NULL, NULL, 0, NULL, 'male', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Kangire, Birninkudu\r\nNigeria', NULL, 1, 1, 23, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-10 13:35:02', '10.59.66.251', NULL, NULL, NULL, 0, NULL, 'active', NULL, 25, '2026-07-10 13:13:42', '2026-07-10 13:35:02', NULL),
-(27, 14, 'USR801680', 8, 'Aliyu', 'Abubakar', 'abarshiaminu2005@gmail.com', NULL, NULL, '+2348034897634', NULL, '$2y$10$Et4TYchNGLnnCaBjAWbKX.Mx6T0hEsLvED.ivVSBZbT2DqeKRYoPq', NULL, NULL, 0, NULL, 'male', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Kangire, Birninkudu', 1, 1, 1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-10 13:35:08', '10.59.66.251', NULL, NULL, NULL, 0, NULL, 'active', NULL, 21, '2026-07-10 13:33:57', '2026-07-10 13:35:08', NULL);
+(25, 14, 'LGA000005', 7, 'Aliyu', 'Abubakar', 'aliyuabubakar1111@gmail.com', NULL, NULL, '+23484897634', NULL, '$2y$10$5H9bRatgQ00gHK3QX6Ror.zaZfi00IXR7WmjjXSeUI2eVHaa0vjMa', NULL, NULL, 0, NULL, 'male', NULL, '/election/uploads/profiles/profile_25_1783683350.jpg', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, 1, NULL, NULL, NULL, NULL, 'lga', 1, NULL, NULL, 1, '2026-07-19 11:32:11', '197.210.70.43', NULL, NULL, NULL, 0, NULL, 'active', NULL, 24, '2026-07-09 23:32:21', '2026-07-19 11:32:11', NULL),
+(26, 14, 'AGT93914', 9, 'Aliyu', 'Abubakar', 'agent1@gmail.com', NULL, NULL, '+2348034897634', NULL, '$2y$10$NV.vq2GfMqHTTBditi/5BuyYpZ7R1ysfpcMM1gXVxZZaVWP3cNNCW', NULL, NULL, 0, NULL, 'male', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Kangire, Birninkudu\r\nNigeria', 1, 1, 1, 3, NULL, NULL, 'pu', 1, NULL, NULL, 1, '2026-07-26 11:29:22', '197.210.53.133', NULL, NULL, NULL, 0, NULL, 'active', NULL, 25, '2026-07-10 13:13:42', '2026-07-26 11:29:22', NULL),
+(27, 14, 'USR801680', 8, 'Aliyu', 'Abubakar', 'abarshiaminu2005@gmail.com', NULL, NULL, '+2348034897634', NULL, '$2y$10$wzx3ez2cSkeWfmdXvA1pleLbP4cQmAWuqScAQmezx58f.7Z77mSX2', NULL, NULL, 0, NULL, 'male', NULL, '/election/uploads/profiles/profile_27_1784468674.jpg', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Kangire, Birninkudu', 1, 1, 1, NULL, NULL, NULL, 'ward', 1, NULL, NULL, 1, '2026-07-27 13:14:46', '102.91.103.236', NULL, NULL, NULL, 0, NULL, 'active', NULL, 21, '2026-07-10 13:33:57', '2026-07-27 13:14:46', NULL),
+(28, 14, 'USR000008', 1, 'Aliyu', 'Yahaya', 'kowagurutechltd@gmail.com', NULL, NULL, '09032356601', NULL, '$2y$10$3ikAaNWR/nR2roodOPzj/.4TTmb1pXSatJLXLUTYH12qH3tQSfxUK', NULL, NULL, 1, NULL, 'male', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-18 22:58:39', '102.88.112.143', NULL, NULL, NULL, 0, NULL, 'active', NULL, 7, '2026-07-10 22:22:27', '2026-07-18 22:59:49', NULL),
+(29, 14, 'USR000009', 10, 'Aliyu', 'Abubakar', 'agent2@gmail.com', NULL, NULL, '+2348034897634', NULL, '$2y$10$8LCOUoCl0G4VaSeqYW.M7uYN5BmCDCV3y5VRcI97XAYgCa5VCDOsa', NULL, NULL, 0, NULL, 'male', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, 1, 1, 28, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-26 11:06:02', '197.210.53.133', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', NULL, NULL, 0, NULL, 'active', NULL, 7, '2026-07-11 13:03:12', '2026-07-26 11:06:02', NULL),
+(30, 14, 'AGT36886', 15, 'ba sule', 'jumbe', 'agent3@gmail.com', NULL, NULL, '9765678765456', NULL, '$2y$10$p1//WAheNDiTBX39oq5MJuKtYlH6dy.A4AGJYiyrb4DXMWR8w7VcO', NULL, NULL, 0, NULL, 'male', NULL, NULL, '79476978233', NULL, 'Sterling', '1234567890', 'Aliyu Abubakar', NULL, NULL, NULL, NULL, 'Kangire, Birninkudu\r\nNigeria', 1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-19 16:57:43', '197.210.70.43', NULL, NULL, NULL, 0, NULL, 'active', NULL, 21, '2026-07-16 09:33:49', '2026-07-24 16:30:09', NULL),
+(31, 14, 'USR000011', 15, 'Aliyu', 'Abubakar', 'observer@gmail.com', NULL, NULL, '+2349027702002', NULL, '$2y$10$nQg3tg/H4FbK5haAE9mpaeoPeADaTw0r7iD6vYzwVEDEhHtAZmi82', NULL, NULL, 0, NULL, 'male', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-19 16:56:41', '197.210.70.43', NULL, NULL, NULL, 0, NULL, 'active', NULL, 28, '2026-07-16 10:02:30', '2026-07-24 15:14:39', NULL),
+(32, 14, 'USR060557', 15, 'Aliyu', 'Abubakar', 'volunteer@gmail.com', NULL, NULL, '+23480348934', NULL, '$2y$10$HaQM4jNTmcrh8cRSyYJLN.uYlqbFfVn0H4DkavJ0.buvROOuUsVjG', NULL, NULL, 0, NULL, 'male', NULL, NULL, '79476978233', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Birnin kudu 1', NULL, NULL, 1, 28, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-24 14:29:25', '102.91.104.59', NULL, NULL, NULL, 0, NULL, 'active', NULL, 21, '2026-07-24 14:29:16', '2026-07-24 16:03:54', NULL),
+(33, 14, 'USR092249', 6, 'federal', 'cons', 'federal@gmail.com', NULL, NULL, '+234902702002', NULL, '$2y$10$425U7I7MjfaFsfLDr7gnieZs/3gwMOQQOlUXBNRGOuLVGXcsUN4v2', NULL, NULL, 0, NULL, 'male', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Kangire', 1, NULL, NULL, NULL, NULL, 7, NULL, NULL, NULL, NULL, 1, '2026-07-27 12:56:16', '102.91.103.236', NULL, NULL, NULL, 0, NULL, 'active', NULL, 21, '2026-07-27 12:56:05', '2026-07-27 12:56:16', NULL),
+(34, 14, 'USR914497', 5, 'senatorial', 'cood', 'senatorial@gmail.com', NULL, NULL, '+2349027702002', NULL, '$2y$10$g8Jt81qod3HCyVnXfVO.XepykUPA5ehEwWraza2cXtnmxYgVircDa', NULL, NULL, 0, NULL, 'male', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Kangire', 1, NULL, NULL, NULL, 3, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-27 13:39:57', '102.91.103.236', NULL, NULL, NULL, 0, NULL, 'active', NULL, 21, '2026-07-27 13:06:44', '2026-07-27 13:39:57', NULL);
 
 -- --------------------------------------------------------
 
@@ -2253,7 +2998,205 @@ INSERT INTO `user_sessions` (`id`, `user_id`, `token`, `device_id`, `device_type
 (118, 21, 'a6b9f813b11895b20f3edab6f44a003591b5451d7ef27cac7f0c11cc4ed3f146', 'a1eac6408331efd7d538b964c6b01411ba465d414a9e33463151c387ef2f8ca8', 'web', NULL, '10.59.66.251', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-10 13:17:37', '2026-07-10 13:17:37', 0, '2026-07-10 13:14:33'),
 (119, 21, 'd243632ded1aae375402da8ca4f831b9ecb49db2b8ea691f63b50a2006aa9e0d', 'a1eac6408331efd7d538b964c6b01411ba465d414a9e33463151c387ef2f8ca8', 'web', NULL, '10.59.66.251', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-10 13:34:56', '2026-07-10 13:34:56', 0, '2026-07-10 13:17:56'),
 (120, 26, '7bb5aa110b494f99bae44cdc542c0326a7f9d0726f881a166fee284a3f4f4a4c', 'a1eac6408331efd7d538b964c6b01411ba465d414a9e33463151c387ef2f8ca8', 'web', NULL, '10.59.66.251', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-10 13:35:04', '2026-07-10 13:35:04', 0, '2026-07-10 13:35:02'),
-(121, 27, '73cd5e61431476a745dbd1d9f395113b83e782656b50784f182e3900a86a28b7', 'a1eac6408331efd7d538b964c6b01411ba465d414a9e33463151c387ef2f8ca8', 'web', NULL, '10.59.66.251', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-10 14:35:08', '2026-07-10 13:35:08', 1, '2026-07-10 13:35:08');
+(121, 27, '73cd5e61431476a745dbd1d9f395113b83e782656b50784f182e3900a86a28b7', 'a1eac6408331efd7d538b964c6b01411ba465d414a9e33463151c387ef2f8ca8', 'web', NULL, '10.59.66.251', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-10 14:35:08', '2026-07-10 13:35:08', 1, '2026-07-10 13:35:08'),
+(122, 21, '75a0def2a5c3730e8be94814723ebe7b61adebd4d5ee6d96316f25f7998ad442', 'f80c32747451414de1a1fda16c5bda7fbc56e01058e440f49dc05b8bb239bf2a', 'web', NULL, '102.89.83.93', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-10 22:13:54', '2026-07-10 22:13:54', 0, '2026-07-10 22:12:33'),
+(123, 21, 'bee21fd40daef09e4e5dbd1fb6bb3bfb3fb529248dee87e37949cf98f2972129', 'f80c32747451414de1a1fda16c5bda7fbc56e01058e440f49dc05b8bb239bf2a', 'web', NULL, '102.89.83.93', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-10 22:14:26', '2026-07-10 22:14:26', 0, '2026-07-10 22:14:21'),
+(124, 7, '1560aa8445d3dfaf93c7417e3b94c21297cfc88a504efbf3d2124ad950d29303', 'f80c32747451414de1a1fda16c5bda7fbc56e01058e440f49dc05b8bb239bf2a', 'web', NULL, '102.89.83.93', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-10 22:19:28', '2026-07-10 22:19:28', 0, '2026-07-10 22:15:05'),
+(125, 7, 'fabfa514eb9a0da974c7e1cdbf5268c2f465b18f64dc7addcb8649147d4cd46f', 'f80c32747451414de1a1fda16c5bda7fbc56e01058e440f49dc05b8bb239bf2a', 'web', NULL, '102.89.83.93', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-10 22:23:04', '2026-07-10 22:23:04', 0, '2026-07-10 22:21:02'),
+(126, 28, 'af8b95e744f4447d62a1dc9c26c135911e7951b3e95d2615878eed9c11baa5f2', 'f80c32747451414de1a1fda16c5bda7fbc56e01058e440f49dc05b8bb239bf2a', 'web', NULL, '102.89.83.93', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-10 22:26:21', '2026-07-10 22:26:21', 0, '2026-07-10 22:23:17'),
+(127, 28, 'a1d616049930e0e425af625332b541acfc2a6f3bd7262798553ee8951c173df2', 'f80c32747451414de1a1fda16c5bda7fbc56e01058e440f49dc05b8bb239bf2a', 'web', NULL, '102.89.83.93', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-10 21:26:24', '2026-07-10 22:26:24', 1, '2026-07-10 22:26:24'),
+(128, 28, 'bcbf7ce61d3305ef4389a78c30ff1d386dbc1d13f25ee4d992da991411d4ea59', 'aab9a5d60b16af51ae0bc446d37a7f46291804f146a380ac2d1964db17dce571', 'web', NULL, '102.88.115.148', NULL, NULL, 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36', '2026-07-10 21:29:58', '2026-07-10 22:29:58', 1, '2026-07-10 22:29:58'),
+(129, 28, '8efd7c72a29c7de56e6e846eee3a621fef4fc06994c7ccf843d720ad8e990953', '0ab3a1a7c3c255d97ad36a930f16547ce0bdea8df526c8c00a7267d91c981ef3', 'web', NULL, '102.91.103.45', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-10 22:26:28', '2026-07-10 23:26:28', 1, '2026-07-10 23:26:28'),
+(130, 21, '93f10b07d7c40a8716c3afedbf2aa2f18938b405ca77e97052eac0f1421543f4', '39efd42b46b61b96c194f3b9966cd708e2c3590971a1adeabf023e80852f83f2', 'web', NULL, '102.91.103.29', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-11 13:02:07', '2026-07-11 13:02:07', 0, '2026-07-11 13:00:31'),
+(131, 22, 'e9f3a92f213401d11ca6d38f09220ec0324ac87cb8bc2110c3b2d4f8691e6ff8', '39efd42b46b61b96c194f3b9966cd708e2c3590971a1adeabf023e80852f83f2', 'web', NULL, '102.91.103.29', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-11 13:02:21', '2026-07-11 13:02:21', 0, '2026-07-11 13:02:11'),
+(132, 7, '4707a35d52223d03d6e21362a5176790534d906bc219c6349d89206f973acc5b', '39efd42b46b61b96c194f3b9966cd708e2c3590971a1adeabf023e80852f83f2', 'web', NULL, '102.91.103.29', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-11 13:03:15', '2026-07-11 13:03:15', 0, '2026-07-11 13:02:29'),
+(133, 29, 'b293bcf617f0873e8fdb4b98496728c9d7b47770b4c551a04a30e8d27e0e0b31', '39efd42b46b61b96c194f3b9966cd708e2c3590971a1adeabf023e80852f83f2', 'web', NULL, '102.91.103.29', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-11 13:04:05', '2026-07-11 13:04:05', 0, '2026-07-11 13:03:59'),
+(134, 29, 'b1ec97f497706a88a59ab9ad61f6497c3ed48e0f8a78fcc8a9dfda0bc2eac732', NULL, '', 'device_1783776581467', '102.91.104.170', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-11 13:41:22', '2026-07-11 13:41:22', 1, '2026-07-11 13:41:22'),
+(135, 29, '880ae696608803e97dd1582be5aa1231c531d19c2025589227f75513648aaf1e', NULL, '', 'device_1783776581467', '102.91.104.170', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-11 13:45:20', '2026-07-11 13:45:20', 1, '2026-07-11 13:45:20'),
+(136, 28, '417f7d244942d26ea411752a6d867bdf6b97f9cdb25add67e8719d84494bafdf', 'e94c934aed781183f918b54585376a63bfe639d25f80032384e2a58ec9517a05', 'web', NULL, '102.91.104.170', NULL, NULL, 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Mobile Safari/537.36', '2026-07-11 12:48:58', '2026-07-11 13:48:58', 1, '2026-07-11 13:48:58'),
+(137, 29, '73e2b9ee6573f91508762e2ca0b18c9be614f4033d858c9ccdeddd3b7dea1bf9', NULL, '', 'device_1783778312162', '102.91.104.170', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-11 13:57:52', '2026-07-11 13:57:52', 1, '2026-07-11 13:57:52'),
+(138, 28, '9857b53136d557adfaf913060eed62a0cdefe9cf846c47cf4c7d1e50d0fba47f', '9ce7f450064053f72a15eefe50245efa182b4fef095ed6bcbf1f99f48857dcdf', 'web', NULL, '102.91.104.170', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-11 12:59:26', '2026-07-11 13:59:26', 1, '2026-07-11 13:59:26'),
+(139, 28, '11a55aace85730739c122fc41efd90672f24d3d61ea19a28ff7fd19d7e7301e1', 'ca593686404cf83fd1f2a1d22e731b0a765dfb51330beba05bb8621cbf8f2516', 'web', NULL, '102.91.92.135', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36', '2026-07-11 13:13:19', '2026-07-11 14:13:19', 1, '2026-07-11 14:13:19'),
+(140, 29, 'c61891577e5ffdef39445c361ab883098101b005e0388af07fc7d3e66c09e79d', NULL, '', 'device_1783872531700', '102.91.105.27', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-12 16:08:09', '2026-07-12 16:08:09', 1, '2026-07-12 16:08:09'),
+(141, 29, '1d981266af36a725defb826154f36a9c91a61e865456f8442e7327ec1122ca93', NULL, '', 'device_1783872531700', '102.91.105.27', NULL, NULL, 'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-12 16:11:50', '2026-07-12 16:11:50', 1, '2026-07-12 16:11:50'),
+(142, 29, '5eeb421dd8252c2de49661cb3b4386aa661c22ec3b9d17c9cea1474c40afbfc7', NULL, '', 'device_1783872531700', '102.91.105.27', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-12 16:13:06', '2026-07-12 16:13:06', 1, '2026-07-12 16:13:06'),
+(143, 29, 'aa5002b47f2fc55512307d18e43ba8e48a99c357093742ec677ad7b3d80d211b', NULL, '', 'device_1783874367629', '102.91.105.27', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-12 16:38:45', '2026-07-12 16:38:45', 1, '2026-07-12 16:38:45'),
+(144, 29, 'a16c06d58f4ff2e310a210aa0b165dc182d58d39ac5ef23be3d4d2b0a8d11470', NULL, '', 'device_1783874885944', '102.91.105.27', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-12 16:47:32', '2026-07-12 16:47:32', 1, '2026-07-12 16:47:32'),
+(145, 29, 'afccca58576fd759a38605eb35320d380edff95f42badcc9222bff1bbe0e8b9d', NULL, '', 'device_1783881078953', '102.91.78.40', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-12 18:30:37', '2026-07-12 18:30:37', 1, '2026-07-12 18:30:37'),
+(146, 29, '30ba2b41461a674d6e9dc05516e62d226d59b99d9a83c4af8e20b5e4e251d77f', NULL, '', 'device_1783882065651', '102.91.78.40', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-12 18:47:11', '2026-07-12 18:47:11', 1, '2026-07-12 18:47:11'),
+(147, 29, '115fee368707a4e748e3adbbe84ada96480e8356af2ccda02ad15ef68bee9952', NULL, '', 'device_1783882065651', '102.91.78.40', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-12 18:58:29', '2026-07-12 18:58:29', 1, '2026-07-12 18:58:29'),
+(148, 29, '29046caefc08821aa576f137e404545bc8952b85d2bc54a97077c95ec5e83eb7', NULL, '', 'device_1783960459777', '102.91.93.47', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-13 16:33:37', '2026-07-13 16:33:37', 1, '2026-07-13 16:33:37'),
+(149, 29, '5cbf51647498f9eb853efa83f1cdd3778b855279e10f08b54cc0aac2bf9765bb', NULL, '', 'device_1783960459777', '102.91.93.47', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-13 16:36:37', '2026-07-13 16:36:37', 1, '2026-07-13 16:36:37'),
+(150, 28, 'd67ed806160daa004d7725c69a9c7586d69bf38faa951162a3fdee146e4d6ca0', 'c5b54ee590e12da9bc0c342aa5c150c2f6e63ed8a8e6d5865a11a6d5bfa0ac9d', 'web', NULL, '102.91.103.61', NULL, NULL, 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-08-14 10:53:48', '2026-07-15 12:53:48', 1, '2026-07-15 12:53:48'),
+(151, 28, '20046a84c0c7e239eb78341e7f619625b68450fa7e2e0b798b48f071f499a3fd', '961501809bcc275ddb0bdccf6376d84511768d0309bb5184eeae9b70b2fb00b8', 'web', NULL, '102.91.77.202', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-08-14 19:04:50', '2026-07-15 21:04:50', 1, '2026-07-15 21:04:50'),
+(152, 29, '169ee46b9cb64e3c3094fc4346b700c1303b04745f87c26df53a49a7fdb2845d', NULL, '', NULL, '102.91.77.202', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-15 21:57:08', '2026-07-15 21:57:08', 1, '2026-07-15 21:57:08'),
+(153, 28, '72d38670c7d0e57edfdfa7fe9907730828e95935a752ccffd387b764db659d20', '961501809bcc275ddb0bdccf6376d84511768d0309bb5184eeae9b70b2fb00b8', 'web', NULL, '102.91.77.202', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-15 21:05:20', '2026-07-15 22:05:20', 1, '2026-07-15 22:05:20'),
+(154, 26, '61cca72506a897231f70c5c35957187efb1804cdd6224077dcec934d09e63346', NULL, '', NULL, '102.91.77.202', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-15 22:05:53', '2026-07-15 22:05:53', 1, '2026-07-15 22:05:53'),
+(155, 26, 'd694f92b65a782f7912f3340604cbae71cd69ef832d6cc3c8661f2805e26c109', NULL, '', NULL, '102.91.77.202', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-15 22:37:49', '2026-07-15 22:37:49', 1, '2026-07-15 22:37:49'),
+(156, 26, 'b77d6277992fd38f4ebe678d7cdbfdcb07d521e56e212aee76b7709b858d2e0b', NULL, '', NULL, '102.91.77.202', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-15 22:57:13', '2026-07-15 22:57:13', 1, '2026-07-15 22:57:13'),
+(157, 29, '2e4bfe9e7612f1e4e53fe6dcaf332a613f83a9affbab926b52e19a00fe57a201', NULL, '', NULL, '102.91.77.202', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-15 22:59:03', '2026-07-15 22:59:03', 1, '2026-07-15 22:59:03'),
+(158, 28, 'bf35adc576746ee74d9faf977584b7ebb397dd7b6815759a854aa05d5a178cb9', '961501809bcc275ddb0bdccf6376d84511768d0309bb5184eeae9b70b2fb00b8', 'web', NULL, '102.91.77.202', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-15 23:00:16', '2026-07-15 23:00:16', 0, '2026-07-15 22:59:33'),
+(159, 28, 'ff8bf5896c9633587b4d3083c3978648de98a848605521198697f1eb3ca7d430', '961501809bcc275ddb0bdccf6376d84511768d0309bb5184eeae9b70b2fb00b8', 'web', NULL, '102.91.77.202', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-15 23:00:50', '2026-07-15 23:00:50', 0, '2026-07-15 23:00:24'),
+(160, 23, 'd1769f6c977bc75f6fa662fdc528907468728f74e9c32ef38a715e17355637f2', '961501809bcc275ddb0bdccf6376d84511768d0309bb5184eeae9b70b2fb00b8', 'web', NULL, '102.91.77.202', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-15 23:01:37', '2026-07-15 23:01:37', 0, '2026-07-15 23:00:53'),
+(161, 28, '8ca8c59649c742551d58d3f3dc1c69a38a3af7eecc2e2e918414edd44e139914', '961501809bcc275ddb0bdccf6376d84511768d0309bb5184eeae9b70b2fb00b8', 'web', NULL, '102.91.77.202', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-15 23:02:08', '2026-07-15 23:02:08', 0, '2026-07-15 23:01:44'),
+(162, 25, '11cf9eef85f55c7b4d9f3e0abb4589b78ba0a4b3d124eaed7329ac99d3712495', '961501809bcc275ddb0bdccf6376d84511768d0309bb5184eeae9b70b2fb00b8', 'web', NULL, '102.91.77.202', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-15 23:04:04', '2026-07-15 23:04:04', 0, '2026-07-15 23:02:13'),
+(163, 28, '47c33293c281966b268fac073ee2139125ca1db424e32bb1a2430873b691a51e', '961501809bcc275ddb0bdccf6376d84511768d0309bb5184eeae9b70b2fb00b8', 'web', NULL, '102.91.77.202', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-15 23:04:45', '2026-07-15 23:04:45', 0, '2026-07-15 23:04:18'),
+(164, 27, '66fa42e65ddedfb64c36ab4e60a717930b1c9871fc512d4d8beb00c64381a53f', '961501809bcc275ddb0bdccf6376d84511768d0309bb5184eeae9b70b2fb00b8', 'web', NULL, '102.91.77.202', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-15 23:06:39', '2026-07-15 23:06:39', 0, '2026-07-15 23:04:50'),
+(165, 7, '08639a396b155ceb2d7bee9dcd2184b9139e0554c23e4e2e52be0fd201346b4d', '961501809bcc275ddb0bdccf6376d84511768d0309bb5184eeae9b70b2fb00b8', 'web', NULL, '102.91.77.202', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-15 23:07:32', '2026-07-15 23:07:32', 0, '2026-07-15 23:06:46'),
+(166, 22, '8cd3e534b29877104f4599137f7cbc12fc6dad468bb294f82744174aabc75ead', '961501809bcc275ddb0bdccf6376d84511768d0309bb5184eeae9b70b2fb00b8', 'web', NULL, '102.91.77.202', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-15 23:08:02', '2026-07-15 23:08:02', 0, '2026-07-15 23:07:38'),
+(167, 28, '3fd34e7e5e1e3f1fd5f5f133be4f85a2fe84c58b3234fe17a82879fe5fc5a745', '77465f4c7b38a07d3999eb8f7c243b0f681088e3c1d8d3f088fbf87bf83a5730', 'web', NULL, '102.91.77.202', NULL, NULL, 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-15 22:09:37', '2026-07-15 23:09:37', 1, '2026-07-15 23:09:37'),
+(168, 7, '776f64c67f8e73b53ca52bf369a36ab975fdfa1588aa995712c00b036713d2ba', 'e165bc07aeec3a0019903490a1fa30662a83689d13fbf4b96f0fa0233c9950b5', 'web', NULL, '102.91.93.133', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-16 09:31:46', '2026-07-16 09:31:46', 0, '2026-07-16 09:16:10'),
+(169, 21, 'd7fdd8a9c395189eba3d5f85f6f21af703dbab8e3c746c9e7ad8b6932a82d810', 'e165bc07aeec3a0019903490a1fa30662a83689d13fbf4b96f0fa0233c9950b5', 'web', NULL, '102.91.93.133', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-16 09:36:10', '2026-07-16 09:36:10', 0, '2026-07-16 09:31:51'),
+(170, 30, '459c79d078bfdda853e6320f817f96ca48586af8231ac53f3a851c5456bef00a', NULL, '', NULL, '102.91.93.133', NULL, NULL, 'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-16 09:35:05', '2026-07-16 09:35:05', 1, '2026-07-16 09:35:05'),
+(171, 28, '23aca54e7e3598c5c5380e1df75c62ad2bb0224d65ef30f591b4fb2f8ad17e0b', 'e165bc07aeec3a0019903490a1fa30662a83689d13fbf4b96f0fa0233c9950b5', 'web', NULL, '102.91.93.133', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-16 10:00:52', '2026-07-16 10:00:52', 0, '2026-07-16 09:36:16'),
+(172, 30, 'aa1f675c8b78ee432139148ca36984940458a02cce3096327081c92dbad41e7b', NULL, '', NULL, '102.91.93.133', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-16 09:42:18', '2026-07-16 09:42:18', 1, '2026-07-16 09:42:18'),
+(173, 30, '1440f3a66ac7da723e5bc95a6104704384f47866261ccc035f0c21d67598b9a9', NULL, '', NULL, '102.91.93.133', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-16 09:59:58', '2026-07-16 09:59:58', 1, '2026-07-16 09:59:58'),
+(174, 7, 'e80fefabcc766402d28cdd335d4dd48b16d5b078ccb06d56697da2ef2fa4f030', 'e165bc07aeec3a0019903490a1fa30662a83689d13fbf4b96f0fa0233c9950b5', 'web', NULL, '102.91.93.133', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-16 10:01:03', '2026-07-16 10:01:03', 0, '2026-07-16 10:01:00'),
+(175, 21, '77c948bc3ee3517bc978784dd6cf407086c0a99fa29ddb278a3c45d264415999', 'e165bc07aeec3a0019903490a1fa30662a83689d13fbf4b96f0fa0233c9950b5', 'web', NULL, '102.91.93.133', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-16 10:01:38', '2026-07-16 10:01:38', 0, '2026-07-16 10:01:11'),
+(176, 28, '265d64e3badf395ff576d902b3cfacd140f899b914e7481f582a3bac48219cf7', 'e165bc07aeec3a0019903490a1fa30662a83689d13fbf4b96f0fa0233c9950b5', 'web', NULL, '102.91.93.133', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-16 09:01:47', '2026-07-16 10:01:47', 1, '2026-07-16 10:01:47'),
+(177, 31, 'b774567a04629d3d2862dcbc7dac65efb57d9e07dea4c4aaf52b846fb0b69b26', NULL, '', NULL, '102.91.93.133', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-16 10:03:24', '2026-07-16 10:03:24', 1, '2026-07-16 10:03:24'),
+(178, 26, 'fc184dfbc6ce4cbe30df1f242b21d15557e2731465ef174de124acd94d69f8a0', NULL, '', NULL, '102.91.93.133', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-16 11:02:07', '2026-07-16 11:02:07', 1, '2026-07-16 11:02:07'),
+(179, 28, '3c6d25eac15970e6d1ec336340ff5e53e1475ac678768b7c299a6d7b66aa8c63', '2d0efc8e9906ba0552bb6f625465f865147298005c19ff96f6a58a9cae19ef0b', 'web', NULL, '197.210.70.187', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-18 15:59:34', '2026-07-18 15:59:34', 0, '2026-07-18 15:59:03'),
+(180, 22, '43467be6cf3362de00c350d35443e695b6b46ffbbfebad637d8a846a0b9f8da1', '2d0efc8e9906ba0552bb6f625465f865147298005c19ff96f6a58a9cae19ef0b', 'web', NULL, '197.210.70.187', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-18 16:12:49', '2026-07-18 16:12:49', 0, '2026-07-18 15:59:39'),
+(181, 28, 'c0bc2f21fc5f519b027824dc71fb88d49a3a3e864ed01fa0371435c63488324e', '2d0efc8e9906ba0552bb6f625465f865147298005c19ff96f6a58a9cae19ef0b', 'web', NULL, '197.210.70.187', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-18 16:13:16', '2026-07-18 16:13:16', 0, '2026-07-18 16:13:00'),
+(182, 27, '4f82b6ad249a001bb2bc82c7a8f69fd5deeaab5821a49960fabeba8f9dc30cf1', '2d0efc8e9906ba0552bb6f625465f865147298005c19ff96f6a58a9cae19ef0b', 'web', NULL, '197.210.70.187', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-18 16:21:47', '2026-07-18 16:21:47', 0, '2026-07-18 16:13:22'),
+(183, 28, '1fdde672fd109ede2b86ad3a9be7fc216d09c23846eba54c767025b24b7e438b', '2d0efc8e9906ba0552bb6f625465f865147298005c19ff96f6a58a9cae19ef0b', 'web', NULL, '197.210.70.187', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-18 16:31:29', '2026-07-18 16:31:29', 0, '2026-07-18 16:31:14'),
+(184, 28, 'c22734566cac8845a0536780e3887539b3c1dcfb66bc81206432420d7ebaa38b', '2d0efc8e9906ba0552bb6f625465f865147298005c19ff96f6a58a9cae19ef0b', 'web', NULL, '197.210.70.187', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-18 16:32:00', '2026-07-18 16:32:00', 0, '2026-07-18 16:31:40'),
+(185, 21, 'cf60993cd4ae8e50d303ff80a9cd258e76c8f6ad145dd87d83475e10bf1cc530', 'fcf1660350ef203ae312963f5f777eebb485291d84a215757669fa95d9592db3', 'web', NULL, '102.88.112.143', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-08-17 19:35:19', '2026-07-18 21:35:19', 1, '2026-07-18 21:35:19'),
+(186, 21, 'f7c585f115d7354447235bc9dbb596086f33d8981a13857cbe1564f3c8f3a706', 'fcf1660350ef203ae312963f5f777eebb485291d84a215757669fa95d9592db3', 'web', NULL, '102.88.112.143', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-18 22:41:47', '2026-07-18 22:41:47', 0, '2026-07-18 22:41:31'),
+(187, 21, 'd70ccfa2f8b373406170079b46262eed44d9e046411833c11ee20893d0641ada', 'fcf1660350ef203ae312963f5f777eebb485291d84a215757669fa95d9592db3', 'web', NULL, '102.88.112.143', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-18 22:47:38', '2026-07-18 22:47:38', 0, '2026-07-18 22:47:35'),
+(188, 21, '4735241349368da8d6b8bcf4876ec3aa7bdce1799e09ec44d9cfe57921fcc60a', 'fcf1660350ef203ae312963f5f777eebb485291d84a215757669fa95d9592db3', 'web', NULL, '102.88.112.143', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-18 22:57:44', '2026-07-18 22:57:44', 0, '2026-07-18 22:57:43'),
+(189, 21, 'd2f6dbf1b4fd80a57354641ec5eba7847ab4190922c55c1e4ef89303d042d4de', 'fcf1660350ef203ae312963f5f777eebb485291d84a215757669fa95d9592db3', 'web', NULL, '102.88.112.143', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-18 22:58:34', '2026-07-18 22:58:34', 0, '2026-07-18 22:57:59'),
+(190, 28, '127016df2983622a7ca595d592857f591e110d69b195b5bf207f5963bb578f76', 'fcf1660350ef203ae312963f5f777eebb485291d84a215757669fa95d9592db3', 'web', NULL, '102.88.112.143', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-18 22:59:51', '2026-07-18 22:59:51', 0, '2026-07-18 22:58:39'),
+(191, 26, '9ac0214bf3b2843c61587aa8d7952467715c11d34d6f7e55c2c1c238db42459d', NULL, '', NULL, '197.210.70.43', NULL, NULL, 'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-19 11:23:41', '2026-07-19 11:23:41', 1, '2026-07-19 11:23:41'),
+(192, 25, 'fd2ae0e1b8a3a0888145015bb30af0706aab782c1f20d6f4bf2aa4d52f94572e', 'a478559d003940cee9d0c1731b2cf8557cafe9361d7a8e99ee56c41ed2a2a03d', 'web', NULL, '197.210.70.43', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-19 11:32:20', '2026-07-19 11:32:20', 0, '2026-07-19 11:32:11'),
+(193, 21, '82b0d8501c303ad63ccc58732f86e8d6fcde4c44353a39dd748973a14e24364a', 'a478559d003940cee9d0c1731b2cf8557cafe9361d7a8e99ee56c41ed2a2a03d', 'web', NULL, '197.210.70.43', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-19 11:33:13', '2026-07-19 11:33:13', 0, '2026-07-19 11:32:59'),
+(194, 21, '1eb2898fa968e01a304f178d4582958d17773ac432c44e8fb1f2c7e367814cf2', 'a478559d003940cee9d0c1731b2cf8557cafe9361d7a8e99ee56c41ed2a2a03d', 'web', NULL, '197.210.70.43', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-19 11:34:11', '2026-07-19 11:34:11', 0, '2026-07-19 11:33:40'),
+(195, 27, 'dac608d2d9f0223763d23ceb5768859574a688b3295ea1479ebc074284eba007', 'a478559d003940cee9d0c1731b2cf8557cafe9361d7a8e99ee56c41ed2a2a03d', 'web', NULL, '197.210.70.43', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-19 12:23:36', '2026-07-19 12:23:36', 0, '2026-07-19 11:34:31'),
+(196, 29, 'e575209fe352024175ee1a45e09b9ead491c0d13b621a40a1a2e49e911801bb0', NULL, '', NULL, '197.210.70.43', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-19 11:38:08', '2026-07-19 11:38:08', 1, '2026-07-19 11:38:08'),
+(197, 26, 'c7d52f3ac88e8b9d5da8c056088f0f8671253cef600d8e3d48fcbea4df5d050d', NULL, '', NULL, '197.210.70.43', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-19 11:38:43', '2026-07-19 11:38:43', 1, '2026-07-19 11:38:43'),
+(198, 30, 'd8db753e5a37eab191f45ce0e97536843f2bb3ad472127c509643c6fa78a2901', NULL, '', NULL, '197.210.70.43', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-19 12:00:21', '2026-07-19 12:00:21', 1, '2026-07-19 12:00:21'),
+(199, 27, '03f80faf04004907fddf66597f62b8e20ce5f5a6cf40fad274d4ab14a2217c01', 'a478559d003940cee9d0c1731b2cf8557cafe9361d7a8e99ee56c41ed2a2a03d', 'web', NULL, '197.210.70.43', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-19 13:23:38', '2026-07-19 12:23:38', 1, '2026-07-19 12:23:38'),
+(200, 26, '665c5cd4b22ddb7febae0e5b5addba5148ed10055a41c593bafec1698c766a09', NULL, '', NULL, '197.210.70.43', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-26 11:59:01', '2026-07-19 14:59:01', 1, '2026-07-19 14:59:01'),
+(201, 26, 'ebca8edaadf5102a02ca1df7caba1b9b9c2c096fd7ef5aa7faa27a2e79ec4419', NULL, '', NULL, '197.210.70.43', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-26 11:59:06', '2026-07-19 14:59:06', 1, '2026-07-19 14:59:06'),
+(202, 26, '1f098ad4d85c8d635738f5d163444ca642bd5ef30f865f8e9e2d3608b28b4027', NULL, '', NULL, '197.210.70.43', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-26 11:59:09', '2026-07-19 14:59:09', 1, '2026-07-19 14:59:09');
+INSERT INTO `user_sessions` (`id`, `user_id`, `token`, `device_id`, `device_type`, `device_name`, `ip_address`, `gps_lat`, `gps_lng`, `user_agent`, `expires_at`, `last_activity_at`, `is_active`, `created_at`) VALUES
+(203, 26, '8986666174f0c14f8567efa7d832001eeb7a69c7024d7eb71b062c59ddd49c4f', NULL, '', NULL, '197.210.70.43', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-26 11:59:11', '2026-07-19 14:59:11', 1, '2026-07-19 14:59:11'),
+(204, 26, 'dd863d004278516155ef1b9edcfae496fa85a8254598425773a398df1580a6a4', NULL, '', NULL, '197.210.70.43', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-26 12:00:37', '2026-07-19 15:00:37', 1, '2026-07-19 15:00:37'),
+(205, 26, 'c68904bc938452408ef73c8721aa17845a360c8f37fd2ad0af37ceece0fbd0a3', NULL, '', NULL, '197.210.70.43', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-26 12:00:39', '2026-07-19 15:00:39', 1, '2026-07-19 15:00:39'),
+(206, 21, 'b6e25a545536f24f1455c3e031add69737bd38dc6a687ca94e324d2cabc6698e', 'a478559d003940cee9d0c1731b2cf8557cafe9361d7a8e99ee56c41ed2a2a03d', 'web', NULL, '197.210.70.43', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-19 16:03:51', '2026-07-19 15:03:51', 1, '2026-07-19 15:03:51'),
+(207, 26, '39152eef321cc3cc458696130cf64b4e9daf2d308cf803bb3a4b13f7d565bfbc', NULL, '', NULL, '197.210.70.43', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-26 12:04:23', '2026-07-19 15:04:23', 1, '2026-07-19 15:04:23'),
+(208, 26, '46a51736e9b426b552a017fb7e7dbf1308af5480fb531f56e70fdfa498d96dfc', NULL, '', NULL, '197.210.70.43', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-26 12:04:51', '2026-07-19 15:04:51', 1, '2026-07-19 15:04:51'),
+(209, 26, 'e0234baab738b23985ae0d397bf2a5349fa77bcceeffb8532d1e2b286bbdebf5', NULL, '', NULL, '197.210.70.43', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-26 12:05:06', '2026-07-19 15:05:06', 1, '2026-07-19 15:05:06'),
+(210, 26, '417d3a10a90e2c11dad75dab888ade8327094b4508ee38b57358233eb6d3584d', NULL, '', NULL, '197.210.70.43', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-26 12:05:14', '2026-07-19 15:05:14', 1, '2026-07-19 15:05:14'),
+(211, 26, '844fc7f4424d392b5a237c1ece96a89af0c3ef916935c1e39699de7b7a8c2bcc', NULL, '', NULL, '197.210.70.43', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-26 12:09:38', '2026-07-19 15:09:38', 1, '2026-07-19 15:09:38'),
+(212, 26, 'f311335b1773f2cb22bf80e431cdb63ff84b4b4bbea1849da8bedaf576eb45bb', NULL, '', NULL, '197.210.70.43', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-26 12:12:50', '2026-07-19 15:12:50', 1, '2026-07-19 15:12:50'),
+(213, 29, 'cbaadfcb52a5f2134b74bd4e15374c795629bf5929c94746bdaa664be7affa43', NULL, '', NULL, '197.210.70.43', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-26 12:15:18', '2026-07-19 15:15:18', 1, '2026-07-19 15:15:18'),
+(214, 31, 'e2def573c612e211acd0f724c7e69425375421f2881b2ee16b3b6763137f845e', NULL, '', NULL, '197.210.70.43', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-26 12:16:45', '2026-07-19 15:16:45', 1, '2026-07-19 15:16:45'),
+(215, 30, '8a8049934186b43425dd95dbc0c10e26f9d21f1ba06eceafc660d589eec24a9d', NULL, '', NULL, '197.210.70.43', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-26 12:17:35', '2026-07-19 15:17:35', 1, '2026-07-19 15:17:35'),
+(216, 29, '5501bfecfaa40e5282ac9458a00268aa7c0fe7de81be108842d298076ac2110d', NULL, '', NULL, '197.210.70.43', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-26 12:18:37', '2026-07-19 15:18:37', 1, '2026-07-19 15:18:37'),
+(217, 26, '578692974b1e416f202c3304e6dc3f7659a913b0ba37a85d16d3df39ccde46b0', NULL, '', NULL, '197.210.70.43', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-26 13:09:47', '2026-07-19 16:09:47', 1, '2026-07-19 16:09:47'),
+(218, 26, '9c2fbd49149c93ffea4b495d0201da6b9514c751887aa466226e41cd6d67381b', NULL, '', NULL, '197.210.70.43', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-26 13:09:57', '2026-07-19 16:09:57', 1, '2026-07-19 16:09:57'),
+(219, 26, '935d0ecdda79dd2c9fb8ce5ebec473af6f00fab10daeefb0dbb7370ca7d87dc5', NULL, '', NULL, '197.210.70.43', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-26 13:10:04', '2026-07-19 16:10:04', 1, '2026-07-19 16:10:04'),
+(220, 26, 'df080ca19f952532497c0bc28762da7694af515266cba51a11a4f8a4a3dac572', NULL, '', NULL, '197.210.70.43', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-26 13:10:19', '2026-07-19 16:10:19', 1, '2026-07-19 16:10:19'),
+(221, 27, '8ee6f5236e7284e2423ad1666c8b2303726e2f7493c429f94f73ccbad1c92562', 'a478559d003940cee9d0c1731b2cf8557cafe9361d7a8e99ee56c41ed2a2a03d', 'web', NULL, '197.210.70.43', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-19 16:54:49', '2026-07-19 16:54:49', 0, '2026-07-19 16:27:22'),
+(222, 26, '6d7ef9f5e547aa7987628cca856ee57ffc452e4bde23763a46b74901e4b5416b', NULL, '', NULL, '197.210.70.43', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-26 13:28:26', '2026-07-19 16:28:26', 1, '2026-07-19 16:28:26'),
+(223, 26, '4aabfe34861c3739569b2d0115a75d484dafebacd8d0965fd3d1e833294e4854', NULL, '', NULL, '197.210.70.43', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-26 13:38:35', '2026-07-19 16:38:35', 1, '2026-07-19 16:38:35'),
+(224, 26, 'c6210e749c738dba0d1e15250309150d68945d35e524f1af59b21f29d25f1486', NULL, '', NULL, '197.210.70.43', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-26 13:55:40', '2026-07-19 16:55:40', 1, '2026-07-19 16:55:40'),
+(225, 31, 'c8b81f343ffd37e11d9a04a4305e4fc6a638ca00be2b28a45386bc0aa286bcc7', NULL, '', NULL, '197.210.70.43', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-26 13:56:41', '2026-07-19 16:56:41', 1, '2026-07-19 16:56:41'),
+(226, 29, '99820ca19499c2d8da739966fff71195515b92f8a8cbddb60a19ff1732257991', NULL, '', NULL, '197.210.70.43', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-26 13:57:16', '2026-07-19 16:57:16', 1, '2026-07-19 16:57:16'),
+(227, 30, '3a722309b9ee1467cb89d92074e70e12e57e82d52d6c04b08a46dfacbafeab1a', NULL, '', NULL, '197.210.70.43', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-26 13:57:43', '2026-07-19 16:57:43', 1, '2026-07-19 16:57:43'),
+(228, 26, 'da93df92eacd452da227ef4685605affc58bdc37223e80690bbed85ead3c7d93', NULL, '', NULL, '197.210.70.43', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-26 14:04:48', '2026-07-19 17:04:48', 1, '2026-07-19 17:04:48'),
+(229, 26, 'bc9c301a2adacf9dfc07d1cfae1eafab0e426d9afb5ac6e563418877a6859113', NULL, '', NULL, '102.91.77.164', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-27 16:18:32', '2026-07-20 19:18:32', 1, '2026-07-20 19:18:32'),
+(230, 27, '6e1bf0f6c44cc27a792678d80a90a66730f729358235c74ef627542a8d7f920a', '9b9bd6260fcaddd147a31695595902b936b448e2f0b8007640f93a97ecd67767', 'web', NULL, '102.91.103.170', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-23 16:46:28', '2026-07-23 15:46:28', 1, '2026-07-23 15:46:28'),
+(231, 27, '138bbf80e82fe1a08fee6cbb35cca850749a579d8e227ad45878f45363af9c78', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', 'web', NULL, '102.91.104.59', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-24 14:33:17', '2026-07-24 13:33:17', 1, '2026-07-24 13:33:17'),
+(232, 27, '53621f1614ed8956bfe52b88f23181c3c62709d85687862bf454d7dcb7820d9b', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', 'web', NULL, '102.91.104.59', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-24 14:27:33', '2026-07-24 14:27:33', 0, '2026-07-24 14:03:27'),
+(233, 21, 'a82a1f57b466bb828ad6ec88eca2e05713bf837cbad733301d11ed4e17f493da', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', 'web', NULL, '102.91.104.59', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-24 14:29:22', '2026-07-24 14:29:22', 0, '2026-07-24 14:28:14'),
+(234, 32, '2f97f50842e034a3f4ed21b8b2766a7ed35ccf825356fdf41b4b759875bf5d27', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', 'web', NULL, '102.91.104.59', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-24 14:29:30', '2026-07-24 14:29:30', 0, '2026-07-24 14:29:25'),
+(235, 27, '17bf92369e49a9f872a92a1fe68f58c3361d3d8ad64594dedc8847208360f144', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', 'web', NULL, '102.91.104.59', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-24 15:29:40', '2026-07-24 14:29:40', 1, '2026-07-24 14:29:40'),
+(236, 27, '8e3b12dca2f9bdc47eaf2ed46d3b9a244d5588329514df3936780a7d7347a651', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', 'web', NULL, '102.91.104.59', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-24 17:49:15', '2026-07-24 16:49:15', 1, '2026-07-24 16:49:15'),
+(237, 26, 'cbf04d5034b3b5edf2f5694519650bcd101d536ca9f27c7bddacde7a566db995', NULL, '', NULL, '102.91.104.59', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-31 13:59:20', '2026-07-24 16:59:20', 1, '2026-07-24 16:59:20'),
+(238, 27, '8c9892babe778de770974bdd3a9b1e453492eec7bc9d99fd5feb6dfee78a504a', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', 'web', NULL, '102.91.104.59', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-24 18:10:28', '2026-07-24 18:10:28', 0, '2026-07-24 17:27:55'),
+(239, 26, 'cfe2cfdcde1d1980777c4fee608bf731e565125b352b70d531757ea5242df72d', NULL, '', NULL, '102.91.104.59', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-31 14:38:32', '2026-07-24 17:38:32', 1, '2026-07-24 17:38:32'),
+(240, 26, '433bd162994a78161c8b907376a5c4a82646432fe8c65d79d89b3e74a8ea551a', NULL, '', NULL, '102.91.104.59', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-31 14:52:05', '2026-07-24 17:52:05', 1, '2026-07-24 17:52:05'),
+(241, 26, 'a58d569a550adc3643684de9be6986cfa097e8dbcabd6f6965a08707cb5ee286', NULL, '', NULL, '102.91.104.59', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-31 15:01:58', '2026-07-24 18:01:58', 1, '2026-07-24 18:01:58'),
+(242, 27, '54a54d74f41db2f8df091deacd9828c538b437ac3e8dcad67f068c6570a5fea8', '2d6a7186a60a3cf9d04662bad3f7222dfaf7cf4de368ebce3f2a67803b988bc2', 'web', NULL, '102.91.104.59', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-24 18:31:49', '2026-07-24 18:31:49', 0, '2026-07-24 18:10:45'),
+(243, 27, '15245b07eade3f8d8dcbc5756506d6e140c1eb7083273b77083bcffa8bf6e17b', '9161a7e307dc2c1fa53c878bc0f2367a061e14095e5735af1246b23b0b22dcac', 'web', NULL, '102.91.105.161', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-24 18:34:25', '2026-07-24 18:34:25', 0, '2026-07-24 18:32:04'),
+(244, 29, '177bc12fbd3541977326e03ccad5fee6f43baade3368d8f7b20bed40361e34ef', NULL, '', NULL, '102.91.105.161', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-31 15:32:27', '2026-07-24 18:32:27', 1, '2026-07-24 18:32:27'),
+(245, 27, '6170c4baded6f0f21bcc75e9d0d78d787dca54db5c3192983de6ca33c765334c', '9161a7e307dc2c1fa53c878bc0f2367a061e14095e5735af1246b23b0b22dcac', 'web', NULL, '102.91.105.161', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-24 19:34:44', '2026-07-24 18:34:44', 1, '2026-07-24 18:34:44'),
+(246, 29, 'a6e47641d169a9423128505d7d3c3cc433b3e4a9ad07e0b9c85c9f9e21443bf2', NULL, '', NULL, '102.91.105.161', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-31 15:35:34', '2026-07-24 18:35:34', 1, '2026-07-24 18:35:34'),
+(247, 27, '611c1aabfca49cbcfeab35410a30eb87ec635e0983d5de754e45a92b82ba0b48', 'f5828db79f1e3f5bac52690d9499d62aa54315ca12caaf090ed03ab01cd751d6', 'web', NULL, '102.91.92.216', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-25 21:19:51', '2026-07-25 20:19:51', 1, '2026-07-25 20:19:51'),
+(248, 26, 'c3a2542dc1690c4a135a68c7ff8b97bcc5cbb0e7bdf9ffe866ccff08b4af6230', NULL, '', NULL, '102.91.92.216', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-08-01 17:40:29', '2026-07-25 20:40:29', 1, '2026-07-25 20:40:29'),
+(249, 27, 'b0ab473a79d64f3c8cb8df3e5f34c733e87b9ad8882dd6cc69e139957c56db2a', '94f663f7190b5b7a6c9ace22e788bb55e7bdf3a7bc8e8df84cf12df3aa3f377f', 'web', NULL, '197.210.53.133', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-26 12:04:06', '2026-07-26 11:04:06', 1, '2026-07-26 11:04:06'),
+(250, 27, '092f0869201893e573b7beec94abe915513babd82822b5363c62259d480d0b9c', '94f663f7190b5b7a6c9ace22e788bb55e7bdf3a7bc8e8df84cf12df3aa3f377f', 'web', NULL, '197.210.53.133', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-26 12:05:14', '2026-07-26 11:05:14', 1, '2026-07-26 11:05:14'),
+(251, 29, '59a9fa6afd2e8c68779792ab65d6e1607bb95e36ce0f7896c1665bf75459c0a6', NULL, '', NULL, '197.210.53.133', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-08-02 08:06:02', '2026-07-26 11:06:02', 1, '2026-07-26 11:06:02'),
+(252, 26, 'bcb5995adbbd8b64faca417e26edffbd258677077e2e26f05f9218df004fa399', NULL, '', NULL, '197.210.53.133', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-08-02 08:09:40', '2026-07-26 11:09:40', 1, '2026-07-26 11:09:40'),
+(253, 26, '3299fab8a26e92c62d60e45b458d951ee42321d9c7ea203bbc15eebbb5564393', NULL, '', NULL, '197.210.53.133', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-08-02 08:16:24', '2026-07-26 11:16:24', 1, '2026-07-26 11:16:24'),
+(254, 27, 'd2419316567248309618ccf94a47e390643c146534949730e2e9671d3a09bdff', '94f663f7190b5b7a6c9ace22e788bb55e7bdf3a7bc8e8df84cf12df3aa3f377f', 'web', NULL, '197.210.53.133', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-26 12:28:46', '2026-07-26 11:28:46', 1, '2026-07-26 11:28:46'),
+(255, 26, '275f4659e7374f8abecd1ad308a96e83b95e9701904b133c608cbcae42ca2c8a', NULL, '', NULL, '197.210.53.133', NULL, NULL, 'Mozilla/5.0 (Linux; Android 8.0.0; SM-G955U Build/R16NW) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-08-02 08:29:22', '2026-07-26 11:29:22', 1, '2026-07-26 11:29:22'),
+(256, 27, '09a3d45d26d4e154e41bdad201ed7ae85bb3a317ccd66fdd85541cbff086281b', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', 'web', NULL, '102.91.103.236', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-27 10:06:38', '2026-07-27 10:06:38', 0, '2026-07-27 10:05:39'),
+(257, 7, '05e764a76724bad3f3abe9ff1931516747c55d31927943f3f22f5f7ac7c17830', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', 'web', NULL, '102.91.103.236', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-27 11:07:01', '2026-07-27 10:07:01', 1, '2026-07-27 10:07:01'),
+(258, 7, 'c4c1a31fc4ee3f584eddae16a5fbe76e46022472a64a2fbab1397737cb19283b', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', 'web', NULL, '102.91.103.236', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-27 12:29:43', '2026-07-27 12:29:43', 0, '2026-07-27 12:26:40'),
+(259, 21, '1e5615f8b2b8793712152fac828646bab34aeccb9ac18d38321219573902a799', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', 'web', NULL, '102.91.103.236', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-27 12:56:11', '2026-07-27 12:56:11', 0, '2026-07-27 12:30:15'),
+(260, 33, '4fbb5bdafa6055e59c664c1365fb835dd33acff5a386341db3670d8148cc3871', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', 'web', NULL, '102.91.103.236', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-27 12:56:49', '2026-07-27 12:56:49', 0, '2026-07-27 12:56:16'),
+(261, 27, '693be6a0814cb5f5ac49156fd9cabccfc22416628c968ebfd887de32a5a5ac9a', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', 'web', NULL, '102.91.103.236', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-27 12:57:21', '2026-07-27 12:57:21', 0, '2026-07-27 12:57:15'),
+(262, 21, '062c743e82a9d68c5d091990433fe994148c383658dad0aa8379b679820a3b40', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', 'web', NULL, '102.91.103.236', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-27 13:02:35', '2026-07-27 13:02:35', 0, '2026-07-27 12:58:39'),
+(263, 21, 'eb7a8ec68e26dc358965007e9123e538838abaabdcf9d7bb4153a924b94611ed', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', 'web', NULL, '102.91.103.236', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-27 13:06:50', '2026-07-27 13:06:50', 0, '2026-07-27 13:03:33'),
+(264, 34, '0b1b1d94eb7862669bf2417a4f4709ecd8a76db783f03326013056d643bb10d3', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', 'web', NULL, '102.91.103.236', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-27 13:14:11', '2026-07-27 13:14:11', 0, '2026-07-27 13:08:52'),
+(265, 27, '93ed5fbfb3aeb46dc6ba100e3609163e913d84cb7828f3cb6422310944e2f0a1', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', 'web', NULL, '102.91.103.236', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-27 13:14:54', '2026-07-27 13:14:54', 0, '2026-07-27 13:14:46'),
+(266, 21, 'a1be78407315256f39b7dbf3819191061f800319b682c8aeaf0a9786a2b6fa11', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', 'web', NULL, '102.91.103.236', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-27 13:16:33', '2026-07-27 13:16:33', 0, '2026-07-27 13:15:32'),
+(267, 21, '5bd31ad9fc1627dcf2dbfc2196e3fc0bfc6cd6e93867c041ede78c1e0fe5838c', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', 'web', NULL, '102.91.103.236', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-27 13:31:26', '2026-07-27 13:31:26', 0, '2026-07-27 13:16:37'),
+(268, 34, '662f40e6fa862f45cf75dc2ebedf063008f7a88be58211501ff75514f0f93855', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', 'web', NULL, '102.91.103.236', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-27 13:38:49', '2026-07-27 13:38:49', 0, '2026-07-27 13:31:35'),
+(269, 21, '1ab343a2b2acbbce34240621ebef28688290edc2b6f79545358f61b720613ced', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', 'web', NULL, '102.91.103.236', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-27 13:39:44', '2026-07-27 13:39:44', 0, '2026-07-27 13:39:01'),
+(270, 34, 'f15c1fc1579443781e83a9f9921a29a1184b2fd4044dc0b7512db14983b0eb45', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', 'web', NULL, '102.91.103.236', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-27 14:39:57', '2026-07-27 13:39:57', 1, '2026-07-27 13:39:57');
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `volunteer_assignments`
+--
+
+CREATE TABLE `volunteer_assignments` (
+  `id` bigint UNSIGNED NOT NULL,
+  `volunteer_id` bigint UNSIGNED NOT NULL,
+  `coordinator_id` bigint UNSIGNED NOT NULL,
+  `area` varchar(255) DEFAULT NULL,
+  `status` enum('active','inactive') DEFAULT 'active',
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `volunteer_tasks`
+--
+
+CREATE TABLE `volunteer_tasks` (
+  `id` bigint UNSIGNED NOT NULL,
+  `volunteer_id` bigint UNSIGNED NOT NULL,
+  `assigned_by` bigint UNSIGNED NOT NULL,
+  `title` varchar(255) NOT NULL,
+  `description` text,
+  `assigned_date` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `started_at` timestamp NULL DEFAULT NULL,
+  `due_date` timestamp NULL DEFAULT NULL,
+  `location` varchar(255) DEFAULT NULL,
+  `priority` enum('low','normal','high') NOT NULL DEFAULT 'normal',
+  `task_type` varchar(50) DEFAULT 'general',
+  `status` enum('pending','in_progress','completed') DEFAULT 'pending',
+  `report` text,
+  `completed_at` timestamp NULL DEFAULT NULL,
+  `completion_notes` text,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Dumping data for table `volunteer_tasks`
+--
+
+INSERT INTO `volunteer_tasks` (`id`, `volunteer_id`, `assigned_by`, `title`, `description`, `assigned_date`, `started_at`, `due_date`, `location`, `priority`, `task_type`, `status`, `report`, `completed_at`, `completion_notes`, `created_at`, `updated_at`) VALUES
+(1, 32, 27, 'Good', 'dcdc d', '2026-07-24 15:38:57', '2026-07-24 16:01:46', NULL, 'kangire', 'normal', 'general', 'completed', NULL, '2026-07-24 16:02:16', '', '2026-07-24 15:38:57', '2026-07-24 16:02:16');
 
 -- --------------------------------------------------------
 
@@ -2399,7 +3342,8 @@ ALTER TABLE `chat_messages`
   ADD PRIMARY KEY (`id`),
   ADD KEY `idx_chat_messages_room` (`room_id`),
   ADD KEY `idx_chat_messages_sender` (`sender_id`),
-  ADD KEY `idx_chat_messages_created` (`created_at`);
+  ADD KEY `idx_chat_messages_created` (`created_at`),
+  ADD KEY `idx_receiver_id` (`receiver_id`);
 
 --
 -- Indexes for table `chat_rooms`
@@ -2419,6 +3363,14 @@ ALTER TABLE `chat_room_members`
   ADD KEY `user_id` (`user_id`);
 
 --
+-- Indexes for table `community_reports`
+--
+ALTER TABLE `community_reports`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_community_reports_volunteer` (`volunteer_id`),
+  ADD KEY `idx_community_reports_status` (`status`);
+
+--
 -- Indexes for table `elections`
 --
 ALTER TABLE `elections`
@@ -2430,6 +3382,15 @@ ALTER TABLE `elections`
   ADD KEY `created_by` (`created_by`);
 
 --
+-- Indexes for table `election_checklists`
+--
+ALTER TABLE `election_checklists`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_checklists_user` (`user_id`),
+  ADD KEY `idx_checklists_election` (`election_id`),
+  ADD KEY `idx_checklists_pu` (`pu_id`);
+
+--
 -- Indexes for table `election_materials`
 --
 ALTER TABLE `election_materials`
@@ -2438,6 +3399,15 @@ ALTER TABLE `election_materials`
   ADD KEY `idx_materials_election` (`election_id`),
   ADD KEY `idx_materials_pu` (`pu_id`),
   ADD KEY `agent_id` (`agent_id`);
+
+--
+-- Indexes for table `election_polling_units`
+--
+ALTER TABLE `election_polling_units`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uk_election_pu` (`election_id`,`pu_id`),
+  ADD KEY `idx_election_pu_election` (`election_id`),
+  ADD KEY `idx_election_pu_pu` (`pu_id`);
 
 --
 -- Indexes for table `expenses`
@@ -2504,6 +3474,15 @@ ALTER TABLE `login_attempts`
   ADD KEY `user_id` (`user_id`);
 
 --
+-- Indexes for table `media_uploads`
+--
+ALTER TABLE `media_uploads`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_media_user` (`user_id`),
+  ADD KEY `idx_media_election` (`election_id`),
+  ADD KEY `idx_media_pu` (`pu_id`);
+
+--
 -- Indexes for table `notifications`
 --
 ALTER TABLE `notifications`
@@ -2512,6 +3491,28 @@ ALTER TABLE `notifications`
   ADD KEY `idx_notifications_type` (`type`),
   ADD KEY `idx_notifications_read` (`is_read`),
   ADD KEY `idx_notifications_created` (`created_at`);
+
+--
+-- Indexes for table `observer_assignments`
+--
+ALTER TABLE `observer_assignments`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_observer_assignments_observer` (`observer_id`),
+  ADD KEY `idx_observer_assignments_pu` (`pu_id`);
+
+--
+-- Indexes for table `observer_incidents`
+--
+ALTER TABLE `observer_incidents`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_observer_incidents_observer` (`observer_id`);
+
+--
+-- Indexes for table `observer_observations`
+--
+ALTER TABLE `observer_observations`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_observer_observations_observer` (`observer_id`);
 
 --
 -- Indexes for table `offline_sync_queue`
@@ -2530,15 +3531,8 @@ ALTER TABLE `otp_verifications`
   ADD PRIMARY KEY (`id`),
   ADD KEY `idx_otp_user` (`user_id`),
   ADD KEY `idx_otp_code` (`otp_code`),
-  ADD KEY `idx_otp_expires` (`expires_at`);
-
---
--- Indexes for table `password_resets`
---
-ALTER TABLE `password_resets`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `idx_pw_resets_user` (`user_id`),
-  ADD KEY `idx_pw_resets_token` (`token`);
+  ADD KEY `idx_otp_expires` (`expires_at`),
+  ADD KEY `idx_otp_user_code` (`user_id`,`otp_code`);
 
 --
 -- Indexes for table `people`
@@ -2776,6 +3770,22 @@ ALTER TABLE `user_sessions`
   ADD KEY `idx_sessions_active` (`is_active`);
 
 --
+-- Indexes for table `volunteer_assignments`
+--
+ALTER TABLE `volunteer_assignments`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_volunteer_assignments_volunteer` (`volunteer_id`),
+  ADD KEY `idx_volunteer_assignments_coordinator` (`coordinator_id`);
+
+--
+-- Indexes for table `volunteer_tasks`
+--
+ALTER TABLE `volunteer_tasks`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_volunteer_tasks_volunteer` (`volunteer_id`),
+  ADD KEY `idx_volunteer_tasks_status` (`status`);
+
+--
 -- Indexes for table `wards`
 --
 ALTER TABLE `wards`
@@ -2791,13 +3801,13 @@ ALTER TABLE `wards`
 -- AUTO_INCREMENT for table `activity_logs`
 --
 ALTER TABLE `activity_logs`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=446;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=689;
 
 --
 -- AUTO_INCREMENT for table `agent_assignments`
 --
 ALTER TABLE `agent_assignments`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=9;
 
 --
 -- AUTO_INCREMENT for table `agent_checkins`
@@ -2857,18 +3867,24 @@ ALTER TABLE `candidates`
 -- AUTO_INCREMENT for table `chat_messages`
 --
 ALTER TABLE `chat_messages`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=24;
 
 --
 -- AUTO_INCREMENT for table `chat_rooms`
 --
 ALTER TABLE `chat_rooms`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT for table `chat_room_members`
 --
 ALTER TABLE `chat_room_members`
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
+
+--
+-- AUTO_INCREMENT for table `community_reports`
+--
+ALTER TABLE `community_reports`
   MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
@@ -2878,9 +3894,21 @@ ALTER TABLE `elections`
   MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT for table `election_checklists`
+--
+ALTER TABLE `election_checklists`
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+
+--
 -- AUTO_INCREMENT for table `election_materials`
 --
 ALTER TABLE `election_materials`
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `election_polling_units`
+--
+ALTER TABLE `election_polling_units`
   MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
@@ -2917,12 +3945,36 @@ ALTER TABLE `lgas`
 -- AUTO_INCREMENT for table `login_attempts`
 --
 ALTER TABLE `login_attempts`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=151;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=247;
+
+--
+-- AUTO_INCREMENT for table `media_uploads`
+--
+ALTER TABLE `media_uploads`
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `notifications`
 --
 ALTER TABLE `notifications`
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `observer_assignments`
+--
+ALTER TABLE `observer_assignments`
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `observer_incidents`
+--
+ALTER TABLE `observer_incidents`
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `observer_observations`
+--
+ALTER TABLE `observer_observations`
   MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
@@ -2935,13 +3987,7 @@ ALTER TABLE `offline_sync_queue`
 -- AUTO_INCREMENT for table `otp_verifications`
 --
 ALTER TABLE `otp_verifications`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=30;
-
---
--- AUTO_INCREMENT for table `password_resets`
---
-ALTER TABLE `password_resets`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=57;
 
 --
 -- AUTO_INCREMENT for table `people`
@@ -2965,7 +4011,7 @@ ALTER TABLE `political_parties`
 -- AUTO_INCREMENT for table `polling_units`
 --
 ALTER TABLE `polling_units`
-  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=34;
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=35;
 
 --
 -- AUTO_INCREMENT for table `public_results`
@@ -3019,7 +4065,7 @@ ALTER TABLE `roles`
 -- AUTO_INCREMENT for table `security_events`
 --
 ALTER TABLE `security_events`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=239;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=391;
 
 --
 -- AUTO_INCREMENT for table `senatorial_districts`
@@ -3079,13 +4125,25 @@ ALTER TABLE `tenant_settings`
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=28;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=35;
 
 --
 -- AUTO_INCREMENT for table `user_sessions`
 --
 ALTER TABLE `user_sessions`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=122;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=271;
+
+--
+-- AUTO_INCREMENT for table `volunteer_assignments`
+--
+ALTER TABLE `volunteer_assignments`
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `volunteer_tasks`
+--
+ALTER TABLE `volunteer_tasks`
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT for table `wards`

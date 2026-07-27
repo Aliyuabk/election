@@ -6,6 +6,7 @@ require_once '../../config/config.php';
 require_once '../../includes/session.php';
 require_once '../../includes/functions.php';
 
+// Start session
 SessionManager::start();
 
 if (!SessionManager::isLoggedIn()) {
@@ -26,7 +27,9 @@ $tenant_id = SessionManager::get('tenant_id');
 
 $db = getDB();
 
-// Get Senatorial District name
+// ============================================================
+// GET SENATORIAL DISTRICT NAME
+// ============================================================
 $district_name = 'Senatorial District';
 $state_name = 'State';
 try {
@@ -45,33 +48,44 @@ try {
         }
     }
 } catch (Exception $e) {
-    $district_name = 'Senatorial District';
-    $state_name = 'State';
+    error_log("Error fetching district: " . $e->getMessage());
 }
 
-// Get LGAs in this senatorial district
+// ============================================================
+// GET LGA IDs FROM SENATORIAL DISTRICT
+// ============================================================
 $lga_ids = [];
 try {
-    $stmt = $db->prepare("SELECT lgas_json FROM senatorial_districts WHERE id = ?");
-    $stmt->execute([$senatorial_id]);
-    $lgas_json = $stmt->fetchColumn();
-    if ($lgas_json) {
-        $lga_ids = json_decode($lgas_json, true) ?: [];
+    if ($senatorial_id) {
+        $stmt = $db->prepare("SELECT lgas_json FROM senatorial_districts WHERE id = ?");
+        $stmt->execute([$senatorial_id]);
+        $lgas_json = $stmt->fetchColumn();
+        
+        if ($lgas_json) {
+            $lga_names = json_decode($lgas_json, true) ?: [];
+            
+            // Convert LGA names to IDs
+            if (!empty($lga_names)) {
+                $placeholders = implode(',', array_fill(0, count($lga_names), '?'));
+                $stmt = $db->prepare("SELECT id FROM lgas WHERE name IN ($placeholders) AND state_id = ? AND is_active = 1");
+                $stmt->execute(array_merge($lga_names, [$state_id]));
+                $lga_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+            }
+        }
     }
 } catch (Exception $e) {
+    error_log("Error getting LGA IDs: " . $e->getMessage());
     $lga_ids = [];
 }
 
 $lga_list = !empty($lga_ids) ? implode(',', array_map('intval', $lga_ids)) : '0';
 
 // ============================================================
-// FETCH DASHBOARD STATISTICS
+// GET FEDERAL CONSTITUENCIES
 // ============================================================
-
-// Get Federal Constituencies in this senatorial district
 $federal_constituencies = [];
 try {
-    if (!empty($lga_ids)) {
+    if ($state_id) {
         $stmt = $db->prepare("
             SELECT DISTINCT fc.id, fc.name, fc.code
             FROM federal_constituencies fc
@@ -82,22 +96,25 @@ try {
         $federal_constituencies = $stmt->fetchAll();
     }
 } catch (Exception $e) {
+    error_log("Error fetching federal constituencies: " . $e->getMessage());
     $federal_constituencies = [];
 }
 
-// LGA Statistics
+// ============================================================
+// LGA STATISTICS
+// ============================================================
 $lga_stats = [];
 try {
-    if (!empty($lga_ids)) {
+    if ($lga_list !== '0') {
         $stmt = $db->prepare("
             SELECT 
                 COUNT(DISTINCT l.id) as total_lgas,
                 COUNT(DISTINCT w.id) as total_wards,
                 COUNT(DISTINCT pu.id) as total_pus
             FROM lgas l
-            LEFT JOIN wards w ON w.lga_id = l.id
-            LEFT JOIN polling_units pu ON pu.ward_id = w.id
-            WHERE l.id IN ($lga_list) AND l.is_active = 1
+            LEFT JOIN wards w ON w.lga_id = l.id AND w.is_active = 1
+            LEFT JOIN polling_units pu ON pu.ward_id = w.id AND pu.is_active = 1
+            WHERE l.id IN ($lga_list)
         ");
         $stmt->execute();
         $lga_stats = $stmt->fetch();
@@ -105,13 +122,16 @@ try {
         $lga_stats = ['total_lgas' => 0, 'total_wards' => 0, 'total_pus' => 0];
     }
 } catch (Exception $e) {
+    error_log("Error fetching LGA stats: " . $e->getMessage());
     $lga_stats = ['total_lgas' => 0, 'total_wards' => 0, 'total_pus' => 0];
 }
 
-// Coordinator Statistics
+// ============================================================
+// COORDINATOR STATISTICS
+// ============================================================
 $coordinator_stats = ['federal_constituency' => 0, 'lga' => 0, 'ward' => 0];
 try {
-    if (!empty($lga_ids)) {
+    if ($lga_list !== '0') {
         // LGA Coordinators
         $stmt = $db->prepare("
             SELECT COUNT(DISTINCT u.id) as count
@@ -150,13 +170,15 @@ try {
         $coordinator_stats['federal_constituency'] = (int)$stmt->fetchColumn();
     }
 } catch (Exception $e) {
-    $coordinator_stats = ['federal_constituency' => 0, 'lga' => 0, 'ward' => 0];
+    error_log("Error fetching coordinator stats: " . $e->getMessage());
 }
 
-// Agent Statistics
+// ============================================================
+// AGENT STATISTICS
+// ============================================================
 $agent_stats = ['pu_agents' => 0, 'party_agents' => 0, 'observers' => 0, 'volunteers' => 0];
 try {
-    if (!empty($lga_ids)) {
+    if ($lga_list !== '0') {
         // PU Agents
         $stmt = $db->prepare("
             SELECT COUNT(DISTINCT u.id) as count
@@ -214,13 +236,15 @@ try {
         $agent_stats['volunteers'] = (int)$stmt->fetchColumn();
     }
 } catch (Exception $e) {
-    $agent_stats = ['pu_agents' => 0, 'party_agents' => 0, 'observers' => 0, 'volunteers' => 0];
+    error_log("Error fetching agent stats: " . $e->getMessage());
 }
 
-// Result Statistics
+// ============================================================
+// RESULT STATISTICS
+// ============================================================
 $result_stats = [];
 try {
-    if (!empty($lga_ids)) {
+    if ($lga_list !== '0') {
         $stmt = $db->prepare("
             SELECT 
                 COUNT(*) as total_results,
@@ -239,13 +263,16 @@ try {
         $result_stats = ['total_results' => 0, 'verified' => 0, 'pending' => 0, 'flagged' => 0, 'rejected' => 0];
     }
 } catch (Exception $e) {
+    error_log("Error fetching result stats: " . $e->getMessage());
     $result_stats = ['total_results' => 0, 'verified' => 0, 'pending' => 0, 'flagged' => 0, 'rejected' => 0];
 }
 
-// Incident Statistics
+// ============================================================
+// INCIDENT STATISTICS
+// ============================================================
 $incident_stats = [];
 try {
-    if (!empty($lga_ids)) {
+    if ($lga_list !== '0') {
         $stmt = $db->prepare("
             SELECT 
                 COUNT(*) as total,
@@ -263,13 +290,15 @@ try {
         $incident_stats = ['total' => 0, 'reported' => 0, 'investigating' => 0, 'resolved' => 0, 'critical' => 0, 'high' => 0];
     }
 } catch (Exception $e) {
-    $incident_stats = ['total' => 0, 'reported' => 0, 'investigating' => 0, 'resolved' => 0, 'critical' => 0, 'high' => 0];
+    error_log("Error fetching incident stats: " . $e->getMessage());
 }
 
-// PU Reporting Status
+// ============================================================
+// PU REPORTING STATUS
+// ============================================================
 $pu_reporting_status = ['submitted' => 0, 'pending' => 0, 'verified' => 0, 'total' => 0];
 try {
-    if (!empty($lga_ids)) {
+    if ($lga_list !== '0') {
         $stmt = $db->prepare("
             SELECT 
                 COUNT(DISTINCT pu.id) as total,
@@ -285,33 +314,31 @@ try {
         $pu_reporting_status = $stmt->fetch();
     }
 } catch (Exception $e) {
-    $pu_reporting_status = ['submitted' => 0, 'pending' => 0, 'verified' => 0, 'total' => 0];
+    error_log("Error fetching PU reporting status: " . $e->getMessage());
 }
 
-// Recent Activities
+// ============================================================
+// RECENT ACTIVITIES
+// ============================================================
 $recent_activities = [];
 try {
-    if (!empty($lga_ids)) {
-        $stmt = $db->prepare("
-            SELECT a.*, u.full_name as user_name, u.photograph_url as user_avatar
-            FROM activity_logs a
-            LEFT JOIN users u ON a.user_id = u.id
-            WHERE a.tenant_id = ? 
-            AND (
-                a.entity_type IN ('lga', 'ward', 'pu', 'user', 'result', 'incident')
-                OR a.activity_type IN ('login', 'logout', 'user_created', 'result_submitted', 'result_verified', 'incident_reported')
-            )
-            ORDER BY a.created_at DESC
-            LIMIT 15
-        ");
-        $stmt->execute([$tenant_id]);
-        $recent_activities = $stmt->fetchAll();
-    }
+    $stmt = $db->prepare("
+        SELECT a.*, u.full_name as user_name, u.photograph_url as user_avatar
+        FROM activity_logs a
+        LEFT JOIN users u ON a.user_id = u.id
+        WHERE a.tenant_id = ? 
+        ORDER BY a.created_at DESC
+        LIMIT 15
+    ");
+    $stmt->execute([$tenant_id]);
+    $recent_activities = $stmt->fetchAll();
 } catch (Exception $e) {
-    $recent_activities = [];
+    error_log("Error fetching recent activities: " . $e->getMessage());
 }
 
-// Broadcast Stats
+// ============================================================
+// BROADCAST STATS
+// ============================================================
 $broadcast_stats = [];
 try {
     $stmt = $db->prepare("
@@ -326,7 +353,7 @@ try {
     $stmt->execute([$tenant_id]);
     $broadcast_stats = $stmt->fetch();
 } catch (Exception $e) {
-    $broadcast_stats = ['total' => 0, 'sent' => 0, 'draft' => 0, 'scheduled' => 0];
+    error_log("Error fetching broadcast stats: " . $e->getMessage());
 }
 
 $page_title = 'Dashboard';
@@ -414,6 +441,8 @@ include '../includes/sidebar.php';
     margin-top: 6px;
     color: var(--gray-400);
 }
+.stat-card .stat-change.up { color: var(--secondary); }
+.stat-card .stat-change.down { color: var(--danger); }
 
 .charts-grid {
     display: grid;
@@ -437,6 +466,13 @@ include '../includes/sidebar.php';
     font-size: 0.9rem;
     font-weight: 600;
     margin: 0;
+}
+.chart-card .card-header .period {
+    font-size: 0.7rem;
+    color: var(--gray-400);
+    background: var(--gray-100);
+    padding: 2px 12px;
+    border-radius: 20px;
 }
 .chart-container {
     height: 200px;
@@ -645,7 +681,7 @@ include '../includes/sidebar.php';
                 <div class="stat-number"><?php 
                     $total = $pu_reporting_status['total'] ?? 1;
                     $submitted = $pu_reporting_status['submitted'] ?? 0;
-                    echo number_format(($submitted / $total) * 100, 1);
+                    echo number_format(($submitted / max($total, 1)) * 100, 1);
                 ?>%</div>
                 <div class="stat-label">Reporting Rate</div>
                 <div class="stat-change"><?php echo number_format($pu_reporting_status['submitted'] ?? 0); ?>/<?php echo number_format($pu_reporting_status['total'] ?? 0); ?> submitted</div>

@@ -26,7 +26,9 @@ $tenant_id = SessionManager::get('tenant_id');
 
 $db = getDB();
 
-// Get Senatorial District name
+// ============================================================
+// GET SENATORIAL DISTRICT NAME
+// ============================================================
 $district_name = 'Senatorial District';
 $state_name = 'State';
 try {
@@ -45,29 +47,44 @@ try {
         }
     }
 } catch (Exception $e) {
-    $district_name = 'Senatorial District';
-    $state_name = 'State';
+    error_log("Error fetching district: " . $e->getMessage());
 }
 
-// Get LGAs
+// ============================================================
+// GET LGA IDs FROM SENATORIAL DISTRICT (Convert Names to IDs)
+// ============================================================
 $lga_ids = [];
 try {
-    $stmt = $db->prepare("SELECT lgas_json FROM senatorial_districts WHERE id = ?");
-    $stmt->execute([$senatorial_id]);
-    $lgas_json = $stmt->fetchColumn();
-    if ($lgas_json) {
-        $lga_ids = json_decode($lgas_json, true) ?: [];
+    if ($senatorial_id) {
+        $stmt = $db->prepare("SELECT lgas_json FROM senatorial_districts WHERE id = ?");
+        $stmt->execute([$senatorial_id]);
+        $lgas_json = $stmt->fetchColumn();
+        
+        if ($lgas_json) {
+            $lga_names = json_decode($lgas_json, true) ?: [];
+            
+            // Convert LGA names to IDs
+            if (!empty($lga_names)) {
+                $placeholders = implode(',', array_fill(0, count($lga_names), '?'));
+                $stmt = $db->prepare("SELECT id FROM lgas WHERE name IN ($placeholders) AND state_id = ? AND is_active = 1");
+                $stmt->execute(array_merge($lga_names, [$state_id]));
+                $lga_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+            }
+        }
     }
 } catch (Exception $e) {
+    error_log("Error getting LGA IDs: " . $e->getMessage());
     $lga_ids = [];
 }
 
 $lga_list = !empty($lga_ids) ? implode(',', array_map('intval', $lga_ids)) : '0';
 
-// Get Federal Constituencies
+// ============================================================
+// GET FEDERAL CONSTITUENCIES
+// ============================================================
 $federal_constituencies = [];
 try {
-    if (!empty($lga_ids)) {
+    if ($state_id) {
         $stmt = $db->prepare("
             SELECT DISTINCT fc.id, fc.name, fc.code
             FROM federal_constituencies fc
@@ -78,20 +95,24 @@ try {
         $federal_constituencies = $stmt->fetchAll();
     }
 } catch (Exception $e) {
-    $federal_constituencies = [];
+    error_log("Error fetching federal constituencies: " . $e->getMessage());
 }
 
-// Get LGAs with details
+// ============================================================
+// GET LGAS WITH DETAILS
+// ============================================================
 $lgas = [];
 try {
-    if (!empty($lga_ids)) {
+    if ($lga_list !== '0') {
         $stmt = $db->prepare("
             SELECT l.id, l.name, l.code,
                    COUNT(DISTINCT w.id) as ward_count,
-                   COUNT(DISTINCT pu.id) as pu_count
+                   COUNT(DISTINCT pu.id) as pu_count,
+                   COUNT(DISTINCT u.id) as coordinator_count
             FROM lgas l
             LEFT JOIN wards w ON w.lga_id = l.id AND w.is_active = 1
             LEFT JOIN polling_units pu ON pu.ward_id = w.id AND pu.is_active = 1
+            LEFT JOIN users u ON u.lga_id = l.id AND u.role_id IN (SELECT id FROM roles WHERE level IN ('lga', 'ward'))
             WHERE l.id IN ($lga_list) AND l.is_active = 1
             GROUP BY l.id, l.name, l.code
             ORDER BY l.name ASC
@@ -100,13 +121,15 @@ try {
         $lgas = $stmt->fetchAll();
     }
 } catch (Exception $e) {
-    $lgas = [];
+    error_log("Error fetching LGAs: " . $e->getMessage());
 }
 
-// Get Wards
+// ============================================================
+// GET WARDS
+// ============================================================
 $wards = [];
 try {
-    if (!empty($lga_ids)) {
+    if ($lga_list !== '0') {
         $stmt = $db->prepare("
             SELECT w.id, w.name, w.code, w.lga_id,
                    l.name as lga_name,
@@ -123,13 +146,15 @@ try {
         $wards = $stmt->fetchAll();
     }
 } catch (Exception $e) {
-    $wards = [];
+    error_log("Error fetching wards: " . $e->getMessage());
 }
 
-// Get Polling Units with status
+// ============================================================
+// GET POLLING UNITS WITH STATUS
+// ============================================================
 $polling_units = [];
 try {
-    if (!empty($lga_ids)) {
+    if ($lga_list !== '0') {
         $stmt = $db->prepare("
             SELECT pu.id, pu.name, pu.code, pu.ward_id,
                    w.name as ward_name, l.name as lga_name,
@@ -147,10 +172,58 @@ try {
         $polling_units = $stmt->fetchAll();
     }
 } catch (Exception $e) {
-    $polling_units = [];
+    error_log("Error fetching polling units: " . $e->getMessage());
 }
 
-// Get Coordinator Activities
+// ============================================================
+// GET CHECK-IN STATUS
+// ============================================================
+$checkin_status = [];
+try {
+    if ($lga_list !== '0') {
+        $stmt = $db->prepare("
+            SELECT 
+                COUNT(DISTINCT pu.id) as total_pus,
+                SUM(CASE WHEN c.id IS NOT NULL THEN 1 ELSE 0 END) as checked_in,
+                SUM(CASE WHEN c.id IS NULL THEN 1 ELSE 0 END) as not_checked_in
+            FROM polling_units pu
+            JOIN wards w ON pu.ward_id = w.id
+            LEFT JOIN agent_checkins c ON c.pu_id = pu.id AND c.checkin_type = 'arrival' AND c.created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+            WHERE w.lga_id IN ($lga_list) AND pu.is_active = 1
+        ");
+        $stmt->execute();
+        $checkin_status = $stmt->fetch();
+    }
+} catch (Exception $e) {
+    error_log("Error fetching check-in status: " . $e->getMessage());
+}
+
+// ============================================================
+// GET ELECTION PROGRESS
+// ============================================================
+$election_progress = [];
+try {
+    if ($lga_list !== '0') {
+        $stmt = $db->prepare("
+            SELECT 
+                COUNT(DISTINCT pu.id) as total_pus,
+                COUNT(DISTINCT CASE WHEN r.id IS NOT NULL THEN pu.id END) as results_submitted,
+                COUNT(DISTINCT CASE WHEN r.status = 'verified' THEN pu.id END) as results_verified
+            FROM polling_units pu
+            JOIN wards w ON pu.ward_id = w.id
+            LEFT JOIN results_ec8a r ON r.pu_id = pu.id AND r.tenant_id = ?
+            WHERE w.lga_id IN ($lga_list) AND pu.is_active = 1
+        ");
+        $stmt->execute([$tenant_id]);
+        $election_progress = $stmt->fetch();
+    }
+} catch (Exception $e) {
+    error_log("Error fetching election progress: " . $e->getMessage());
+}
+
+// ============================================================
+// GET COORDINATOR ACTIVITIES
+// ============================================================
 $coordinator_activities = [];
 try {
     $stmt = $db->prepare("
@@ -167,49 +240,7 @@ try {
     $stmt->execute([$tenant_id]);
     $coordinator_activities = $stmt->fetchAll();
 } catch (Exception $e) {
-    $coordinator_activities = [];
-}
-
-// Get Check-in Status
-$checkin_status = [];
-try {
-    if (!empty($lga_ids)) {
-        $stmt = $db->prepare("
-            SELECT 
-                COUNT(DISTINCT pu.id) as total_pus,
-                SUM(CASE WHEN c.id IS NOT NULL THEN 1 ELSE 0 END) as checked_in,
-                SUM(CASE WHEN c.id IS NULL THEN 1 ELSE 0 END) as not_checked_in
-            FROM polling_units pu
-            JOIN wards w ON pu.ward_id = w.id
-            LEFT JOIN agent_checkins c ON c.pu_id = pu.id AND c.checkin_type = 'arrival' AND c.created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
-            WHERE w.lga_id IN ($lga_list) AND pu.is_active = 1
-        ");
-        $stmt->execute();
-        $checkin_status = $stmt->fetch();
-    }
-} catch (Exception $e) {
-    $checkin_status = ['total_pus' => 0, 'checked_in' => 0, 'not_checked_in' => 0];
-}
-
-// Get Election Progress
-$election_progress = [];
-try {
-    if (!empty($lga_ids)) {
-        $stmt = $db->prepare("
-            SELECT 
-                COUNT(DISTINCT pu.id) as total_pus,
-                COUNT(DISTINCT CASE WHEN r.id IS NOT NULL THEN pu.id END) as results_submitted,
-                COUNT(DISTINCT CASE WHEN r.status = 'verified' THEN pu.id END) as results_verified
-            FROM polling_units pu
-            JOIN wards w ON pu.ward_id = w.id
-            LEFT JOIN results_ec8a r ON r.pu_id = pu.id AND r.tenant_id = ?
-            WHERE w.lga_id IN ($lga_list) AND pu.is_active = 1
-        ");
-        $stmt->execute([$tenant_id]);
-        $election_progress = $stmt->fetch();
-    }
-} catch (Exception $e) {
-    $election_progress = ['total_pus' => 0, 'results_submitted' => 0, 'results_verified' => 0];
+    error_log("Error fetching coordinator activities: " . $e->getMessage());
 }
 
 $page_title = 'Monitor Senatorial District';
@@ -392,7 +423,7 @@ include '../includes/sidebar.php';
                 <div class="number"><?php 
                     $total = $election_progress['total_pus'] ?? 1;
                     $submitted = $election_progress['results_submitted'] ?? 0;
-                    echo number_format(($submitted / $total) * 100, 1);
+                    echo number_format(($submitted / max($total, 1)) * 100, 1);
                 ?>%</div>
                 <div class="label">Progress</div>
                 <div class="sub"><?php echo number_format($election_progress['results_verified'] ?? 0); ?> verified</div>
@@ -473,7 +504,7 @@ include '../includes/sidebar.php';
                                     <td><?php echo number_format($pu['registered_voters'] ?? 0); ?></td>
                                     <td>
                                         <span class="status-badge <?php echo $pu['result_status'] ?? 'pending'; ?>">
-                                            <?php echo ucfirst($pu['result_status'] ?? 'pending'); ?>
+                                            <?php echo ucfirst($pu['result_status'] ?? 'Pending'); ?>
                                         </span>
                                     </td>
                                     <td>
@@ -514,23 +545,19 @@ include '../includes/sidebar.php';
                         <thead>
                             <tr>
                                 <th>Name</th>
-                                <th>LGAs</th>
-                                <th>Wards</th>
-                                <th>PUs</th>
+                                <th>Code</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php if (count($federal_constituencies) > 0): ?>
-                                <?php foreach (array_slice($federal_constituencies, 0, 5) as $fc): ?>
+                                <?php foreach (array_slice($federal_constituencies, 0, 10) as $fc): ?>
                                     <tr>
                                         <td><?php echo htmlspecialchars($fc['name']); ?></td>
-                                        <td><?php echo $fc['lga_count'] ?? 0; ?></td>
-                                        <td><?php echo $fc['ward_count'] ?? 0; ?></td>
-                                        <td><?php echo $fc['pu_count'] ?? 0; ?></td>
+                                        <td><?php echo htmlspecialchars($fc['code']); ?></td>
                                     </tr>
                                 <?php endforeach; ?>
                             <?php else: ?>
-                                <tr><td colspan="4" style="text-align:center;color:var(--gray-500);">No federal constituencies</td></tr>
+                                <tr><td colspan="2" style="text-align:center;color:var(--gray-500);">No federal constituencies</td></tr>
                             <?php endif; ?>
                         </tbody>
                     </table>
@@ -607,7 +634,7 @@ function applyFilters() {
 }
 
 // ============================================================
-// SIDEBAR TOGGLE (same as index.php)
+// SIDEBAR TOGGLE
 // ============================================================
 var sidebar = document.getElementById('sidebar');
 var sidebarToggle = document.getElementById('sidebarToggle');
