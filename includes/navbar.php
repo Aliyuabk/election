@@ -15,7 +15,7 @@
     <!-- Contact -->
     <a href="contact.php" class="nav-item"><i class="fas fa-envelope"></i> Contact</a>
 
-    <a href="dashboard/citizen/" class="nav-item"><i class="fas fa-user"></i> Contact</a>
+    <a href="dashboard/citizen/" class="nav-item"><i class="fas fa-user"></i> Citizen</a>
     
     <a href="auth/login.php" class="btn btn-primary" style="text-align:center;">Login</a>
     <div class="sidebar-footer">
@@ -36,6 +36,7 @@
             <li><a href="security.php">Security</a></li>
             <li><a href="documentation.php">Documentation</a></li>
             <li><a href="contact.php">Contact</a></li>
+             <li><a href="dashboard/citizen/">Citizen</a></li>
             <li><a href="auth/login.php" class="btn btn-primary">Login</a></li>
         </ul>
     </div>
