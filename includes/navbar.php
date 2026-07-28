@@ -14,6 +14,8 @@
     <a href="documentation.php" class="nav-item"><i class="fas fa-file-alt"></i> Documentation</a>
     <!-- Contact -->
     <a href="contact.php" class="nav-item"><i class="fas fa-envelope"></i> Contact</a>
+
+    <a href="dashboard/citizen/" class="nav-item"><i class="fas fa-user"></i> Contact</a>
     
     <a href="auth/login.php" class="btn btn-primary" style="text-align:center;">Login</a>
     <div class="sidebar-footer">
