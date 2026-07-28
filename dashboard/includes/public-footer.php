@@ -43,9 +43,9 @@ FOOTER
             </div>
             <div class="footer-col">
                 <h4>Contact</h4>
-                <p><i class="fas fa-envelope"></i> <?php echo SMTP_FROM_EMAIL ?? 'info@example.com'; ?></p>
-                <p><i class="fas fa-phone"></i> <?php echo SMTP_FROM_PHONE ?? '+234 800 555 5555'; ?></p>
-                <p><i class="fas fa-map-marker-alt"></i> <?php echo APP_ADDRESS ?? 'Nigeria'; ?></p>
+                <p><i class="fas fa-envelope"></i> <?php echo defined('SMTP_FROM_EMAIL') ? SMTP_FROM_EMAIL : 'info@example.com'; ?></p>
+                <p><i class="fas fa-phone"></i> <?php echo defined('SMTP_FROM_PHONE') ? SMTP_FROM_PHONE : '+234 800 555 5555'; ?></p>
+                <p><i class="fas fa-map-marker-alt"></i> Nigeria</p>
                 <p style="font-size:0.75rem;color:var(--gray-400);margin-top:4px;">
                     <i class="far fa-clock"></i> Mon-Fri: 8:00 AM - 6:00 PM
                 </p>
@@ -71,20 +71,63 @@ FOOTER
 </footer>
 
 <!-- ============================================================
-SCRIPTS
+SCRIPTS - FIXED
 ============================================================ -->
 <script>
 // ============================================================
+// PRELOADER - FIXED: Hide immediately and on load
+// ============================================================
+(function hidePreloader() {
+    var preloader = document.getElementById('preloader');
+    if (preloader) {
+        // Hide immediately after DOM is ready
+        if (document.readyState === 'complete' || document.readyState === 'interactive') {
+            preloader.classList.add('hidden');
+            setTimeout(function() {
+                preloader.style.display = 'none';
+            }, 300);
+        } else {
+            document.addEventListener('DOMContentLoaded', function() {
+                preloader.classList.add('hidden');
+                setTimeout(function() {
+                    preloader.style.display = 'none';
+                }, 300);
+            });
+        }
+        // Also hide on full load as backup
+        window.addEventListener('load', function() {
+            preloader.classList.add('hidden');
+            setTimeout(function() {
+                preloader.style.display = 'none';
+            }, 300);
+        });
+        // Force hide after 3 seconds as final fallback
+        setTimeout(function() {
+            preloader.classList.add('hidden');
+            setTimeout(function() {
+                preloader.style.display = 'none';
+            }, 300);
+        }, 3000);
+    }
+})();
+
+// ============================================================
 // NAV TOGGLE
 // ============================================================
-document.getElementById('navToggle').addEventListener('click', function() {
-    var nav = document.getElementById('navMenu');
-    nav.classList.toggle('open');
-    var icon = this.querySelector('i');
-    if (nav.classList.contains('open')) {
-        icon.className = 'fas fa-times';
-    } else {
-        icon.className = 'fas fa-bars';
+document.addEventListener('DOMContentLoaded', function() {
+    var navToggle = document.getElementById('navToggle');
+    var navMenu = document.getElementById('navMenu');
+    
+    if (navToggle && navMenu) {
+        navToggle.addEventListener('click', function() {
+            navMenu.classList.toggle('open');
+            var icon = this.querySelector('i');
+            if (navMenu.classList.contains('open')) {
+                icon.className = 'fas fa-times';
+            } else {
+                icon.className = 'fas fa-bars';
+            }
+        });
     }
 });
 
@@ -94,24 +137,14 @@ document.getElementById('navToggle').addEventListener('click', function() {
 document.querySelectorAll('#navMenu a').forEach(function(link) {
     link.addEventListener('click', function() {
         var nav = document.getElementById('navMenu');
-        if (window.innerWidth <= 992 && nav.classList.contains('open')) {
+        var toggle = document.getElementById('navToggle');
+        if (window.innerWidth <= 992 && nav && nav.classList.contains('open')) {
             nav.classList.remove('open');
-            document.getElementById('navToggle').querySelector('i').className = 'fas fa-bars';
+            if (toggle) {
+                toggle.querySelector('i').className = 'fas fa-bars';
+            }
         }
     });
-});
-
-// ============================================================
-// PRELOADER
-// ============================================================
-window.addEventListener('load', function() {
-    var preloader = document.getElementById('preloader');
-    if (preloader) {
-        preloader.classList.add('hidden');
-        setTimeout(function() {
-            preloader.style.display = 'none';
-        }, 500);
-    }
 });
 
 // ============================================================
@@ -120,8 +153,8 @@ window.addEventListener('load', function() {
 document.addEventListener('click', function(event) {
     var nav = document.getElementById('navMenu');
     var toggle = document.getElementById('navToggle');
-    if (window.innerWidth <= 992 && nav.classList.contains('open')) {
-        if (!toggle.contains(event.target) && !nav.contains(event.target)) {
+    if (window.innerWidth <= 992 && nav && nav.classList.contains('open')) {
+        if (toggle && !toggle.contains(event.target) && !nav.contains(event.target)) {
             nav.classList.remove('open');
             toggle.querySelector('i').className = 'fas fa-bars';
         }
@@ -136,7 +169,8 @@ document.querySelectorAll('a[href^="#"]').forEach(function(anchor) {
         var target = document.querySelector(this.getAttribute('href'));
         if (target) {
             e.preventDefault();
-            var headerHeight = document.querySelector('.public-header').offsetHeight;
+            var header = document.querySelector('.public-header');
+            var headerHeight = header ? header.offsetHeight : 0;
             var targetPosition = target.getBoundingClientRect().top + window.pageYOffset - headerHeight - 20;
             window.scrollTo({
                 top: targetPosition,
@@ -152,10 +186,13 @@ document.querySelectorAll('a[href^="#"]').forEach(function(anchor) {
 (function() {
     var currentPath = window.location.pathname;
     var filename = currentPath.substring(currentPath.lastIndexOf('/') + 1);
+    if (filename === '' || filename === 'index.php') {
+        filename = 'index.php';
+    }
     
     document.querySelectorAll('#navMenu a').forEach(function(link) {
         var href = link.getAttribute('href');
-        if (href === filename || (filename === '' && href === 'index.php')) {
+        if (href === filename || (filename === 'index.php' && href === 'index.php')) {
             link.classList.add('active');
         }
     });

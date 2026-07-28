@@ -407,7 +407,7 @@
         }
 
         /* ============================================================
-           PRELOADER
+           PRELOADER - FIXED
            ============================================================ */
         #preloader {
             position: fixed;
@@ -420,10 +420,11 @@
             align-items: center;
             justify-content: center;
             z-index: 9999;
-            transition: opacity 0.4s ease;
+            transition: opacity 0.5s ease;
         }
         #preloader.hidden {
             opacity: 0;
+            visibility: hidden;
             pointer-events: none;
         }
         #preloader .spinner {
@@ -499,25 +500,25 @@ HEADER / NAVIGATION
         </button>
 
         <nav class="nav-menu" id="navMenu">
-            <a href="index.php" class="<?php echo ($current_page ?? '') === 'home' ? 'active' : ''; ?>">
+            <a href="index.php" class="<?php echo (isset($current_page) && $current_page === 'home') ? 'active' : ''; ?>">
                 <i class="fas fa-home"></i> Home
             </a>
-            <a href="published-results.php" class="<?php echo ($current_page ?? '') === 'results' ? 'active' : ''; ?>">
+            <a href="published-results.php" class="<?php echo (isset($current_page) && $current_page === 'results') ? 'active' : ''; ?>">
                 <i class="fas fa-file-alt"></i> Results
             </a>
-            <a href="search-polling-units.php" class="<?php echo ($current_page ?? '') === 'search' ? 'active' : ''; ?>">
+            <a href="search-polling-units.php" class="<?php echo (isset($current_page) && $current_page === 'search') ? 'active' : ''; ?>">
                 <i class="fas fa-search"></i> Search PU
             </a>
-            <a href="candidates.php" class="<?php echo ($current_page ?? '') === 'candidates' ? 'active' : ''; ?>">
+            <a href="candidates.php" class="<?php echo (isset($current_page) && $current_page === 'candidates') ? 'active' : ''; ?>">
                 <i class="fas fa-user-tie"></i> Candidates
             </a>
-            <a href="maps.php" class="<?php echo ($current_page ?? '') === 'maps' ? 'active' : ''; ?>">
+            <a href="maps.php" class="<?php echo (isset($current_page) && $current_page === 'maps') ? 'active' : ''; ?>">
                 <i class="fas fa-map"></i> Maps
             </a>
-            <a href="statistics.php" class="<?php echo ($current_page ?? '') === 'statistics' ? 'active' : ''; ?>">
+            <a href="statistics.php" class="<?php echo (isset($current_page) && $current_page === 'statistics') ? 'active' : ''; ?>">
                 <i class="fas fa-chart-bar"></i> Stats
             </a>
-            <a href="election-information.php" class="<?php echo ($current_page ?? '') === 'info' ? 'active' : ''; ?>">
+            <a href="election-information.php" class="<?php echo (isset($current_page) && $current_page === 'info') ? 'active' : ''; ?>">
                 <i class="fas fa-info-circle"></i> Info
             </a>
         </nav>

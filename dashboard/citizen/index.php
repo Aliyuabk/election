@@ -5,7 +5,7 @@
 require_once '../../config/config.php';
 require_once '../../includes/functions.php';
 
-$page_title = 'Home - Election Monitoring';
+$page_title = 'Home';
 $current_page = 'home';
 
 // Get current/active election
@@ -25,7 +25,7 @@ try {
     // Get active election
     $stmt = $db->prepare("
         SELECT * FROM elections 
-        WHERE status = 'active' OR status = 'closed'
+        WHERE status IN ('active', 'closed')
         ORDER BY election_date DESC 
         LIMIT 1
     ");
@@ -44,21 +44,21 @@ try {
     ");
     $stmt->execute();
     $stats = $stmt->fetch();
-    $total_states = $stats['total_states'] ?? 0;
-    $total_lgas = $stats['total_lgas'] ?? 0;
-    $total_wards = $stats['total_wards'] ?? 0;
-    $total_pus = $stats['total_pus'] ?? 0;
-    $candidate_count = $stats['total_candidates'] ?? 0;
-    $party_count = $stats['total_parties'] ?? 0;
+    $total_states = (int)($stats['total_states'] ?? 0);
+    $total_lgas = (int)($stats['total_lgas'] ?? 0);
+    $total_wards = (int)($stats['total_wards'] ?? 0);
+    $total_pus = (int)($stats['total_pus'] ?? 0);
+    $candidate_count = (int)($stats['total_candidates'] ?? 0);
+    $party_count = (int)($stats['total_parties'] ?? 0);
     
     // Get published results summary
     if ($active_election) {
         $stmt = $db->prepare("
             SELECT 
                 COUNT(*) as total_results,
-                SUM(valid_votes) as total_valid,
-                SUM(rejected_votes) as total_rejected,
-                SUM(total_votes) as total_votes
+                COALESCE(SUM(valid_votes), 0) as total_valid,
+                COALESCE(SUM(rejected_votes), 0) as total_rejected,
+                COALESCE(SUM(total_votes), 0) as total_votes
             FROM public_results 
             WHERE election_id = ? AND is_published = 1
         ");
@@ -88,23 +88,23 @@ include '../includes/public-header.php';
 .hero-section {
     background: linear-gradient(135deg, #0F4C81 0%, #1a6db5 100%);
     color: white;
-    padding: 60px 0 50px 0;
-    margin-bottom: 40px;
+    padding: 50px 0 40px 0;
+    margin-bottom: 30px;
     border-radius: 0 0 30px 30px;
 }
 .hero-section .hero-title {
-    font-size: 2.2rem;
+    font-size: 2rem;
     font-weight: 800;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
 }
 .hero-section .hero-subtitle {
-    font-size: 1.1rem;
+    font-size: 1rem;
     opacity: 0.9;
     max-width: 600px;
 }
 .hero-section .election-status {
     display: inline-block;
-    background: rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.15);
     padding: 6px 20px;
     border-radius: 30px;
     font-size: 0.85rem;
@@ -131,8 +131,8 @@ include '../includes/public-header.php';
 
 /* Search Bar */
 .search-section {
-    margin-top: -30px;
-    margin-bottom: 40px;
+    margin-top: -25px;
+    margin-bottom: 30px;
 }
 .search-bar {
     background: white;
@@ -173,14 +173,14 @@ include '../includes/public-header.php';
 /* Stats Grid */
 .stats-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 16px;
-    margin-bottom: 40px;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 14px;
+    margin-bottom: 30px;
 }
 .stat-card {
     background: white;
     border-radius: 14px;
-    padding: 20px 16px;
+    padding: 18px 14px;
     text-align: center;
     border: 1px solid #E5E7EB;
     transition: transform 0.2s, box-shadow 0.2s;
@@ -190,17 +190,17 @@ include '../includes/public-header.php';
     box-shadow: 0 8px 25px rgba(0,0,0,0.08);
 }
 .stat-card .stat-icon {
-    font-size: 1.5rem;
-    margin-bottom: 6px;
+    font-size: 1.4rem;
+    margin-bottom: 4px;
     display: block;
 }
 .stat-card .stat-number {
-    font-size: 1.5rem;
+    font-size: 1.4rem;
     font-weight: 700;
     color: #0F4C81;
 }
 .stat-card .stat-label {
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     color: #6B7280;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -209,14 +209,14 @@ include '../includes/public-header.php';
 /* Quick Actions */
 .quick-actions {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 16px;
-    margin-bottom: 40px;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 14px;
+    margin-bottom: 30px;
 }
 .quick-action {
     background: white;
     border-radius: 14px;
-    padding: 24px 20px;
+    padding: 20px 16px;
     text-align: center;
     border: 1px solid #E5E7EB;
     text-decoration: none;
@@ -229,37 +229,37 @@ include '../includes/public-header.php';
     transform: translateY(-4px);
 }
 .quick-action .action-icon {
-    font-size: 2rem;
-    margin-bottom: 8px;
+    font-size: 1.8rem;
+    margin-bottom: 6px;
     display: block;
 }
 .quick-action .action-title {
     font-weight: 600;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
 }
 .quick-action .action-desc {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     color: #6B7280;
-    margin-top: 4px;
+    margin-top: 2px;
 }
 
 /* News Section */
 .news-section {
     background: white;
     border-radius: 14px;
-    padding: 24px;
+    padding: 20px;
     border: 1px solid #E5E7EB;
 }
 .news-section .section-title {
-    font-size: 1.1rem;
+    font-size: 1rem;
     font-weight: 700;
-    margin-bottom: 16px;
+    margin-bottom: 14px;
     display: flex;
     align-items: center;
     gap: 10px;
 }
 .news-item {
-    padding: 14px 0;
+    padding: 12px 0;
     border-bottom: 1px solid #F3F4F6;
 }
 .news-item:last-child {
@@ -267,10 +267,10 @@ include '../includes/public-header.php';
 }
 .news-item .news-title {
     font-weight: 600;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
 }
 .news-item .news-meta {
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     color: #9CA3AF;
     margin-top: 4px;
     display: flex;
@@ -280,33 +280,8 @@ include '../includes/public-header.php';
     background: #F3F4F6;
     padding: 1px 10px;
     border-radius: 12px;
-    font-size: 0.65rem;
+    font-size: 0.6rem;
     color: #6B7280;
-}
-
-/* Footer */
-.public-footer {
-    margin-top: 60px;
-    padding: 40px 0 20px 0;
-    border-top: 1px solid #E5E7EB;
-    text-align: center;
-    color: #6B7280;
-    font-size: 0.85rem;
-}
-.public-footer .footer-links {
-    display: flex;
-    justify-content: center;
-    gap: 24px;
-    flex-wrap: wrap;
-    margin-bottom: 16px;
-}
-.public-footer .footer-links a {
-    color: #6B7280;
-    text-decoration: none;
-    transition: color 0.2s;
-}
-.public-footer .footer-links a:hover {
-    color: #0F4C81;
 }
 
 @media (max-width: 768px) {
@@ -325,6 +300,14 @@ include '../includes/public-header.php';
     }
     .quick-actions {
         grid-template-columns: repeat(2, 1fr);
+    }
+}
+@media (max-width: 480px) {
+    .quick-actions {
+        grid-template-columns: 1fr 1fr;
+    }
+    .stats-grid {
+        grid-template-columns: 1fr 1fr;
     }
 }
 </style>
@@ -392,11 +375,11 @@ include '../includes/public-header.php';
         <div class="stat-card">
             <span class="stat-icon">🎯</span>
             <div class="stat-number"><?php echo number_format($party_count); ?></div>
-            <div class="stat-label">Political Parties</div>
+            <div class="stat-label">Parties</div>
         </div>
         <div class="stat-card">
             <span class="stat-icon">✅</span>
-            <div class="stat-number"><?php echo number_format($published_results['total_results'] ?? 0); ?></div>
+            <div class="stat-number"><?php echo number_format((int)($published_results['total_results'] ?? 0)); ?></div>
             <div class="stat-label">Published Results</div>
         </div>
     </div>
@@ -454,7 +437,7 @@ include '../includes/public-header.php';
     <?php endif; ?>
 
     <!-- Election Results Summary -->
-    <?php if ($active_election && ($published_results['total_results'] ?? 0) > 0): ?>
+    <?php if ($active_election && ((int)($published_results['total_results'] ?? 0) > 0)): ?>
         <div class="news-section" style="margin-top:20px;">
             <div class="section-title">
                 <i class="fas fa-chart-bar" style="color:#0F4C81;"></i> Published Results Summary
@@ -462,33 +445,33 @@ include '../includes/public-header.php';
                     <?php echo htmlspecialchars($active_election['name']); ?>
                 </span>
             </div>
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px;">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:14px;">
                 <div style="text-align:center;padding:12px;background:#F8FAFC;border-radius:10px;">
-                    <div style="font-size:1.3rem;font-weight:700;color:#0F4C81;">
-                        <?php echo number_format($published_results['total_votes'] ?? 0); ?>
+                    <div style="font-size:1.2rem;font-weight:700;color:#0F4C81;">
+                        <?php echo number_format((int)($published_results['total_votes'] ?? 0)); ?>
                     </div>
-                    <div style="font-size:0.7rem;color:#6B7280;">Total Votes</div>
+                    <div style="font-size:0.65rem;color:#6B7280;">Total Votes</div>
                 </div>
                 <div style="text-align:center;padding:12px;background:#F8FAFC;border-radius:10px;">
-                    <div style="font-size:1.3rem;font-weight:700;color:#10B981;">
-                        <?php echo number_format($published_results['total_valid'] ?? 0); ?>
+                    <div style="font-size:1.2rem;font-weight:700;color:#10B981;">
+                        <?php echo number_format((int)($published_results['total_valid'] ?? 0)); ?>
                     </div>
-                    <div style="font-size:0.7rem;color:#6B7280;">Valid Votes</div>
+                    <div style="font-size:0.65rem;color:#6B7280;">Valid Votes</div>
                 </div>
                 <div style="text-align:center;padding:12px;background:#F8FAFC;border-radius:10px;">
-                    <div style="font-size:1.3rem;font-weight:700;color:#EF4444;">
-                        <?php echo number_format($published_results['total_rejected'] ?? 0); ?>
+                    <div style="font-size:1.2rem;font-weight:700;color:#EF4444;">
+                        <?php echo number_format((int)($published_results['total_rejected'] ?? 0)); ?>
                     </div>
-                    <div style="font-size:0.7rem;color:#6B7280;">Rejected Votes</div>
+                    <div style="font-size:0.65rem;color:#6B7280;">Rejected Votes</div>
                 </div>
                 <div style="text-align:center;padding:12px;background:#F8FAFC;border-radius:10px;">
-                    <div style="font-size:1.3rem;font-weight:700;color:#7C3AED;">
-                        <?php echo number_format($published_results['total_results'] ?? 0); ?>
+                    <div style="font-size:1.2rem;font-weight:700;color:#7C3AED;">
+                        <?php echo number_format((int)($published_results['total_results'] ?? 0)); ?>
                     </div>
-                    <div style="font-size:0.7rem;color:#6B7280;">Results Published</div>
+                    <div style="font-size:0.65rem;color:#6B7280;">Results Published</div>
                 </div>
             </div>
-            <div style="text-align:center;margin-top:16px;">
+            <div style="text-align:center;margin-top:14px;">
                 <a href="published-results.php" style="color:#0F4C81;text-decoration:none;font-weight:600;">
                     View All Results <i class="fas fa-arrow-right"></i>
                 </a>
