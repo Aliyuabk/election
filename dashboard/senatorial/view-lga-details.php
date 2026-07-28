@@ -31,7 +31,6 @@ if ($lga_id <= 0) {
 
 ## 3. LGA Details (view-lga-details.php) - Continued
 
-```php
     exit();
 }
 
