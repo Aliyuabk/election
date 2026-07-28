@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// SENATORIAL COORDINATOR - EXPORT CSV
+// SENATORIAL COORDINATOR - EXPORT EXCEL
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -20,9 +20,9 @@ if (SessionManager::get('role_level') !== 'senatorial') {
 
 // Get report type and data
 $report_type = isset($_GET['type']) ? $_GET['type'] : 'progress';
-$format = isset($_GET['format']) ? $_GET['format'] : 'csv';
+$format = isset($_GET['format']) ? $_GET['format'] : 'excel';
 
 // Redirect to the appropriate report with download parameter
-$redirect_url = "report-$report_type.php?" . http_build_query(array_merge($_GET, ['download' => 'csv']));
+$redirect_url = "report-$report_type.php?" . http_build_query(array_merge($_GET, ['download' => 'excel']));
 header('Location: ' . $redirect_url);
 exit();
