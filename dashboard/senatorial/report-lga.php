@@ -119,8 +119,12 @@ $summary = [
     'pending' => 0,
     'flagged' => 0,
     'total_votes' => 0,
+    'valid_votes' => 0,
+    'rejected_votes' => 0,
     'total_registered' => 0,
-    'total_accredited' => 0
+    'total_accredited' => 0,
+    'submission_rate' => 0,
+    'verification_rate' => 0
 ];
 
 if ($selected_lga > 0 && $election_id > 0) {
@@ -130,7 +134,7 @@ if ($selected_lga > 0 && $election_id > 0) {
             SELECT l.id, l.name, l.code,
                    COUNT(DISTINCT w.id) as ward_count,
                    COUNT(DISTINCT pu.id) as pu_count,
-                   SUM(pu.registered_voters) as total_registered_voters
+                   COALESCE(SUM(pu.registered_voters), 0) as total_registered_voters
             FROM lgas l
             LEFT JOIN wards w ON w.lga_id = l.id AND w.is_active = 1
             LEFT JOIN polling_units pu ON pu.ward_id = w.id AND pu.is_active = 1
@@ -151,9 +155,9 @@ if ($selected_lga > 0 && $election_id > 0) {
                 COUNT(DISTINCT CASE WHEN r.status = 'verified' THEN pu.id END) as verified,
                 COUNT(DISTINCT CASE WHEN r.status = 'pending' THEN pu.id END) as pending,
                 COUNT(DISTINCT CASE WHEN r.status = 'flagged' THEN pu.id END) as flagged,
-                SUM(r.total_votes_cast) as total_votes,
-                SUM(r.valid_votes) as valid_votes,
-                SUM(r.rejected_votes) as rejected_votes
+                COALESCE(SUM(r.total_votes_cast), 0) as total_votes,
+                COALESCE(SUM(r.valid_votes), 0) as valid_votes,
+                COALESCE(SUM(r.rejected_votes), 0) as rejected_votes
             FROM wards w
             LEFT JOIN polling_units pu ON pu.ward_id = w.id AND pu.is_active = 1
             LEFT JOIN results_ec8a r ON r.pu_id = pu.id AND r.election_id = ? AND r.tenant_id = ?
@@ -164,20 +168,22 @@ if ($selected_lga > 0 && $election_id > 0) {
         $stmt->execute([$election_id, $tenant_id, $selected_lga]);
         $ward_data = $stmt->fetchAll();
         
+        // Calculate summary
         foreach ($ward_data as $row) {
-            $summary['total_pus'] += $row['total_pus'];
-            $summary['submitted'] += $row['submitted'];
-            $summary['verified'] += $row['verified'];
-            $summary['pending'] += $row['pending'];
-            $summary['flagged'] += $row['flagged'];
-            $summary['total_votes'] += $row['total_votes'];
-            $summary['valid_votes'] += $row['valid_votes'];
-            $summary['rejected_votes'] += $row['rejected_votes'];
+            $summary['total_pus'] += (int)($row['total_pus'] ?? 0);
+            $summary['submitted'] += (int)($row['submitted'] ?? 0);
+            $summary['verified'] += (int)($row['verified'] ?? 0);
+            $summary['pending'] += (int)($row['pending'] ?? 0);
+            $summary['flagged'] += (int)($row['flagged'] ?? 0);
+            $summary['total_votes'] += (int)($row['total_votes'] ?? 0);
+            $summary['valid_votes'] += (int)($row['valid_votes'] ?? 0);
+            $summary['rejected_votes'] += (int)($row['rejected_votes'] ?? 0);
         }
-        $summary['total_registered'] = $report_data['total_registered_voters'] ?? 0;
+        $summary['total_registered'] = (int)($report_data['total_registered_voters'] ?? 0);
         
         $summary['submission_rate'] = $summary['total_pus'] > 0 ? round(($summary['submitted'] / $summary['total_pus']) * 100, 1) : 0;
         $summary['verification_rate'] = $summary['total_pus'] > 0 ? round(($summary['verified'] / $summary['total_pus']) * 100, 1) : 0;
+        
     } catch (Exception $e) {
         error_log("Error fetching report data: " . $e->getMessage());
     }
@@ -243,21 +249,37 @@ include '../includes/sidebar.php';
     transition: var(--transition);
 }
 .filter-section .btn-filter:hover {
-    background: var(--primary-dark);
+    background: #1D4ED8;
 }
-.filter-section .btn-print {
-    padding: 8px 20px;
-    border: 1px solid var(--gray-200);
+.filter-section .btn-reset {
+    padding: 8px 18px;
+    border: 1.5px solid var(--gray-200);
     border-radius: 8px;
     background: white;
     color: var(--gray-600);
-    font-weight: 600;
+    font-weight: 500;
+    font-size: 0.8rem;
+    text-decoration: none;
+    transition: var(--transition);
+}
+.filter-section .btn-reset:hover {
+    background: var(--gray-50);
+    border-color: var(--gray-400);
+}
+.filter-section .btn-print {
+    padding: 8px 18px;
+    border: 1.5px solid var(--gray-200);
+    border-radius: 8px;
+    background: white;
+    color: var(--gray-600);
+    font-weight: 500;
     font-size: 0.8rem;
     cursor: pointer;
     transition: var(--transition);
 }
 .filter-section .btn-print:hover {
     background: var(--gray-50);
+    border-color: var(--gray-400);
 }
 
 .stats-grid {
@@ -368,7 +390,7 @@ include '../includes/sidebar.php';
 
 .empty-state {
     text-align: center;
-    padding: 40px;
+    padding: 60px 20px;
     color: var(--gray-500);
 }
 .empty-state i {
@@ -377,14 +399,27 @@ include '../includes/sidebar.php';
     margin-bottom: 12px;
     color: var(--gray-300);
 }
+.empty-state h3 {
+    font-size: 1.1rem;
+    color: var(--gray-700);
+    margin: 0 0 8px 0;
+}
 
+/* Print Styles */
 @media print {
-    .filter-section, .page-header .btn, .sidebar, .dashboard-header { display: none !important; }
+    .filter-section, 
+    .page-header .btn-secondary,
+    .sidebar, 
+    .dashboard-header,
+    .main-content .dashboard-header { 
+        display: none !important; 
+    }
     .main-content { margin-left: 0 !important; }
     .stats-grid { break-inside: avoid; }
     .section-card { break-inside: avoid; border: 1px solid #ddd !important; }
 }
 
+/* Responsive */
 @media (max-width: 768px) {
     .stats-grid {
         grid-template-columns: repeat(2, 1fr);
@@ -395,6 +430,16 @@ include '../includes/sidebar.php';
     .filter-section select {
         min-width: unset;
         width: 100%;
+    }
+    .filter-section form {
+        flex-direction: column;
+        width: 100%;
+    }
+    .filter-section .btn-filter,
+    .filter-section .btn-reset,
+    .filter-section .btn-print {
+        width: 100%;
+        justify-content: center;
     }
 }
 </style>
@@ -413,10 +458,12 @@ include '../includes/sidebar.php';
                 </h2>
             </div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;">
-                <button onclick="window.print()" class="btn btn-secondary" style="padding:8px 18px;border-radius:10px;font-weight:600;font-size:0.85rem;text-decoration:none;display:inline-flex;align-items:center;gap:8px;background:var(--gray-100);color:var(--gray-600);border:none;">
-                    <i class="fas fa-print"></i> Print
-                </button>
-                <a href="reports.php" class="btn btn-secondary" style="padding:8px 18px;border-radius:10px;font-weight:600;font-size:0.85rem;text-decoration:none;display:inline-flex;align-items:center;gap:8px;background:var(--gray-100);color:var(--gray-600);border:none;">
+                <?php if ($selected_lga > 0 && $election_id > 0 && $report_data): ?>
+                    <button onclick="window.print()" class="btn-print" style="padding:8px 18px;border-radius:10px;font-weight:600;font-size:0.85rem;text-decoration:none;display:inline-flex;align-items:center;gap:8px;background:var(--gray-100);color:var(--gray-600);border:1px solid var(--gray-200);">
+                        <i class="fas fa-print"></i> Print
+                    </button>
+                <?php endif; ?>
+                <a href="reports.php" class="btn-secondary" style="padding:8px 18px;border-radius:10px;font-weight:600;font-size:0.85rem;text-decoration:none;display:inline-flex;align-items:center;gap:8px;background:var(--gray-100);color:var(--gray-600);border:1px solid var(--gray-200);">
                     <i class="fas fa-arrow-left"></i> Back
                 </a>
             </div>
@@ -426,7 +473,7 @@ include '../includes/sidebar.php';
         <div class="filter-section">
             <form method="GET" action="" style="display:flex;gap:12px;flex-wrap:wrap;flex:1;align-items:center;">
                 <select name="election" required>
-                    <option value="">Select Election...</option>
+                    <option value="">-- Select Election --</option>
                     <?php foreach ($elections as $e): ?>
                         <option value="<?php echo $e['id']; ?>" <?php echo ($election_id == $e['id']) ? 'selected' : ''; ?>>
                             <?php echo htmlspecialchars($e['name']); ?>
@@ -434,7 +481,7 @@ include '../includes/sidebar.php';
                     <?php endforeach; ?>
                 </select>
                 <select name="lga" required>
-                    <option value="">Select LGA...</option>
+                    <option value="">-- Select LGA --</option>
                     <?php foreach ($lgas as $lga): ?>
                         <option value="<?php echo $lga['id']; ?>" <?php echo ($selected_lga == $lga['id']) ? 'selected' : ''; ?>>
                             <?php echo htmlspecialchars($lga['name']); ?>
@@ -442,20 +489,20 @@ include '../includes/sidebar.php';
                     <?php endforeach; ?>
                 </select>
                 <button type="submit" class="btn-filter"><i class="fas fa-search"></i> Generate Report</button>
-                <a href="report-lga.php" class="btn-filter" style="background:var(--gray-100);color:var(--gray-600);">Reset</a>
+                <a href="report-lga.php" class="btn-reset"><i class="fas fa-times"></i> Reset</a>
             </form>
         </div>
 
         <?php if ($selected_lga > 0 && $election_id > 0 && $report_data): ?>
             <!-- LGA Header -->
             <div style="background:white;border-radius:var(--radius);border:1px solid var(--gray-200);padding:20px;margin-bottom:24px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;">
+                <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
                     <div>
                         <h3 style="font-size:1.1rem;font-weight:700;margin:0;">
-                            <?php echo htmlspecialchars($report_data['name']); ?>
+                            <?php echo htmlspecialchars($report_data['name'] ?? 'LGA'); ?>
                         </h3>
                         <p style="color:var(--gray-500);font-size:0.85rem;margin:4px 0 0;">
-                            <i class="fas fa-hashtag"></i> <?php echo htmlspecialchars($report_data['code']); ?>
+                            <i class="fas fa-hashtag"></i> <?php echo htmlspecialchars($report_data['code'] ?? 'N/A'); ?>
                             <span style="margin-left:16px;">
                                 <i class="fas fa-layer-group"></i> <?php echo number_format($report_data['ward_count'] ?? 0); ?> Wards
                             </span>
@@ -463,11 +510,14 @@ include '../includes/sidebar.php';
                                 <i class="fas fa-flag-checkered"></i> <?php echo number_format($report_data['pu_count'] ?? 0); ?> PUs
                             </span>
                             <span style="margin-left:16px;">
-                                <i class="fas fa-users"></i> <?php echo number_format($report_data['total_registered_voters'] ?? 0); ?> Voters
+                                <i class="fas fa-users"></i> <?php echo number_format($summary['total_registered']); ?> Voters
+                            </span>
+                            <span style="margin-left:16px;">
+                                <i class="fas fa-vote-yea"></i> <?php echo number_format($summary['total_votes']); ?> Votes
                             </span>
                         </p>
                     </div>
-                    <div style="text-align:right;">
+                    <div style="text-align:right;min-width:150px;">
                         <div style="font-size:0.85rem;color:var(--gray-500);">
                             Submission Rate
                             <span style="font-size:1.2rem;font-weight:700;color:var(--primary);display:block;">
@@ -487,10 +537,12 @@ include '../includes/sidebar.php';
                 <div class="stat-card green">
                     <div class="stat-number"><?php echo number_format($summary['submitted']); ?></div>
                     <div class="stat-label">Submitted</div>
+                    <div class="stat-change"><?php echo $summary['submission_rate']; ?>%</div>
                 </div>
                 <div class="stat-card purple">
                     <div class="stat-number"><?php echo number_format($summary['verified']); ?></div>
                     <div class="stat-label">Verified</div>
+                    <div class="stat-change"><?php echo $summary['verification_rate']; ?>%</div>
                 </div>
                 <div class="stat-card yellow">
                     <div class="stat-number"><?php echo number_format($summary['pending']); ?></div>
@@ -531,24 +583,25 @@ include '../includes/sidebar.php';
                         <tbody>
                             <?php if (count($ward_data) > 0): ?>
                                 <?php $i = 1; foreach ($ward_data as $row): 
-                                    $rate = $row['total_pus'] > 0 ? round(($row['submitted'] / $row['total_pus']) * 100, 1) : 0;
+                                    $total_pus = (int)($row['total_pus'] ?? 0);
+                                    $submitted = (int)($row['submitted'] ?? 0);
+                                    $rate = $total_pus > 0 ? round(($submitted / $total_pus) * 100, 1) : 0;
                                     $color = $rate >= 80 ? 'green' : ($rate >= 50 ? 'blue' : ($rate >= 30 ? 'yellow' : 'red'));
-                                    $status = $rate >= 100 ? 'completed' : ($rate > 0 ? 'in-progress' : 'pending');
                                 ?>
                                     <tr>
                                         <td><?php echo $i++; ?></td>
-                                        <td><strong><?php echo htmlspecialchars($row['ward_name']); ?></strong></td>
-                                        <td><?php echo htmlspecialchars($row['ward_code']); ?></td>
-                                        <td><?php echo number_format($row['total_pus']); ?></td>
-                                        <td><?php echo number_format($row['submitted']); ?></td>
-                                        <td><?php echo number_format($row['verified']); ?></td>
-                                        <td><?php echo number_format($row['pending']); ?></td>
-                                        <td><?php echo number_format($row['flagged']); ?></td>
-                                        <td><?php echo number_format($row['total_votes']); ?></td>
+                                        <td><strong><?php echo htmlspecialchars($row['ward_name'] ?? 'N/A'); ?></strong></td>
+                                        <td><?php echo htmlspecialchars($row['ward_code'] ?? 'N/A'); ?></td>
+                                        <td><?php echo number_format($total_pus); ?></td>
+                                        <td><?php echo number_format($submitted); ?></td>
+                                        <td><?php echo number_format((int)($row['verified'] ?? 0)); ?></td>
+                                        <td><?php echo number_format((int)($row['pending'] ?? 0)); ?></td>
+                                        <td><?php echo number_format((int)($row['flagged'] ?? 0)); ?></td>
+                                        <td><?php echo number_format((int)($row['total_votes'] ?? 0)); ?></td>
                                         <td>
                                             <div style="display:flex;align-items:center;gap:10px;">
                                                 <span style="font-size:0.75rem;font-weight:600;min-width:40px;"><?php echo $rate; ?>%</span>
-                                                <div class="progress-bar" style="flex:1;">
+                                                <div class="progress-bar" style="flex:1;min-width:60px;">
                                                     <div class="progress-fill <?php echo $color; ?>" style="width:<?php echo min($rate, 100); ?>%;"></div>
                                                 </div>
                                             </div>
@@ -558,9 +611,9 @@ include '../includes/sidebar.php';
                             <?php else: ?>
                                 <tr>
                                     <td colspan="10">
-                                        <div class="empty-state">
-                                            <i class="fas fa-inbox"></i>
-                                            <p>No ward data available.</p>
+                                        <div class="empty-state" style="padding:20px;">
+                                            <i class="fas fa-inbox" style="font-size:1.5rem;"></i>
+                                            <p>No ward data available for this LGA.</p>
                                         </div>
                                     </td>
                                 </tr>
@@ -569,16 +622,99 @@ include '../includes/sidebar.php';
                     </table>
                 </div>
             </div>
+
+            <!-- Vote Summary -->
+            <div style="margin-top:20px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;">
+                <div class="section-card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-vote-yea" style="color:var(--primary);margin-right:6px;"></i> Vote Summary</h3>
+                    </div>
+                    <div style="font-size:0.9rem;">
+                        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--gray-100);">
+                            <span style="color:var(--gray-500);">Total Votes</span>
+                            <span style="font-weight:600;"><?php echo number_format($summary['total_votes']); ?></span>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--gray-100);">
+                            <span style="color:var(--gray-500);">Valid Votes</span>
+                            <span style="font-weight:600;color:#10B981;"><?php echo number_format($summary['valid_votes']); ?></span>
+                        </div>
+                        <div style="display:flex;justify-content:space-between;padding:8px 0;">
+                            <span style="color:var(--gray-500);">Rejected Votes</span>
+                            <span style="font-weight:600;color:#EF4444;"><?php echo number_format($summary['rejected_votes']); ?></span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="section-card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-chart-pie" style="color:var(--primary);margin-right:6px;"></i> Status Summary</h3>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;text-align:center;">
+                        <div>
+                            <div style="font-size:1.5rem;font-weight:700;color:#10B981;">
+                                <?php echo number_format($summary['verified']); ?>
+                            </div>
+                            <div style="font-size:0.7rem;color:var(--gray-500);">Verified</div>
+                        </div>
+                        <div>
+                            <div style="font-size:1.5rem;font-weight:700;color:#F59E0B;">
+                                <?php echo number_format($summary['pending']); ?>
+                            </div>
+                            <div style="font-size:0.7rem;color:var(--gray-500);">Pending</div>
+                        </div>
+                        <div>
+                            <div style="font-size:1.5rem;font-weight:700;color:#EF4444;">
+                                <?php echo number_format($summary['flagged']); ?>
+                            </div>
+                            <div style="font-size:0.7rem;color:var(--gray-500);">Flagged</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section-card">
+                    <div class="card-header">
+                        <h3><i class="fas fa-info-circle" style="color:var(--primary);margin-right:6px;"></i> Report Info</h3>
+                    </div>
+                    <div style="font-size:0.85rem;color:var(--gray-600);">
+                        <p><strong>Election:</strong> <?php 
+                            $election_name = '';
+                            foreach ($elections as $e) {
+                                if ($e['id'] == $election_id) {
+                                    $election_name = $e['name'];
+                                    break;
+                                }
+                            }
+                            echo htmlspecialchars($election_name);
+                        ?></p>
+                        <p><strong>LGA:</strong> <?php echo htmlspecialchars($report_data['name'] ?? 'N/A'); ?></p>
+                        <p><strong>Generated:</strong> <?php echo date('F d, Y g:i A'); ?></p>
+                        <p><strong>Submission Rate:</strong> <?php echo $summary['submission_rate']; ?>%</p>
+                    </div>
+                </div>
+            </div>
+
         <?php elseif ($selected_lga > 0 && $election_id > 0): ?>
-            <div class="empty-state">
+            <div class="empty-state" style="background:white;border-radius:var(--radius);border:1px solid var(--gray-200);padding:40px;">
                 <i class="fas fa-map-marker-alt"></i>
-                <p>LGA not found.</p>
+                <h3>LGA Not Found</h3>
+                <p>The selected LGA could not be found or has no data.</p>
+                <a href="report-lga.php" class="btn-reset" style="display:inline-block;margin-top:12px;padding:8px 20px;background:var(--gray-100);color:var(--gray-600);border-radius:8px;text-decoration:none;font-weight:500;">
+                    <i class="fas fa-undo"></i> Reset Selection
+                </a>
             </div>
         <?php else: ?>
-            <div class="empty-state">
+            <div class="empty-state" style="background:white;border-radius:var(--radius);border:1px solid var(--gray-200);padding:60px 20px;">
                 <i class="fas fa-map-marker-alt"></i>
                 <h3>Select an LGA and Election</h3>
                 <p>Choose an LGA and election from the dropdowns above to generate the report.</p>
+                <div style="margin-top:16px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+                    <span style="background:var(--gray-100);padding:8px 16px;border-radius:8px;font-size:0.8rem;">
+                        <i class="fas fa-check-circle" style="color:#10B981;"></i> <?php echo count($lgas); ?> LGAs
+                    </span>
+                    <span style="background:var(--gray-100);padding:8px 16px;border-radius:8px;font-size:0.8rem;">
+                        <i class="fas fa-check-circle" style="color:#10B981;"></i> <?php echo count($elections); ?> Elections
+                    </span>
+                </div>
             </div>
         <?php endif; ?>
     </div>
@@ -654,11 +790,27 @@ if (profileBtn && profileMenu) {
     });
 }
 
+// Preloader - immediate hide
 window.addEventListener('load', function() {
     var preloader = document.getElementById('preloader');
     if (preloader) {
         preloader.classList.add('hidden');
-        setTimeout(function() { preloader.style.display = 'none'; }, 600);
+        setTimeout(function() { 
+            preloader.style.display = 'none'; 
+        }, 300);
+    }
+});
+
+// Backup: hide preloader after DOM ready
+document.addEventListener('DOMContentLoaded', function() {
+    var preloader = document.getElementById('preloader');
+    if (preloader) {
+        setTimeout(function() {
+            preloader.classList.add('hidden');
+            setTimeout(function() { 
+                preloader.style.display = 'none'; 
+            }, 300);
+        }, 500);
     }
 });
 </script>

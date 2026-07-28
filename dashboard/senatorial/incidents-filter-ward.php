@@ -18,6 +18,28 @@ if (SessionManager::get('role_level') !== 'senatorial') {
     exit();
 }
 
+// Get ward ID from URL
 $ward_id = isset($_GET['ward']) ? (int)$_GET['ward'] : 0;
-header('Location: incidents.php?ward=' . $ward_id);
+$return_url = isset($_GET['return']) ? $_GET['return'] : 'incidents.php';
+
+// Validate ward exists
+if ($ward_id > 0) {
+    $db = getDB();
+    try {
+        $stmt = $db->prepare("SELECT id, name FROM wards WHERE id = ? AND is_active = 1");
+        $stmt->execute([$ward_id]);
+        $ward = $stmt->fetch();
+        if ($ward) {
+            // Redirect to incidents with ward filter
+            header("Location: incidents.php?ward=$ward_id&ward_name=" . urlencode($ward['name']));
+            exit();
+        }
+    } catch (Exception $e) {
+        error_log("Error validating ward: " . $e->getMessage());
+    }
+}
+
+// Fallback - redirect to incidents
+header("Location: incidents.php");
 exit();
+?>

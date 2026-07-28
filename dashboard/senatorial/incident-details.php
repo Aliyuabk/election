@@ -21,6 +21,7 @@ if (SessionManager::get('role_level') !== 'senatorial') {
 $user_name = SessionManager::get('user_name', 'Coordinator');
 $user_id = SessionManager::get('user_id');
 $tenant_id = SessionManager::get('tenant_id');
+$senatorial_id = SessionManager::get('senatorial_id');
 
 $db = getDB();
 
@@ -74,36 +75,86 @@ if (!$incident) {
 }
 
 // ============================================================
+// GET INCIDENT HISTORY
+// ============================================================
+$history = [];
+try {
+    $stmt = $db->prepare("
+        SELECT 
+            a.*,
+            u.full_name as user_name
+        FROM activity_logs a
+        LEFT JOIN users u ON a.user_id = u.id
+        WHERE a.entity_type = 'incident' AND a.entity_id = ?
+        ORDER BY a.created_at DESC
+        LIMIT 20
+    ");
+    $stmt->execute([$incident_id]);
+    $history = $stmt->fetchAll();
+} catch (Exception $e) {
+    error_log("Error fetching incident history: " . $e->getMessage());
+}
+
+// ============================================================
 // HANDLE STATUS UPDATE
 // ============================================================
 $error = '';
 $success = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $action = $_POST['action'] ?? '';
     $status = $_POST['status'] ?? '';
     $resolution_notes = trim($_POST['resolution_notes'] ?? '');
     
-    if (empty($status)) {
-        $error = 'Please select a status.';
-    } else {
+    if ($action === 'update_status') {
+        if (empty($status)) {
+            $error = 'Please select a status.';
+        } else {
+            try {
+                $resolved_at = $status === 'resolved' ? date('Y-m-d H:i:s') : null;
+                $resolved_by = $status === 'resolved' ? $user_id : null;
+                
+                $stmt = $db->prepare("
+                    UPDATE incidents SET 
+                        status = ?,
+                        resolved_at = ?,
+                        resolved_by = ?,
+                        resolution_notes = ?,
+                        updated_at = NOW()
+                    WHERE id = ? AND tenant_id = ?
+                ");
+                $stmt->execute([$status, $resolved_at, $resolved_by, $resolution_notes, $incident_id, $tenant_id]);
+                
+                logActivity($user_id, 'incident_updated', "Updated incident: {$incident['title']} status to $status (ID: $incident_id)", 'incident', $incident_id);
+                
+                $success = 'Incident updated successfully!';
+                
+                // Refresh incident data
+                $stmt = $db->prepare("SELECT * FROM incidents WHERE id = ?");
+                $stmt->execute([$incident_id]);
+                $incident = $stmt->fetch();
+                
+            } catch (Exception $e) {
+                $error = 'Error updating incident: ' . $e->getMessage();
+                error_log("Incident update error: " . $e->getMessage());
+            }
+        }
+    } elseif ($action === 'resolve') {
         try {
-            $resolved_at = $status === 'resolved' ? date('Y-m-d H:i:s') : null;
-            $resolved_by = $status === 'resolved' ? $user_id : null;
-            
             $stmt = $db->prepare("
                 UPDATE incidents SET 
-                    status = ?,
-                    resolved_at = ?,
+                    status = 'resolved',
+                    resolved_at = NOW(),
                     resolved_by = ?,
                     resolution_notes = ?,
                     updated_at = NOW()
                 WHERE id = ? AND tenant_id = ?
             ");
-            $stmt->execute([$status, $resolved_at, $resolved_by, $resolution_notes, $incident_id, $tenant_id]);
+            $stmt->execute([$user_id, $resolution_notes, $incident_id, $tenant_id]);
             
-            logActivity($user_id, 'incident_updated', "Updated incident: {$incident['title']} status to $status (ID: $incident_id)");
+            logActivity($user_id, 'incident_resolved', "Resolved incident: {$incident['title']} (ID: $incident_id)", 'incident', $incident_id);
             
-            $success = 'Incident updated successfully!';
+            $success = 'Incident resolved successfully!';
             
             // Refresh incident data
             $stmt = $db->prepare("SELECT * FROM incidents WHERE id = ?");
@@ -111,8 +162,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $incident = $stmt->fetch();
             
         } catch (Exception $e) {
-            $error = 'Error updating incident: ' . $e->getMessage();
-            error_log("Incident update error: " . $e->getMessage());
+            $error = 'Error resolving incident: ' . $e->getMessage();
+            error_log("Incident resolve error: " . $e->getMessage());
+        }
+    } elseif ($action === 'escalate') {
+        try {
+            $stmt = $db->prepare("
+                UPDATE incidents SET 
+                    status = 'escalated',
+                    updated_at = NOW()
+                WHERE id = ? AND tenant_id = ?
+            ");
+            $stmt->execute([$incident_id, $tenant_id]);
+            
+            logActivity($user_id, 'incident_escalated', "Escalated incident: {$incident['title']} (ID: $incident_id)", 'incident', $incident_id);
+            
+            $success = 'Incident escalated successfully!';
+            
+            // Refresh incident data
+            $stmt = $db->prepare("SELECT * FROM incidents WHERE id = ?");
+            $stmt->execute([$incident_id]);
+            $incident = $stmt->fetch();
+            
+        } catch (Exception $e) {
+            $error = 'Error escalating incident: ' . $e->getMessage();
+            error_log("Incident escalate error: " . $e->getMessage());
         }
     }
 }
@@ -180,9 +254,12 @@ include '../includes/sidebar.php';
     font-weight: 600;
 }
 .status-badge.reported { background: #FEE2E2; color: #DC2626; }
+.status-badge.acknowledged { background: #FEF3C7; color: #D97706; }
 .status-badge.investigating { background: #FEF3C7; color: #D97706; }
 .status-badge.resolved { background: #D1FAE5; color: #059669; }
 .status-badge.escalated { background: #FEE2E2; color: #DC2626; }
+.status-badge.closed { background: #D1FAE5; color: #059669; }
+.status-badge.false_alarm { background: #E5E7EB; color: #6B7280; }
 
 .severity-badge {
     display: inline-block;
@@ -294,7 +371,7 @@ include '../includes/sidebar.php';
     color: white;
 }
 .btn-primary:hover {
-    background: var(--primary-dark);
+    background: #1D4ED8;
 }
 .btn-secondary {
     background: var(--gray-100);
@@ -309,6 +386,20 @@ include '../includes/sidebar.php';
 }
 .btn-success:hover {
     background: #059669;
+}
+.btn-danger {
+    background: #DC2626;
+    color: white;
+}
+.btn-danger:hover {
+    background: #B91C1C;
+}
+.btn-warning {
+    background: #F59E0B;
+    color: white;
+}
+.btn-warning:hover {
+    background: #D97706;
 }
 
 .alert {
@@ -342,9 +433,55 @@ include '../includes/sidebar.php';
     flex-wrap: wrap;
 }
 
+.history-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--gray-100);
+}
+.history-item:last-child {
+    border-bottom: none;
+}
+.history-item .history-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    flex-shrink: 0;
+}
+.history-item .history-icon.update { background: #DBEAFE; color: #2563EB; }
+.history-item .history-icon.resolve { background: #D1FAE5; color: #059669; }
+.history-item .history-icon.escalate { background: #FEE2E2; color: #DC2626; }
+.history-item .history-content {
+    flex: 1;
+}
+.history-item .history-content .action {
+    font-weight: 500;
+    font-size: 0.85rem;
+}
+.history-item .history-content .desc {
+    font-size: 0.78rem;
+    color: var(--gray-500);
+}
+.history-item .history-content .time {
+    font-size: 0.65rem;
+    color: var(--gray-400);
+}
+
 @media (max-width: 768px) {
     .detail-grid {
         grid-template-columns: 1fr;
+    }
+    .btn-group {
+        flex-direction: column;
+    }
+    .btn-group .btn {
+        width: 100%;
+        justify-content: center;
     }
 }
 </style>
@@ -359,6 +496,7 @@ include '../includes/sidebar.php';
                 <h2>
                     <i class="fas fa-info-circle" style="color:var(--primary);margin-right:8px;"></i> 
                     Incident Details
+                    <small>#<?php echo $incident_id; ?></small>
                 </h2>
             </div>
             <div style="display:flex;gap:10px;flex-wrap:wrap;">
@@ -371,13 +509,13 @@ include '../includes/sidebar.php';
         <?php if (!empty($error)): ?>
             <div class="alert alert-error">
                 <i class="fas fa-exclamation-circle"></i>
-                <div><?php echo $error; ?></div>
+                <div><?php echo htmlspecialchars($error); ?></div>
             </div>
         <?php endif; ?>
         <?php if (!empty($success)): ?>
             <div class="alert alert-success">
                 <i class="fas fa-check-circle"></i>
-                <div><?php echo $success; ?></div>
+                <div><?php echo htmlspecialchars($success); ?></div>
             </div>
         <?php endif; ?>
 
@@ -392,15 +530,15 @@ include '../includes/sidebar.php';
                         <?php endif; ?>
                     </div>
                     <div style="font-size:0.85rem;color:var(--gray-500);margin-top:4px;">
-                        <span class="status-badge <?php echo $incident['status']; ?>">
-                            <?php echo ucfirst($incident['status']); ?>
+                        <span class="status-badge <?php echo htmlspecialchars($incident['status']); ?>">
+                            <?php echo ucfirst(htmlspecialchars($incident['status'])); ?>
                         </span>
-                        <span class="severity-badge <?php echo $incident['severity']; ?>" style="margin-left:8px;">
-                            <?php echo ucfirst($incident['severity']); ?>
+                        <span class="severity-badge <?php echo htmlspecialchars($incident['severity']); ?>" style="margin-left:8px;">
+                            <?php echo ucfirst(htmlspecialchars($incident['severity'])); ?>
                         </span>
                         <span style="margin-left:8px;">
-                            <span class="incident-type-tag" style="padding:2px 10px;border-radius:20px;font-size:0.7rem;background:var(--gray-100);">
-                                <?php echo ucfirst(str_replace('_', ' ', $incident['incident_type'])); ?>
+                            <span style="padding:2px 10px;border-radius:20px;font-size:0.7rem;background:var(--gray-100);">
+                                <?php echo ucfirst(str_replace('_', ' ', htmlspecialchars($incident['incident_type']))); ?>
                             </span>
                         </span>
                     </div>
@@ -417,7 +555,12 @@ include '../includes/sidebar.php';
                     <div class="value"><?php echo htmlspecialchars($incident['reporter_name'] ?? 'Unknown'); ?></div>
                     <?php if ($incident['reporter_email']): ?>
                         <div style="font-size:0.7rem;color:var(--gray-400);">
-                            <?php echo htmlspecialchars($incident['reporter_email']); ?>
+                            <i class="fas fa-envelope"></i> <?php echo htmlspecialchars($incident['reporter_email']); ?>
+                        </div>
+                    <?php endif; ?>
+                    <?php if ($incident['reporter_phone']): ?>
+                        <div style="font-size:0.7rem;color:var(--gray-400);">
+                            <i class="fas fa-phone"></i> <?php echo htmlspecialchars($incident['reporter_phone']); ?>
                         </div>
                     <?php endif; ?>
                 </div>
@@ -435,6 +578,11 @@ include '../includes/sidebar.php';
                     <?php if ($incident['pu_code']): ?>
                         <div style="font-size:0.7rem;color:var(--gray-400);">
                             PU: <?php echo htmlspecialchars($incident['pu_code']); ?>
+                        </div>
+                    <?php endif; ?>
+                    <?php if ($incident['state_name']): ?>
+                        <div style="font-size:0.7rem;color:var(--gray-400);">
+                            State: <?php echo htmlspecialchars($incident['state_name']); ?>
                         </div>
                     <?php endif; ?>
                 </div>
@@ -479,23 +627,25 @@ include '../includes/sidebar.php';
             <?php endif; ?>
 
             <!-- Update Status Form -->
-            <?php if ($incident['status'] !== 'resolved'): ?>
+            <?php if (!in_array($incident['status'], ['resolved', 'closed', 'false_alarm'])): ?>
                 <div class="update-form">
                     <h4 style="font-size:0.95rem;font-weight:600;margin-bottom:12px;">
                         <i class="fas fa-edit"></i> Update Status
                     </h4>
                     <form method="POST" action="">
+                        <input type="hidden" name="action" value="update_status">
                         <div class="form-group">
                             <label for="status">Status</label>
                             <select name="status" id="status" required>
                                 <option value="">Select Status...</option>
                                 <option value="reported" <?php echo $incident['status'] === 'reported' ? 'selected' : ''; ?>>Reported</option>
+                                <option value="acknowledged" <?php echo $incident['status'] === 'acknowledged' ? 'selected' : ''; ?>>Acknowledged</option>
                                 <option value="investigating" <?php echo $incident['status'] === 'investigating' ? 'selected' : ''; ?>>Investigating</option>
                                 <option value="resolved" <?php echo $incident['status'] === 'resolved' ? 'selected' : ''; ?>>Resolved</option>
                                 <option value="escalated" <?php echo $incident['status'] === 'escalated' ? 'selected' : ''; ?>>Escalated</option>
                             </select>
                         </div>
-                        <div class="form-group" id="resolutionNotesGroup">
+                        <div class="form-group" id="resolutionNotesGroup" style="display:none;">
                             <label for="resolution_notes">Resolution Notes</label>
                             <textarea name="resolution_notes" id="resolution_notes" placeholder="Add resolution notes..."><?php echo htmlspecialchars($incident['resolution_notes'] ?? ''); ?></textarea>
                         </div>
@@ -503,17 +653,59 @@ include '../includes/sidebar.php';
                             <button type="submit" class="btn btn-primary">
                                 <i class="fas fa-save"></i> Update Status
                             </button>
-                            <a href="incident-escalate.php?id=<?php echo $incident_id; ?>" class="btn" style="background:#DC2626;color:white;">
-                                <i class="fas fa-arrow-up"></i> Escalate
-                            </a>
-                            <a href="incident-close.php?id=<?php echo $incident_id; ?>" class="btn btn-success">
-                                <i class="fas fa-check-circle"></i> Resolve
-                            </a>
                         </div>
                     </form>
+                    
+                    <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--gray-200);">
+                        <h5 style="font-size:0.85rem;font-weight:600;margin-bottom:8px;">Quick Actions</h5>
+                        <div class="btn-group">
+                            <form method="POST" style="display:inline;">
+                                <input type="hidden" name="action" value="escalate">
+                                <button type="submit" class="btn btn-danger" onclick="return confirm('Are you sure you want to escalate this incident?')">
+                                    <i class="fas fa-arrow-up"></i> Escalate
+                                </button>
+                            </form>
+                            <form method="POST" style="display:inline;">
+                                <input type="hidden" name="action" value="resolve">
+                                <input type="hidden" name="resolution_notes" value="Resolved by Coordinator">
+                                <button type="submit" class="btn btn-success" onclick="return confirm('Mark this incident as resolved?')">
+                                    <i class="fas fa-check-circle"></i> Resolve
+                                </button>
+                            </form>
+                        </div>
+                    </div>
                 </div>
             <?php endif; ?>
         </div>
+
+        <!-- History -->
+        <?php if (!empty($history)): ?>
+            <div class="detail-card" style="margin-top:20px;">
+                <h4 style="font-size:0.95rem;font-weight:600;margin-bottom:16px;">
+                    <i class="fas fa-history" style="color:var(--primary);"></i> Activity History
+                </h4>
+                <?php foreach ($history as $item): ?>
+                    <div class="history-item">
+                        <div class="history-icon <?php 
+                            if (strpos($item['activity_type'] ?? '', 'resolve') !== false) echo 'resolve';
+                            elseif (strpos($item['activity_type'] ?? '', 'escalate') !== false) echo 'escalate';
+                            else echo 'update';
+                        ?>">
+                            <i class="fas <?php 
+                                if (strpos($item['activity_type'] ?? '', 'resolve') !== false) echo 'fa-check-circle';
+                                elseif (strpos($item['activity_type'] ?? '', 'escalate') !== false) echo 'fa-arrow-up';
+                                else echo 'fa-edit';
+                            ?>"></i>
+                        </div>
+                        <div class="history-content">
+                            <div class="action"><?php echo htmlspecialchars($item['user_name'] ?? 'System'); ?></div>
+                            <div class="desc"><?php echo htmlspecialchars($item['description'] ?? ''); ?></div>
+                            <div class="time"><?php echo date('M j, Y g:i A', strtotime($item['created_at'])); ?></div>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
     </div>
 </main>
 
