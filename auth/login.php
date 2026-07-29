@@ -194,7 +194,7 @@ function loginUser($user, $remember, $db) {
     SessionManager::set('session_token', $token);
     
     // ============================================================
-    // CRITICAL FIX: Store Jurisdiction Data
+    // CRITICAL FIX: Store ALL Jurisdiction Data
     // ============================================================
     SessionManager::set('state_id', $user['state_id']);
     SessionManager::set('lga_id', $user['lga_id']);
@@ -203,8 +203,13 @@ function loginUser($user, $remember, $db) {
     SessionManager::set('senatorial_id', $user['senatorial_id']);
     SessionManager::set('federal_constituency_id', $user['federal_constituency_id']);
     
-    // Log what we're storing
-    error_log("Login - Storing jurisdiction: senatorial_id=" . ($user['senatorial_id'] ?? 'NULL') . ", state_id=" . ($user['state_id'] ?? 'NULL'));
+    // Log what we're storing for debugging
+    error_log("Login - Storing jurisdiction: senatorial_id=" . ($user['senatorial_id'] ?? 'NULL') . 
+              ", federal_constituency_id=" . ($user['federal_constituency_id'] ?? 'NULL') . 
+              ", state_id=" . ($user['state_id'] ?? 'NULL') . 
+              ", lga_id=" . ($user['lga_id'] ?? 'NULL') . 
+              ", ward_id=" . ($user['ward_id'] ?? 'NULL') . 
+              ", pu_id=" . ($user['pu_id'] ?? 'NULL'));
     
     if (isset($role['permissions_json'])) {
         $permissions = json_decode($role['permissions_json'], true);
@@ -444,7 +449,17 @@ function loginUser($user, $remember, $db) {
         </form>
 
         <div class="divider">or continue with</div>
-  
+        <div class="social-buttons">
+            <a href="google-login.php" class="social-btn google">
+                <i class="fab fa-google"></i> Google
+            </a>
+            <a href="microsoft-login.php" class="social-btn microsoft">
+                <i class="fab fa-microsoft"></i> Microsoft
+            </a>
+        </div>
+        <div class="register-link">
+            Don't have an account? <a href="register.php">Create Account</a>
+        </div>
         <?php endif; ?>
 
         <div class="back-home">
