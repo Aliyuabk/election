@@ -17,6 +17,9 @@ $lga_id = isset($_GET['lga']) ? (int)$_GET['lga'] : 0;
 $ward_id = isset($_GET['ward']) ? (int)$_GET['ward'] : 0;
 $pu_id = isset($_GET['pu']) ? (int)$_GET['pu'] : 0;
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
+$page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+$limit = 20;
+$offset = ($page - 1) * $limit;
 
 // Get elections
 $elections = [];
@@ -116,22 +119,17 @@ try {
         $params[] = "%$search%";
     }
     
+    $where_clause = implode(" AND ", $where);
+    
     // Get count
     $count_sql = "SELECT COUNT(*) FROM public_results pr 
                   LEFT JOIN polling_units pu ON pr.pu_id = pu.id 
-                  WHERE " . implode(" AND ", $where);
+                  WHERE " . $where_clause;
     $stmt = $db->prepare($count_sql);
     $stmt->execute($params);
     $total_results = (int)$stmt->fetchColumn();
     
     // Get results
-    $limit = 50;
-    $offset = 0;
-    if (isset($_GET['page'])) {
-        $page = max(1, (int)$_GET['page']);
-        $offset = ($page - 1) * $limit;
-    }
-    
     $params[] = $limit;
     $params[] = $offset;
     
@@ -153,7 +151,7 @@ try {
         LEFT JOIN states s ON pr.state_id = s.id
         LEFT JOIN elections e ON pr.election_id = e.id
         LEFT JOIN users u ON pr.published_by = u.id
-        WHERE " . implode(" AND ", $where) . "
+        WHERE " . $where_clause . "
         ORDER BY pr.published_at DESC
         LIMIT ? OFFSET ?
     ";
@@ -191,7 +189,7 @@ include '../includes/public-header.php';
 }
 .filter-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
     gap: 12px;
 }
 .filter-grid select,
@@ -244,14 +242,14 @@ include '../includes/public-header.php';
 
 .results-stats {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
     gap: 12px;
     margin-bottom: 20px;
 }
 .result-stat {
     background: white;
     border-radius: 12px;
-    padding: 14px 16px;
+    padding: 12px 14px;
     text-align: center;
     border: 1px solid #E5E7EB;
 }
@@ -260,7 +258,7 @@ include '../includes/public-header.php';
     font-weight: 700;
 }
 .result-stat .stat-label {
-    font-size: 0.65rem;
+    font-size: 0.6rem;
     color: #6B7280;
     text-transform: uppercase;
     letter-spacing: 0.5px;
@@ -272,9 +270,9 @@ include '../includes/public-header.php';
 .result-card {
     background: white;
     border-radius: 14px;
-    padding: 20px;
+    padding: 18px;
     border: 1px solid #E5E7EB;
-    margin-bottom: 16px;
+    margin-bottom: 14px;
     transition: box-shadow 0.2s;
 }
 .result-card:hover {
@@ -285,63 +283,64 @@ include '../includes/public-header.php';
     justify-content: space-between;
     align-items: flex-start;
     flex-wrap: wrap;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
 }
 .result-card .result-header .pu-name {
     font-weight: 700;
-    font-size: 1rem;
+    font-size: 0.95rem;
 }
 .result-card .result-header .pu-code {
     color: #6B7280;
-    font-size: 0.8rem;
+    font-size: 0.75rem;
 }
 .result-card .result-header .election-name {
-    font-size: 0.8rem;
+    font-size: 0.75rem;
     color: #6B7280;
 }
 .result-card .result-details {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-    gap: 10px;
-    margin: 10px 0;
+    grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+    gap: 8px;
+    margin: 8px 0;
 }
 .result-card .result-details .detail-item {
     background: #F8FAFC;
     border-radius: 8px;
-    padding: 8px 12px;
+    padding: 6px 10px;
     text-align: center;
 }
 .result-card .result-details .detail-item .value {
     font-weight: 700;
-    font-size: 0.95rem;
+    font-size: 0.85rem;
 }
 .result-card .result-details .detail-item .label {
-    font-size: 0.6rem;
+    font-size: 0.55rem;
     color: #6B7280;
     text-transform: uppercase;
 }
 .result-card .party-votes {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 10px;
+    gap: 6px;
+    margin-top: 8px;
 }
 .result-card .party-votes .party-tag {
     background: #F3F4F6;
-    padding: 4px 14px;
+    padding: 3px 12px;
     border-radius: 20px;
-    font-size: 0.75rem;
+    font-size: 0.7rem;
 }
 .result-card .party-votes .party-tag .votes {
     font-weight: 600;
     color: #0F4C81;
 }
 .result-card .result-footer {
-    margin-top: 10px;
-    font-size: 0.7rem;
+    margin-top: 8px;
+    font-size: 0.65rem;
     color: #9CA3AF;
     display: flex;
-    gap: 16px;
+    gap: 14px;
+    flex-wrap: wrap;
 }
 
 .pagination {
@@ -349,10 +348,11 @@ include '../includes/public-header.php';
     justify-content: center;
     gap: 6px;
     margin-top: 20px;
+    flex-wrap: wrap;
 }
 .pagination a,
 .pagination span {
-    padding: 8px 16px;
+    padding: 8px 14px;
     border: 1px solid #E5E7EB;
     border-radius: 8px;
     text-decoration: none;
@@ -377,18 +377,18 @@ include '../includes/public-header.php';
 
 .empty-state {
     text-align: center;
-    padding: 60px 20px;
+    padding: 40px 20px;
     color: #6B7280;
 }
 .empty-state i {
-    font-size: 3rem;
+    font-size: 2.5rem;
     color: #D1D5DB;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
 }
 .empty-state h3 {
-    font-size: 1.1rem;
+    font-size: 1rem;
     color: #1F2937;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
 }
 
 @media (max-width: 768px) {
@@ -399,14 +399,17 @@ include '../includes/public-header.php';
         flex-direction: column;
         gap: 4px;
     }
+    .results-stats {
+        grid-template-columns: repeat(2, 1fr);
+    }
 }
 </style>
 
 <div class="container">
-    <h1 style="font-size:1.5rem;font-weight:700;margin-bottom:8px;">
+    <h1 style="font-size:1.4rem;font-weight:700;margin-bottom:6px;">
         <i class="fas fa-file-alt" style="color:#0F4C81;"></i> Published Results
     </h1>
-    <p style="color:#6B7280;margin-bottom:24px;">
+    <p style="color:#6B7280;margin-bottom:20px;font-size:0.9rem;">
         Official election results published for public viewing.
     </p>
 
@@ -477,7 +480,7 @@ include '../includes/public-header.php';
             </div>
             <div class="result-stat">
                 <div class="stat-number green"><?php echo number_format($total_valid); ?></div>
-                <div class="stat-label">Valid Votes</div>
+                <div class="stat-label">Valid</div>
             </div>
             <div class="result-stat">
                 <div class="stat-number red"><?php echo number_format($total_rejected); ?></div>
@@ -498,16 +501,16 @@ include '../includes/public-header.php';
                         </div>
                         <div class="election-name">
                             <?php echo htmlspecialchars($result['election_name'] ?? 'Election'); ?>
-                            <span style="text-transform:capitalize;margin-left:8px;background:#F3F4F6;padding:1px 10px;border-radius:12px;font-size:0.7rem;">
+                            <span style="text-transform:capitalize;margin-left:6px;background:#F3F4F6;padding:1px 8px;border-radius:12px;font-size:0.65rem;">
                                 <?php echo str_replace('_', ' ', $result['election_type'] ?? ''); ?>
                             </span>
                         </div>
                     </div>
                     <div style="text-align:right;">
-                        <div style="font-weight:600;font-size:0.85rem;color:#0F4C81;">
+                        <div style="font-weight:600;font-size:0.8rem;color:#0F4C81;">
                             <?php echo htmlspecialchars($result['lga_name'] ?? ''); ?>
                         </div>
-                        <div style="font-size:0.7rem;color:#6B7280;">
+                        <div style="font-size:0.65rem;color:#6B7280;">
                             <?php echo htmlspecialchars($result['ward_name'] ?? ''); ?>
                         </div>
                     </div>
@@ -524,7 +527,7 @@ include '../includes/public-header.php';
                         <?php foreach ($party_votes as $party => $votes): ?>
                             <span class="party-tag">
                                 <?php echo htmlspecialchars($party); ?>: 
-                                <span class="votes"><?php echo number_format($votes); ?></span>
+                                <span class="votes"><?php echo number_format((int)$votes); ?></span>
                             </span>
                         <?php endforeach; ?>
                     </div>
@@ -532,20 +535,20 @@ include '../includes/public-header.php';
 
                 <div class="result-details">
                     <div class="detail-item">
-                        <div class="value"><?php echo number_format($result['valid_votes'] ?? 0); ?></div>
+                        <div class="value"><?php echo number_format((int)($result['valid_votes'] ?? 0)); ?></div>
                         <div class="label">Valid</div>
                     </div>
                     <div class="detail-item">
-                        <div class="value"><?php echo number_format($result['rejected_votes'] ?? 0); ?></div>
+                        <div class="value"><?php echo number_format((int)($result['rejected_votes'] ?? 0)); ?></div>
                         <div class="label">Rejected</div>
                     </div>
                     <div class="detail-item">
-                        <div class="value"><?php echo number_format($result['total_votes'] ?? 0); ?></div>
+                        <div class="value"><?php echo number_format((int)($result['total_votes'] ?? 0)); ?></div>
                         <div class="label">Total</div>
                     </div>
-                    <?php if (($result['turnout_percentage'] ?? 0) > 0): ?>
+                    <?php if (((float)($result['turnout_percentage'] ?? 0)) > 0): ?>
                         <div class="detail-item">
-                            <div class="value"><?php echo $result['turnout_percentage']; ?>%</div>
+                            <div class="value"><?php echo (float)$result['turnout_percentage']; ?>%</div>
                             <div class="label">Turnout</div>
                         </div>
                     <?php endif; ?>
@@ -561,33 +564,32 @@ include '../includes/public-header.php';
         <?php endforeach; ?>
         
         <!-- Pagination -->
-        <?php if ($total_results > 50): ?>
+        <?php if ($total_results > $limit): ?>
             <div class="pagination">
                 <?php
-                $total_pages = ceil($total_results / 50);
-                $current_page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+                $total_pages = ceil($total_results / $limit);
                 $query_params = $_GET;
                 unset($query_params['page']);
                 $base_url = '?' . http_build_query($query_params);
                 
-                if ($current_page > 1): ?>
-                    <a href="<?php echo $base_url; ?>&page=<?php echo $current_page - 1; ?>">
+                if ($page > 1): ?>
+                    <a href="<?php echo $base_url; ?>&page=<?php echo $page - 1; ?>">
                         <i class="fas fa-chevron-left"></i>
                     </a>
                 <?php else: ?>
                     <span class="disabled"><i class="fas fa-chevron-left"></i></span>
                 <?php endif; ?>
                 
-                <?php for ($i = max(1, $current_page - 2); $i <= min($total_pages, $current_page + 2); $i++): ?>
-                    <?php if ($i == $current_page): ?>
+                <?php for ($i = max(1, $page - 2); $i <= min($total_pages, $page + 2); $i++): ?>
+                    <?php if ($i == $page): ?>
                         <span class="active"><?php echo $i; ?></span>
                     <?php else: ?>
                         <a href="<?php echo $base_url; ?>&page=<?php echo $i; ?>"><?php echo $i; ?></a>
                     <?php endif; ?>
                 <?php endfor; ?>
                 
-                <?php if ($current_page < $total_pages): ?>
-                    <a href="<?php echo $base_url; ?>&page=<?php echo $current_page + 1; ?>">
+                <?php if ($page < $total_pages): ?>
+                    <a href="<?php echo $base_url; ?>&page=<?php echo $page + 1; ?>">
                         <i class="fas fa-chevron-right"></i>
                     </a>
                 <?php else: ?>
@@ -601,40 +603,11 @@ include '../includes/public-header.php';
             <i class="fas fa-file-alt"></i>
             <h3>No Published Results Found</h3>
             <p>Try adjusting your filters or check back later for published results.</p>
-            <a href="published-results.php" style="display:inline-block;margin-top:12px;padding:10px 24px;background:#0F4C81;color:white;border-radius:10px;text-decoration:none;font-weight:600;">
+            <a href="published-results.php" style="display:inline-block;margin-top:10px;padding:10px 24px;background:#0F4C81;color:white;border-radius:10px;text-decoration:none;font-weight:600;">
                 <i class="fas fa-undo"></i> Reset Filters
             </a>
         </div>
     <?php endif; ?>
 </div>
-
-<script>
-// Dynamic dropdowns
-document.getElementById('state_select').addEventListener('change', function() {
-    var stateId = this.value;
-    var lgaSelect = document.getElementById('lga_select');
-    var wardSelect = document.getElementById('ward_select');
-    var puSelect = document.getElementById('pu_select');
-    
-    if (stateId) {
-        window.location.href = '?state=' + stateId + '&election=<?php echo $election_id; ?>&search=<?php echo urlencode($search); ?>';
-    } else {
-        window.location.href = '?election=<?php echo $election_id; ?>&search=<?php echo urlencode($search); ?>';
-    }
-});
-
-document.getElementById('lga_select').addEventListener('change', function() {
-    var lgaId = this.value;
-    var stateId = document.getElementById('state_select').value;
-    window.location.href = '?state=' + stateId + '&lga=' + lgaId + '&election=<?php echo $election_id; ?>&search=<?php echo urlencode($search); ?>';
-});
-
-document.getElementById('ward_select').addEventListener('change', function() {
-    var wardId = this.value;
-    var stateId = document.getElementById('state_select').value;
-    var lgaId = document.getElementById('lga_select').value;
-    window.location.href = '?state=' + stateId + '&lga=' + lgaId + '&ward=' + wardId + '&election=<?php echo $election_id; ?>&search=<?php echo urlencode($search); ?>';
-});
-</script>
 
 <?php include '../includes/public-footer.php'; ?>
