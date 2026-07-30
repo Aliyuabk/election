@@ -19,26 +19,32 @@ if (SessionManager::get('role_level') !== 'federal_constituency') {
 }
 
 $constituency_id = SessionManager::get('federal_constituency_id');
+$state_id = SessionManager::get('state_id');
 $tenant_id = SessionManager::get('tenant_id');
 $db = getDB();
 
-// Get LGA IDs from constituency
+// Get LGA IDs
 $lga_ids = [];
 try {
     $stmt = $db->prepare("SELECT lgas_json FROM federal_constituencies WHERE id = ?");
     $stmt->execute([$constituency_id]);
     $lgas_json = $stmt->fetchColumn();
     if ($lgas_json) {
-        $lga_ids = json_decode($lgas_json, true) ?: [];
+        $lga_names = json_decode($lgas_json, true) ?: [];
+        if (!empty($lga_names)) {
+            $placeholders = implode(',', array_fill(0, count($lga_names), '?'));
+            $stmt = $db->prepare("SELECT id FROM lgas WHERE name IN ($placeholders) AND state_id = ? AND is_active = 1");
+            $stmt->execute(array_merge($lga_names, [$state_id]));
+            $lga_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        }
     }
 } catch (Exception $e) {
     error_log("Error fetching LGA IDs: " . $e->getMessage());
-    $lga_ids = [];
 }
 
 $lga_list = !empty($lga_ids) ? implode(',', array_map('intval', $lga_ids)) : '0';
 
-// Get filter
+// Get filters
 $lga_filter = isset($_GET['lga']) ? (int)$_GET['lga'] : 0;
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 
@@ -77,6 +83,7 @@ try {
     }
     
     $where_clause = implode(" AND ", $where);
+    $params[] = $tenant_id;
     
     $stmt = $db->prepare("
         SELECT 
@@ -84,7 +91,10 @@ try {
             l.name as lga_name,
             COUNT(DISTINCT pu.id) as pu_count,
             (SELECT COUNT(*) FROM users u 
-             WHERE u.ward_id = w.id AND u.tenant_id = ? AND u.status = 'active') as agent_count
+             WHERE u.ward_id = w.id AND u.tenant_id = ? AND u.status = 'active') as agent_count,
+            (SELECT COUNT(*) FROM results_ec8a r 
+             JOIN polling_units pu2 ON r.pu_id = pu2.id 
+             WHERE pu2.ward_id = w.id AND r.tenant_id = ?) as result_count
         FROM wards w
         JOIN lgas l ON w.lga_id = l.id
         LEFT JOIN polling_units pu ON pu.ward_id = w.id AND pu.is_active = 1
@@ -92,7 +102,7 @@ try {
         GROUP BY w.id
         ORDER BY l.name ASC, w.name ASC
     ");
-    $stmt->execute(array_merge($params, [$tenant_id]));
+    $stmt->execute($params);
     $wards = $stmt->fetchAll();
     $total_wards = count($wards);
 } catch (Exception $e) {
@@ -110,7 +120,7 @@ include '../includes/sidebar.php';
     border-radius: var(--radius);
     border: 1px solid var(--gray-200);
     padding: 16px 20px;
-    margin-bottom: 24px;
+    margin-bottom: 20px;
     display: flex;
     gap: 12px;
     flex-wrap: wrap;
@@ -161,10 +171,12 @@ include '../includes/sidebar.php';
     border: 1px solid var(--gray-200);
     padding: 18px 20px;
     transition: var(--transition);
+    cursor: pointer;
 }
 .ward-card:hover {
     border-color: var(--primary);
     box-shadow: var(--shadow);
+    transform: translateY(-2px);
 }
 .ward-card .ward-header {
     display: flex;
@@ -242,13 +254,13 @@ include '../includes/sidebar.php';
     background: white;
     border-radius: var(--radius);
     border: 1px solid var(--gray-200);
-    padding: 16px 20px;
-    margin-bottom: 24px;
+    padding: 12px 20px;
+    margin-bottom: 16px;
     display: flex;
     justify-content: space-between;
     align-items: center;
     flex-wrap: wrap;
-    gap: 10px;
+    gap: 8px;
 }
 .results-summary .count {
     font-weight: 600;
@@ -256,6 +268,87 @@ include '../includes/sidebar.php';
 }
 .results-summary .count span {
     color: var(--primary);
+}
+
+/* Popup styles - reuse from monitor page */
+.popup-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    z-index: 1000;
+    align-items: flex-start;
+    justify-content: center;
+    overflow-y: auto;
+    padding: 40px 20px;
+}
+.popup-overlay.active {
+    display: flex;
+}
+.popup-container {
+    background: white;
+    border-radius: var(--radius);
+    max-width: 900px;
+    width: 100%;
+    margin: auto;
+    animation: popupSlideIn 0.3s ease;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+}
+@keyframes popupSlideIn {
+    from { opacity: 0; transform: translateY(-20px) scale(0.95); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.popup-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--gray-200);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.popup-header h3 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin: 0;
+}
+.popup-header .popup-close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: var(--gray-400);
+    cursor: pointer;
+    transition: var(--transition);
+    padding: 4px 8px;
+}
+.popup-header .popup-close:hover {
+    color: var(--gray-600);
+}
+.popup-body {
+    padding: 24px;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+.popup-footer {
+    padding: 16px 24px;
+    border-top: 1px solid var(--gray-200);
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.popup-footer .btn {
+    padding: 8px 18px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.8rem;
+    text-decoration: none;
+    border: none;
+    cursor: pointer;
+}
+.popup-footer .btn-secondary {
+    background: var(--gray-100);
+    color: var(--gray-600);
 }
 
 @media (max-width: 768px) {
@@ -332,15 +425,15 @@ include '../includes/sidebar.php';
                                 <div class="label">Agents</div>
                             </div>
                             <div class="stat">
-                                <div class="number"><?php echo number_format($ward['registered_voters'] ?? 0); ?></div>
-                                <div class="label">Voters</div>
+                                <div class="number"><?php echo number_format($ward['result_count'] ?? 0); ?></div>
+                                <div class="label">Results</div>
                             </div>
                         </div>
                         <div class="ward-actions">
-                            <a href="ward-details.php?id=<?php echo $ward['id']; ?>" class="btn-view">
+                            <a href="#" class="btn-view" onclick="openPopup('ward-details&ward=<?php echo $ward['id']; ?>')">
                                 <i class="fas fa-eye"></i> View Details
                             </a>
-                            <a href="monitor-pus.php?ward=<?php echo $ward['id']; ?>" class="btn-pus">
+                            <a href="#" class="btn-pus" onclick="openPopup('pus&ward=<?php echo $ward['id']; ?>')">
                                 <i class="fas fa-flag-checkered"></i> PUs
                             </a>
                             <a href="coordinators.php?ward=<?php echo $ward['id']; ?>" class="btn-pus">
@@ -359,8 +452,83 @@ include '../includes/sidebar.php';
     </div>
 </main>
 
+<!-- Popup -->
+<div class="popup-overlay" id="popupOverlay" onclick="if(event.target===this) closePopup()">
+    <div class="popup-container">
+        <div class="popup-header">
+            <h3 id="popupTitle">Details</h3>
+            <button class="popup-close" onclick="closePopup()">&times;</button>
+        </div>
+        <div class="popup-body" id="popupBody">
+            <div id="popupContent">
+                <div style="text-align:center;padding:40px;color:var(--gray-400);">
+                    <i class="fas fa-spinner fa-spin" style="font-size:2rem;"></i>
+                    <p>Loading...</p>
+                </div>
+            </div>
+        </div>
+        <div class="popup-footer">
+            <button class="btn btn-secondary" onclick="closePopup()">Close</button>
+        </div>
+    </div>
+</div>
+
 <script>
-// Sidebar toggle (same as previous)
+// ============================================================
+// POPUP FUNCTIONS
+// ============================================================
+function openPopup(action) {
+    var overlay = document.getElementById('popupOverlay');
+    var content = document.getElementById('popupContent');
+    var title = document.getElementById('popupTitle');
+    
+    overlay.classList.add('active');
+    content.innerHTML = '<div style="text-align:center;padding:40px;color:var(--gray-400);"><i class="fas fa-spinner fa-spin" style="font-size:2rem;"></i><p>Loading...</p></div>';
+    
+    var params = new URLSearchParams(action);
+    var popup = params.get('popup') || action.split('&')[0];
+    var wardId = params.get('ward') || 0;
+    var lgaId = params.get('lga') || 0;
+    var puId = params.get('pu') || 0;
+    
+    var titles = {
+        'ward-details': 'Ward Details',
+        'pus': 'Polling Units',
+        'pu-details': 'Polling Unit Details'
+    };
+    title.textContent = titles[popup] || 'Details';
+    
+    var url = window.location.pathname + '?popup=' + popup;
+    if (wardId) url += '&ward=' + wardId;
+    if (lgaId) url += '&lga=' + lgaId;
+    if (puId) url += '&pu=' + puId;
+    
+    fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(response => response.text())
+        .then(html => {
+            var parser = new DOMParser();
+            var doc = parser.parseFromString(html, 'text/html');
+            var bodyContent = doc.querySelector('.popup-body-content');
+            if (bodyContent) {
+                content.innerHTML = bodyContent.innerHTML;
+            } else {
+                content.innerHTML = html;
+            }
+        })
+        .catch(function() {
+            content.innerHTML = '<div style="text-align:center;padding:40px;color:var(--gray-500);"><i class="fas fa-exclamation-circle" style="font-size:2rem;color:var(--gray-300);display:block;margin-bottom:8px;"></i><p>Failed to load content.</p></div>';
+        });
+}
+
+function closePopup() {
+    document.getElementById('popupOverlay').classList.remove('active');
+}
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closePopup();
+});
+
+// Sidebar toggle (same as monitor page)
 var sidebar = document.getElementById('sidebar');
 var sidebarToggle = document.getElementById('sidebarToggle');
 var sidebarOverlay = document.getElementById('sidebarOverlay');
