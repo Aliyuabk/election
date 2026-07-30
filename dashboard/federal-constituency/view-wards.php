@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// FEDERAL CONSTITUENCY COORDINATOR - VIEW WARDS
+// FEDERAL CONSTITUENCY COORDINATOR - VIEW WARDS (FIXED)
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -23,71 +23,158 @@ $state_id = SessionManager::get('state_id');
 $tenant_id = SessionManager::get('tenant_id');
 $db = getDB();
 
-// Get LGA IDs
-$lga_ids = [];
+// ============================================================
+// DEBUG: Log session data
+// ============================================================
+error_log("View Wards - Session Data: constituency_id=$constituency_id, state_id=$state_id, tenant_id=$tenant_id");
+
+// ============================================================
+// GET CONSTITUENCY DETAILS FIRST
+// ============================================================
+$constituency_name = '';
+$constituency_data = null;
 try {
-    $stmt = $db->prepare("SELECT lgas_json FROM federal_constituencies WHERE id = ?");
-    $stmt->execute([$constituency_id]);
-    $lgas_json = $stmt->fetchColumn();
-    if ($lgas_json) {
-        $lga_names = json_decode($lgas_json, true) ?: [];
-        if (!empty($lga_names)) {
-            $placeholders = implode(',', array_fill(0, count($lga_names), '?'));
-            $stmt = $db->prepare("SELECT id FROM lgas WHERE name IN ($placeholders) AND state_id = ? AND is_active = 1");
-            $stmt->execute(array_merge($lga_names, [$state_id]));
-            $lga_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    if ($constituency_id) {
+        $stmt = $db->prepare("
+            SELECT fc.*, s.name as state_name 
+            FROM federal_constituencies fc 
+            JOIN states s ON fc.state_id = s.id 
+            WHERE fc.id = ?
+        ");
+        $stmt->execute([$constituency_id]);
+        $constituency_data = $stmt->fetch();
+        if ($constituency_data) {
+            $constituency_name = $constituency_data['name'];
+            error_log("View Wards - Found constituency: " . $constituency_data['name']);
+            error_log("View Wards - LGA JSON: " . ($constituency_data['lgas_json'] ?? 'NULL'));
         }
     }
 } catch (Exception $e) {
-    error_log("Error fetching LGA IDs: " . $e->getMessage());
+    error_log("Error fetching constituency: " . $e->getMessage());
+}
+
+// ============================================================
+// GET LGA IDs FROM CONSTITUENCY - FIXED JSON PARSING
+// ============================================================
+$lga_ids = [];
+$lga_list = '0';
+
+if ($constituency_data && !empty($constituency_data['lgas_json'])) {
+    try {
+        // Parse JSON
+        $lga_names = json_decode($constituency_data['lgas_json'], true);
+        
+        // Check if it's a valid array
+        if (is_array($lga_names) && !empty($lga_names)) {
+            error_log("View Wards - LGA Names from JSON: " . print_r($lga_names, true));
+            
+            // Build placeholders for IN clause
+            $placeholders = implode(',', array_fill(0, count($lga_names), '?'));
+            
+            // Get LGA IDs from names
+            $stmt = $db->prepare("
+                SELECT id, name 
+                FROM lgas 
+                WHERE name IN ($placeholders) 
+                AND state_id = ? 
+                AND is_active = 1
+            ");
+            $params = array_merge($lga_names, [$state_id]);
+            $stmt->execute($params);
+            $lga_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+            
+            error_log("View Wards - Found LGA IDs: " . print_r($lga_ids, true));
+        } else {
+            error_log("View Wards - LGA JSON is not a valid array or empty");
+        }
+    } catch (Exception $e) {
+        error_log("Error parsing LGA JSON: " . $e->getMessage());
+    }
+}
+
+// If no LGA IDs found, try alternative: get all LGAs in the state
+if (empty($lga_ids) && $state_id) {
+    try {
+        error_log("View Wards - No LGA IDs found, falling back to all LGAs in state: $state_id");
+        $stmt = $db->prepare("SELECT id FROM lgas WHERE state_id = ? AND is_active = 1");
+        $stmt->execute([$state_id]);
+        $lga_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+        error_log("View Wards - Fallback LGA IDs: " . print_r($lga_ids, true));
+    } catch (Exception $e) {
+        error_log("Error fetching fallback LGAs: " . $e->getMessage());
+    }
 }
 
 $lga_list = !empty($lga_ids) ? implode(',', array_map('intval', $lga_ids)) : '0';
+error_log("View Wards - Final LGA List: $lga_list");
 
-// Get filters
-$lga_filter = isset($_GET['lga']) ? (int)$_GET['lga'] : 0;
-$search = isset($_GET['search']) ? trim($_GET['search']) : '';
-
-// Get LGAs for filter
+// ============================================================
+// GET LGAS FOR FILTER
+// ============================================================
 $lgas = [];
 try {
     if ($lga_list !== '0') {
         $stmt = $db->prepare("SELECT id, name FROM lgas WHERE id IN ($lga_list) ORDER BY name ASC");
         $stmt->execute();
         $lgas = $stmt->fetchAll();
+        error_log("View Wards - Found " . count($lgas) . " LGAs for filter");
     }
 } catch (Exception $e) {
-    error_log("Error fetching LGAs: " . $e->getMessage());
+    error_log("Error fetching LGAs for filter: " . $e->getMessage());
 }
 
-// Get wards
+// ============================================================
+// GET FILTERS
+// ============================================================
+$lga_filter = isset($_GET['lga']) ? (int)$_GET['lga'] : 0;
+$search = isset($_GET['search']) ? trim($_GET['search']) : '';
+
+// ============================================================
+// GET WARDS
+// ============================================================
 $wards = [];
 $total_wards = 0;
+
 try {
+    // Build query
     $where = ["w.is_active = 1"];
     $params = [];
     
+    // Use the LGA list
     if ($lga_filter > 0) {
         $where[] = "w.lga_id = ?";
         $params[] = $lga_filter;
+        error_log("View Wards - Filtering by LGA: $lga_filter");
     } elseif ($lga_list !== '0') {
         $where[] = "w.lga_id IN ($lga_list)";
+        error_log("View Wards - Filtering by LGA list: $lga_list");
     } else {
+        // If no LGA list, show nothing
         $where[] = "1=0";
+        error_log("View Wards - No LGA list available");
     }
     
     if (!empty($search)) {
         $where[] = "(w.name LIKE ? OR w.code LIKE ?)";
         $params[] = "%$search%";
         $params[] = "%$search%";
+        error_log("View Wards - Search term: $search");
     }
     
-    $where_clause = implode(" AND ", $where);
-    $params[] = $tenant_id;
+    // Add tenant_id for agent count subquery
+    $params[] = $tenant_id; // For agent_count
+    $params[] = $tenant_id; // For result_count
     
-    $stmt = $db->prepare("
+    $where_clause = implode(" AND ", $where);
+    
+    $sql = "
         SELECT 
-            w.*,
+            w.id,
+            w.name,
+            w.code,
+            w.registered_voters,
+            w.is_active,
+            l.id as lga_id,
             l.name as lga_name,
             COUNT(DISTINCT pu.id) as pu_count,
             (SELECT COUNT(*) FROM users u 
@@ -99,12 +186,20 @@ try {
         JOIN lgas l ON w.lga_id = l.id
         LEFT JOIN polling_units pu ON pu.ward_id = w.id AND pu.is_active = 1
         WHERE $where_clause
-        GROUP BY w.id
+        GROUP BY w.id, w.name, w.code, w.registered_voters, w.is_active, l.id, l.name
         ORDER BY l.name ASC, w.name ASC
-    ");
+    ";
+    
+    error_log("View Wards - SQL: $sql");
+    error_log("View Wards - Params: " . print_r($params, true));
+    
+    $stmt = $db->prepare($sql);
     $stmt->execute($params);
     $wards = $stmt->fetchAll();
     $total_wards = count($wards);
+    
+    error_log("View Wards - Found $total_wards wards");
+    
 } catch (Exception $e) {
     error_log("Error fetching wards: " . $e->getMessage());
 }
@@ -133,6 +228,7 @@ include '../includes/sidebar.php';
     border-radius: 8px;
     font-size: 0.85rem;
     background: white;
+    min-width: 150px;
 }
 .filter-section select:focus,
 .filter-section input:focus {
@@ -149,6 +245,9 @@ include '../includes/sidebar.php';
     font-size: 0.8rem;
     cursor: pointer;
 }
+.filter-section .btn-filter:hover {
+    background: var(--primary-dark);
+}
 .filter-section .btn-reset {
     padding: 8px 18px;
     border: 1px solid var(--gray-200);
@@ -158,6 +257,30 @@ include '../includes/sidebar.php';
     font-weight: 500;
     font-size: 0.8rem;
     text-decoration: none;
+}
+.filter-section .btn-reset:hover {
+    background: var(--gray-50);
+}
+
+.results-summary {
+    background: white;
+    border-radius: var(--radius);
+    border: 1px solid var(--gray-200);
+    padding: 12px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    font-size: 0.85rem;
+}
+.results-summary .count {
+    font-weight: 600;
+    color: var(--gray-700);
+}
+.results-summary .count span {
+    color: var(--primary);
 }
 
 .wards-grid {
@@ -250,111 +373,51 @@ include '../includes/sidebar.php';
     background: var(--gray-200);
 }
 
-.results-summary {
+.empty-state {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 60px 20px;
     background: white;
     border-radius: var(--radius);
     border: 1px solid var(--gray-200);
-    padding: 12px 20px;
-    margin-bottom: 16px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 8px;
 }
-.results-summary .count {
-    font-weight: 600;
-    color: var(--gray-700);
+.empty-state i {
+    font-size: 2.5rem;
+    color: var(--gray-300);
+    display: block;
+    margin-bottom: 12px;
 }
-.results-summary .count span {
-    color: var(--primary);
-}
-
-/* Popup styles - reuse from monitor page */
-.popup-overlay {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background: rgba(0,0,0,0.5);
-    z-index: 1000;
-    align-items: flex-start;
-    justify-content: center;
-    overflow-y: auto;
-    padding: 40px 20px;
-}
-.popup-overlay.active {
-    display: flex;
-}
-.popup-container {
-    background: white;
-    border-radius: var(--radius);
-    max-width: 900px;
-    width: 100%;
-    margin: auto;
-    animation: popupSlideIn 0.3s ease;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.2);
-}
-@keyframes popupSlideIn {
-    from { opacity: 0; transform: translateY(-20px) scale(0.95); }
-    to { opacity: 1; transform: translateY(0) scale(1); }
-}
-.popup-header {
-    padding: 20px 24px;
-    border-bottom: 1px solid var(--gray-200);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-.popup-header h3 {
+.empty-state h3 {
     font-size: 1.1rem;
-    font-weight: 700;
-    margin: 0;
+    color: var(--gray-700);
+    margin-bottom: 4px;
 }
-.popup-header .popup-close {
-    background: none;
-    border: none;
-    font-size: 1.5rem;
-    color: var(--gray-400);
-    cursor: pointer;
-    transition: var(--transition);
-    padding: 4px 8px;
+.empty-state p {
+    color: var(--gray-500);
+    font-size: 0.9rem;
 }
-.popup-header .popup-close:hover {
-    color: var(--gray-600);
-}
-.popup-body {
-    padding: 24px;
-    max-height: 70vh;
-    overflow-y: auto;
-}
-.popup-footer {
-    padding: 16px 24px;
-    border-top: 1px solid var(--gray-200);
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-}
-.popup-footer .btn {
-    padding: 8px 18px;
+.empty-state .debug-info {
+    margin-top: 16px;
+    padding: 12px 16px;
+    background: #FEF3C7;
     border-radius: 8px;
-    font-weight: 600;
+    text-align: left;
     font-size: 0.8rem;
-    text-decoration: none;
-    border: none;
-    cursor: pointer;
-}
-.popup-footer .btn-secondary {
-    background: var(--gray-100);
-    color: var(--gray-600);
+    color: #92400E;
+    max-width: 500px;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 @media (max-width: 768px) {
     .filter-section {
         flex-direction: column;
         align-items: stretch;
+    }
+    .filter-section select,
+    .filter-section input {
+        min-width: unset;
+        width: 100%;
     }
     .wards-grid {
         grid-template-columns: 1fr;
@@ -366,9 +429,14 @@ include '../includes/sidebar.php';
     <?php include '../includes/header.php'; ?>
     
     <div class="main-content-inner">
-        <h2 style="font-size:1.3rem;font-weight:700;margin-bottom:4px;">
-            <i class="fas fa-layer-group" style="color:var(--primary);"></i> View Wards
-        </h2>
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:4px;">
+            <h2 style="font-size:1.3rem;font-weight:700;margin:0;">
+                <i class="fas fa-layer-group" style="color:var(--primary);"></i> View Wards
+            </h2>
+            <div style="font-size:0.85rem;color:var(--gray-500);">
+                <?php echo htmlspecialchars($constituency_name ?: 'Federal Constituency'); ?>
+            </div>
+        </div>
         <p style="color:var(--gray-500);font-size:0.9rem;margin-bottom:20px;">
             All wards in your federal constituency.
         </p>
@@ -430,10 +498,10 @@ include '../includes/sidebar.php';
                             </div>
                         </div>
                         <div class="ward-actions">
-                            <a href="#" class="btn-view" onclick="openPopup('ward-details&ward=<?php echo $ward['id']; ?>')">
+                            <a href="ward-details.php?id=<?php echo $ward['id']; ?>" class="btn-view">
                                 <i class="fas fa-eye"></i> View Details
                             </a>
-                            <a href="#" class="btn-pus" onclick="openPopup('pus&ward=<?php echo $ward['id']; ?>')">
+                            <a href="monitor-pus.php?ward=<?php echo $ward['id']; ?>" class="btn-pus">
                                 <i class="fas fa-flag-checkered"></i> PUs
                             </a>
                             <a href="coordinators.php?ward=<?php echo $ward['id']; ?>" class="btn-pus">
@@ -443,92 +511,40 @@ include '../includes/sidebar.php';
                     </div>
                 <?php endforeach; ?>
             <?php else: ?>
-                <div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--gray-500);">
-                    <i class="fas fa-inbox" style="font-size:2rem;display:block;margin-bottom:8px;color:var(--gray-300);"></i>
-                    <p>No wards found.</p>
+                <div class="empty-state">
+                    <i class="fas fa-inbox"></i>
+                    <h3>No Wards Found</h3>
+                    <p>
+                        <?php if ($lga_list === '0'): ?>
+                            No LGAs are assigned to your federal constituency. 
+                            Please contact your administrator to assign LGAs.
+                        <?php elseif ($lga_filter > 0): ?>
+                            No wards found in the selected LGA. Try selecting a different LGA.
+                        <?php else: ?>
+                            No wards found in your constituency. Try adjusting your filters.
+                        <?php endif; ?>
+                    </p>
+                    <?php if (empty($lgas)): ?>
+                        <div class="debug-info">
+                            <strong>💡 Debug Info:</strong><br>
+                            Constituency ID: <?php echo $constituency_id ?: 'Not set'; ?><br>
+                            State ID: <?php echo $state_id ?: 'Not set'; ?><br>
+                            LGA List: <?php echo $lga_list; ?><br>
+                            <?php if ($constituency_data && !empty($constituency_data['lgas_json'])): ?>
+                                LGA JSON: <?php echo htmlspecialchars($constituency_data['lgas_json']); ?>
+                            <?php else: ?>
+                                No LGA JSON found in constituency data.
+                            <?php endif; ?>
+                        </div>
+                    <?php endif; ?>
                 </div>
             <?php endif; ?>
         </div>
     </div>
 </main>
 
-<!-- Popup -->
-<div class="popup-overlay" id="popupOverlay" onclick="if(event.target===this) closePopup()">
-    <div class="popup-container">
-        <div class="popup-header">
-            <h3 id="popupTitle">Details</h3>
-            <button class="popup-close" onclick="closePopup()">&times;</button>
-        </div>
-        <div class="popup-body" id="popupBody">
-            <div id="popupContent">
-                <div style="text-align:center;padding:40px;color:var(--gray-400);">
-                    <i class="fas fa-spinner fa-spin" style="font-size:2rem;"></i>
-                    <p>Loading...</p>
-                </div>
-            </div>
-        </div>
-        <div class="popup-footer">
-            <button class="btn btn-secondary" onclick="closePopup()">Close</button>
-        </div>
-    </div>
-</div>
-
 <script>
-// ============================================================
-// POPUP FUNCTIONS
-// ============================================================
-function openPopup(action) {
-    var overlay = document.getElementById('popupOverlay');
-    var content = document.getElementById('popupContent');
-    var title = document.getElementById('popupTitle');
-    
-    overlay.classList.add('active');
-    content.innerHTML = '<div style="text-align:center;padding:40px;color:var(--gray-400);"><i class="fas fa-spinner fa-spin" style="font-size:2rem;"></i><p>Loading...</p></div>';
-    
-    var params = new URLSearchParams(action);
-    var popup = params.get('popup') || action.split('&')[0];
-    var wardId = params.get('ward') || 0;
-    var lgaId = params.get('lga') || 0;
-    var puId = params.get('pu') || 0;
-    
-    var titles = {
-        'ward-details': 'Ward Details',
-        'pus': 'Polling Units',
-        'pu-details': 'Polling Unit Details'
-    };
-    title.textContent = titles[popup] || 'Details';
-    
-    var url = window.location.pathname + '?popup=' + popup;
-    if (wardId) url += '&ward=' + wardId;
-    if (lgaId) url += '&lga=' + lgaId;
-    if (puId) url += '&pu=' + puId;
-    
-    fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-        .then(response => response.text())
-        .then(html => {
-            var parser = new DOMParser();
-            var doc = parser.parseFromString(html, 'text/html');
-            var bodyContent = doc.querySelector('.popup-body-content');
-            if (bodyContent) {
-                content.innerHTML = bodyContent.innerHTML;
-            } else {
-                content.innerHTML = html;
-            }
-        })
-        .catch(function() {
-            content.innerHTML = '<div style="text-align:center;padding:40px;color:var(--gray-500);"><i class="fas fa-exclamation-circle" style="font-size:2rem;color:var(--gray-300);display:block;margin-bottom:8px;"></i><p>Failed to load content.</p></div>';
-        });
-}
-
-function closePopup() {
-    document.getElementById('popupOverlay').classList.remove('active');
-}
-
-document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') closePopup();
-});
-
-// Sidebar toggle (same as monitor page)
+// Sidebar toggle
 var sidebar = document.getElementById('sidebar');
 var sidebarToggle = document.getElementById('sidebarToggle');
 var sidebarOverlay = document.getElementById('sidebarOverlay');
