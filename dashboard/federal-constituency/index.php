@@ -6,6 +6,7 @@ require_once '../../config/config.php';
 require_once '../../includes/session.php';
 require_once '../../includes/functions.php';
 
+// Start session
 SessionManager::start();
 
 if (!SessionManager::isLoggedIn()) {
@@ -51,26 +52,38 @@ try {
 }
 
 // ============================================================
-// GET LGA IDs
+// GET LGA IDs FROM CONSTITUENCY
 // ============================================================
 $lga_ids = [];
 try {
-    $stmt = $db->prepare("SELECT lgas_json FROM federal_constituencies WHERE id = ?");
-    $stmt->execute([$constituency_id]);
-    $lgas_json = $stmt->fetchColumn();
-    if ($lgas_json) {
-        $lga_ids = json_decode($lgas_json, true) ?: [];
+    if ($constituency_id) {
+        $stmt = $db->prepare("SELECT lgas_json FROM federal_constituencies WHERE id = ?");
+        $stmt->execute([$constituency_id]);
+        $lgas_json = $stmt->fetchColumn();
+        
+        if ($lgas_json) {
+            $lga_names = json_decode($lgas_json, true) ?: [];
+            
+            // Convert LGA names to IDs
+            if (!empty($lga_names)) {
+                $placeholders = implode(',', array_fill(0, count($lga_names), '?'));
+                $stmt = $db->prepare("SELECT id FROM lgas WHERE name IN ($placeholders) AND state_id = ? AND is_active = 1");
+                $stmt->execute(array_merge($lga_names, [$state_id]));
+                $lga_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+            }
+        }
     }
 } catch (Exception $e) {
-    error_log("Error fetching LGA IDs: " . $e->getMessage());
+    error_log("Error getting LGA IDs: " . $e->getMessage());
+    $lga_ids = [];
 }
 
 $lga_list = !empty($lga_ids) ? implode(',', array_map('intval', $lga_ids)) : '0';
 
 // ============================================================
-// GET STATISTICS
+// CONSTITUENCY STATISTICS
 // ============================================================
-$stats = [];
+$lga_stats = [];
 try {
     if ($lga_list !== '0') {
         $stmt = $db->prepare("
@@ -84,21 +97,22 @@ try {
             WHERE l.id IN ($lga_list)
         ");
         $stmt->execute();
-        $stats = $stmt->fetch();
+        $lga_stats = $stmt->fetch();
     } else {
-        $stats = ['total_lgas' => 0, 'total_wards' => 0, 'total_pus' => 0];
+        $lga_stats = ['total_lgas' => 0, 'total_wards' => 0, 'total_pus' => 0];
     }
 } catch (Exception $e) {
-    error_log("Error fetching stats: " . $e->getMessage());
-    $stats = ['total_lgas' => 0, 'total_wards' => 0, 'total_pus' => 0];
+    error_log("Error fetching LGA stats: " . $e->getMessage());
+    $lga_stats = ['total_lgas' => 0, 'total_wards' => 0, 'total_pus' => 0];
 }
 
 // ============================================================
-// GET COORDINATOR STATS
+// COORDINATOR STATISTICS
 // ============================================================
 $coordinator_stats = ['lga' => 0, 'ward' => 0];
 try {
     if ($lga_list !== '0') {
+        // LGA Coordinators
         $stmt = $db->prepare("
             SELECT COUNT(DISTINCT u.id) as count
             FROM users u
@@ -110,6 +124,7 @@ try {
         $stmt->execute([$tenant_id]);
         $coordinator_stats['lga'] = (int)$stmt->fetchColumn();
 
+        // Ward Coordinators
         $stmt = $db->prepare("
             SELECT COUNT(DISTINCT u.id) as count
             FROM users u
@@ -127,44 +142,84 @@ try {
 }
 
 // ============================================================
-// GET AGENT STATS
+// AGENT STATISTICS
 // ============================================================
 $agent_stats = ['pu_agents' => 0, 'party_agents' => 0, 'observers' => 0, 'volunteers' => 0];
 try {
     if ($lga_list !== '0') {
-        $roles = ['pu_agent', 'party_agent', 'observer', 'volunteer'];
-        foreach ($roles as $role) {
-            $stmt = $db->prepare("
-                SELECT COUNT(DISTINCT u.id) as count
-                FROM users u
-                JOIN roles r ON u.role_id = r.id
-                JOIN polling_units pu ON u.pu_id = pu.id
-                JOIN wards w ON pu.ward_id = w.id
-                WHERE u.tenant_id = ? AND u.status = 'active'
-                AND r.level = ?
-                AND w.lga_id IN ($lga_list)
-            ");
-            $stmt->execute([$tenant_id, $role]);
-            $key = str_replace('_agent', '_agents', $role);
-            $agent_stats[$key] = (int)$stmt->fetchColumn();
-        }
+        // PU Agents
+        $stmt = $db->prepare("
+            SELECT COUNT(DISTINCT u.id) as count
+            FROM users u
+            JOIN roles r ON u.role_id = r.id
+            JOIN polling_units pu ON u.pu_id = pu.id
+            JOIN wards w ON pu.ward_id = w.id
+            WHERE u.tenant_id = ? AND u.status = 'active'
+            AND r.level = 'pu_agent'
+            AND w.lga_id IN ($lga_list)
+        ");
+        $stmt->execute([$tenant_id]);
+        $agent_stats['pu_agents'] = (int)$stmt->fetchColumn();
+
+        // Party Agents
+        $stmt = $db->prepare("
+            SELECT COUNT(DISTINCT u.id) as count
+            FROM users u
+            JOIN roles r ON u.role_id = r.id
+            JOIN polling_units pu ON u.pu_id = pu.id
+            JOIN wards w ON pu.ward_id = w.id
+            WHERE u.tenant_id = ? AND u.status = 'active'
+            AND r.level = 'party_agent'
+            AND w.lga_id IN ($lga_list)
+        ");
+        $stmt->execute([$tenant_id]);
+        $agent_stats['party_agents'] = (int)$stmt->fetchColumn();
+
+        // Observers
+        $stmt = $db->prepare("
+            SELECT COUNT(DISTINCT u.id) as count
+            FROM users u
+            JOIN roles r ON u.role_id = r.id
+            JOIN polling_units pu ON u.pu_id = pu.id
+            JOIN wards w ON pu.ward_id = w.id
+            WHERE u.tenant_id = ? AND u.status = 'active'
+            AND r.level = 'observer'
+            AND w.lga_id IN ($lga_list)
+        ");
+        $stmt->execute([$tenant_id]);
+        $agent_stats['observers'] = (int)$stmt->fetchColumn();
+
+        // Volunteers
+        $stmt = $db->prepare("
+            SELECT COUNT(DISTINCT u.id) as count
+            FROM users u
+            JOIN roles r ON u.role_id = r.id
+            JOIN polling_units pu ON u.pu_id = pu.id
+            JOIN wards w ON pu.ward_id = w.id
+            WHERE u.tenant_id = ? AND u.status = 'active'
+            AND r.level = 'volunteer'
+            AND w.lga_id IN ($lga_list)
+        ");
+        $stmt->execute([$tenant_id]);
+        $agent_stats['volunteers'] = (int)$stmt->fetchColumn();
     }
 } catch (Exception $e) {
     error_log("Error fetching agent stats: " . $e->getMessage());
 }
 
 // ============================================================
-// GET RESULT STATS
+// RESULT STATISTICS
 // ============================================================
 $result_stats = [];
 try {
     if ($lga_list !== '0') {
         $stmt = $db->prepare("
             SELECT 
-                COUNT(*) as total,
-                SUM(CASE WHEN status = 'verified' THEN 1 ELSE 0 END) as verified,
-                SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
-                SUM(CASE WHEN status = 'flagged' THEN 1 ELSE 0 END) as flagged
+                COUNT(*) as total_results,
+                SUM(CASE WHEN r.status = 'verified' THEN 1 ELSE 0 END) as verified,
+                SUM(CASE WHEN r.status = 'pending' THEN 1 ELSE 0 END) as pending,
+                SUM(CASE WHEN r.status = 'flagged' THEN 1 ELSE 0 END) as flagged,
+                SUM(CASE WHEN r.status = 'rejected' THEN 1 ELSE 0 END) as rejected
             FROM results_ec8a r
             JOIN polling_units pu ON r.pu_id = pu.id
             JOIN wards w ON pu.ward_id = w.id
@@ -173,15 +228,15 @@ try {
         $stmt->execute([$tenant_id]);
         $result_stats = $stmt->fetch();
     } else {
-        $result_stats = ['total' => 0, 'verified' => 0, 'pending' => 0, 'flagged' => 0];
+        $result_stats = ['total_results' => 0, 'verified' => 0, 'pending' => 0, 'flagged' => 0, 'rejected' => 0];
     }
 } catch (Exception $e) {
     error_log("Error fetching result stats: " . $e->getMessage());
-    $result_stats = ['total' => 0, 'verified' => 0, 'pending' => 0, 'flagged' => 0];
+    $result_stats = ['total_results' => 0, 'verified' => 0, 'pending' => 0, 'flagged' => 0, 'rejected' => 0];
 }
 
 // ============================================================
-// GET INCIDENT STATS
+// INCIDENT STATISTICS
 // ============================================================
 $incident_stats = [];
 try {
@@ -191,21 +246,23 @@ try {
                 COUNT(*) as total,
                 SUM(CASE WHEN status = 'reported' THEN 1 ELSE 0 END) as reported,
                 SUM(CASE WHEN status = 'investigating' THEN 1 ELSE 0 END) as investigating,
-                SUM(CASE WHEN status = 'resolved' THEN 1 ELSE 0 END) as resolved
+                SUM(CASE WHEN status = 'resolved' THEN 1 ELSE 0 END) as resolved,
+                SUM(CASE WHEN severity = 'critical' THEN 1 ELSE 0 END) as critical,
+                SUM(CASE WHEN severity = 'high' THEN 1 ELSE 0 END) as high
             FROM incidents 
             WHERE tenant_id = ? AND lga_id IN ($lga_list)
         ");
         $stmt->execute([$tenant_id]);
         $incident_stats = $stmt->fetch();
     } else {
-        $incident_stats = ['total' => 0, 'reported' => 0, 'investigating' => 0, 'resolved' => 0];
+        $incident_stats = ['total' => 0, 'reported' => 0, 'investigating' => 0, 'resolved' => 0, 'critical' => 0, 'high' => 0];
     }
 } catch (Exception $e) {
     error_log("Error fetching incident stats: " . $e->getMessage());
 }
 
 // ============================================================
-// GET PU REPORTING STATUS
+// PU REPORTING STATUS
 // ============================================================
 $pu_reporting_status = ['submitted' => 0, 'pending' => 0, 'verified' => 0, 'total' => 0];
 try {
@@ -229,7 +286,7 @@ try {
 }
 
 // ============================================================
-// GET RECENT ACTIVITIES
+// RECENT ACTIVITIES
 // ============================================================
 $recent_activities = [];
 try {
@@ -239,7 +296,7 @@ try {
         LEFT JOIN users u ON a.user_id = u.id
         WHERE a.tenant_id = ? 
         ORDER BY a.created_at DESC
-        LIMIT 10
+        LIMIT 15
     ");
     $stmt->execute([$tenant_id]);
     $recent_activities = $stmt->fetchAll();
@@ -248,7 +305,7 @@ try {
 }
 
 // ============================================================
-// GET BROADCAST STATS
+// BROADCAST STATS
 // ============================================================
 $broadcast_stats = [];
 try {
@@ -352,6 +409,8 @@ include '../includes/sidebar.php';
     margin-top: 6px;
     color: var(--gray-400);
 }
+.stat-card .stat-change.up { color: var(--secondary); }
+.stat-card .stat-change.down { color: var(--danger); }
 
 .charts-grid {
     display: grid;
@@ -557,21 +616,21 @@ include '../includes/sidebar.php';
         <div class="stats-grid">
             <div class="stat-card">
                 <div class="stat-icon blue"><i class="fas fa-building"></i></div>
-                <div class="stat-number"><?php echo number_format($stats['total_lgas'] ?? 0); ?></div>
+                <div class="stat-number"><?php echo number_format($lga_stats['total_lgas'] ?? 0); ?></div>
                 <div class="stat-label">LGAs</div>
-                <div class="stat-change"><i class="fas fa-layer-group"></i> <?php echo number_format($stats['total_wards'] ?? 0); ?> Wards</div>
+                <div class="stat-change"><i class="fas fa-layer-group"></i> <?php echo number_format($lga_stats['total_wards'] ?? 0); ?> Wards</div>
             </div>
             <div class="stat-card">
                 <div class="stat-icon green"><i class="fas fa-flag-checkered"></i></div>
-                <div class="stat-number"><?php echo number_format($stats['total_pus'] ?? 0); ?></div>
+                <div class="stat-number"><?php echo number_format($lga_stats['total_pus'] ?? 0); ?></div>
                 <div class="stat-label">Polling Units</div>
-                <div class="stat-change"><i class="fas fa-users"></i> <?php echo number_format($agent_stats['pu_agents']); ?> Agents</div>
+                <div class="stat-change"><i class="fas fa-users"></i> <?php echo number_format($agent_stats['pu_agents'] ?? 0); ?> Agents</div>
             </div>
             <div class="stat-card">
                 <div class="stat-icon purple"><i class="fas fa-user-tie"></i></div>
-                <div class="stat-number"><?php echo number_format($coordinator_stats['lga'] + $coordinator_stats['ward']); ?></div>
+                <div class="stat-number"><?php echo number_format(($coordinator_stats['lga'] ?? 0) + ($coordinator_stats['ward'] ?? 0)); ?></div>
                 <div class="stat-label">Coordinators</div>
-                <div class="stat-change"><?php echo $coordinator_stats['lga']; ?> LGA · <?php echo $coordinator_stats['ward']; ?> Ward</div>
+                <div class="stat-change"><?php echo ($coordinator_stats['lga'] ?? 0); ?> LGA · <?php echo ($coordinator_stats['ward'] ?? 0); ?> Ward</div>
             </div>
             <div class="stat-card">
                 <div class="stat-icon yellow"><i class="fas fa-check-double"></i></div>
@@ -583,7 +642,7 @@ include '../includes/sidebar.php';
                 <div class="stat-icon red"><i class="fas fa-exclamation-triangle"></i></div>
                 <div class="stat-number"><?php echo number_format($incident_stats['total'] ?? 0); ?></div>
                 <div class="stat-label">Incidents</div>
-                <div class="stat-change"><?php echo $incident_stats['reported'] ?? 0; ?> reported</div>
+                <div class="stat-change"><?php echo $incident_stats['reported'] ?? 0; ?> reported · <?php echo $incident_stats['critical'] ?? 0; ?> critical</div>
             </div>
             <div class="stat-card">
                 <div class="stat-icon teal"><i class="fas fa-upload"></i></div>
@@ -593,7 +652,7 @@ include '../includes/sidebar.php';
                     echo number_format(($submitted / max($total, 1)) * 100, 1);
                 ?>%</div>
                 <div class="stat-label">Reporting Rate</div>
-                <div class="stat-change"><?php echo number_format($submitted); ?>/<?php echo number_format($total); ?> submitted</div>
+                <div class="stat-change"><?php echo number_format($pu_reporting_status['submitted'] ?? 0); ?>/<?php echo number_format($pu_reporting_status['total'] ?? 0); ?> submitted</div>
             </div>
         </div>
 
@@ -708,6 +767,15 @@ include '../includes/sidebar.php';
                             <span class="value" style="color:var(--secondary);"><?php echo $incident_stats['resolved'] ?? 0; ?></span>
                         </div>
                     </div>
+                    <?php if (($incident_stats['critical'] ?? 0) > 0 || ($incident_stats['high'] ?? 0) > 0): ?>
+                        <div style="margin-top:12px;padding:10px 14px;background:#FEF2F2;border-radius:8px;border-left:3px solid #DC2626;">
+                            <span style="font-size:0.8rem;color:#DC2626;font-weight:600;">
+                                <i class="fas fa-exclamation-circle"></i> 
+                                <?php echo $incident_stats['critical'] ?? 0; ?> critical · 
+                                <?php echo $incident_stats['high'] ?? 0; ?> high priority
+                            </span>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -716,19 +784,22 @@ include '../includes/sidebar.php';
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-// Result Status Chart
+// ============================================================
+// RESULT STATUS CHART
+// ============================================================
 const ctx1 = document.getElementById('resultStatusChart').getContext('2d');
 new Chart(ctx1, {
     type: 'doughnut',
     data: {
-        labels: ['Verified', 'Pending', 'Flagged'],
+        labels: ['Verified', 'Pending', 'Flagged', 'Rejected'],
         datasets: [{
             data: [
                 <?php echo $result_stats['verified'] ?? 0; ?>,
                 <?php echo $result_stats['pending'] ?? 0; ?>,
-                <?php echo $result_stats['flagged'] ?? 0; ?>
+                <?php echo $result_stats['flagged'] ?? 0; ?>,
+                <?php echo $result_stats['rejected'] ?? 0; ?>
             ],
-            backgroundColor: ['#10B981', '#F59E0B', '#EF4444'],
+            backgroundColor: ['#10B981', '#F59E0B', '#EF4444', '#6B7280'],
             borderWidth: 2,
             borderColor: 'white'
         }]
@@ -751,7 +822,9 @@ new Chart(ctx1, {
     }
 });
 
-// Agent Distribution Chart
+// ============================================================
+// AGENT DISTRIBUTION CHART
+// ============================================================
 const ctx2 = document.getElementById('agentDistributionChart').getContext('2d');
 new Chart(ctx2, {
     type: 'bar',
@@ -796,7 +869,9 @@ new Chart(ctx2, {
     }
 });
 
-// Sidebar toggle
+// ============================================================
+// SIDEBAR TOGGLE
+// ============================================================
 var sidebar = document.getElementById('sidebar');
 var sidebarToggle = document.getElementById('sidebarToggle');
 var sidebarOverlay = document.getElementById('sidebarOverlay');
