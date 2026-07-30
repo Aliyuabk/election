@@ -23,16 +23,12 @@ $state_id = SessionManager::get('state_id');
 $tenant_id = SessionManager::get('tenant_id');
 $db = getDB();
 
-// ============================================================
-// DEBUG: Log session data
-// ============================================================
-error_log("View Wards - Session Data: constituency_id=$constituency_id, state_id=$state_id, tenant_id=$tenant_id");
+error_log("View Wards - Session: constituency_id=$constituency_id, state_id=$state_id, tenant_id=$tenant_id");
 
 // ============================================================
-// GET CONSTITUENCY DETAILS FIRST
+// GET CONSTITUENCY DETAILS
 // ============================================================
-$constituency_name = '';
-$constituency_data = null;
+$constituency = null;
 try {
     if ($constituency_id) {
         $stmt = $db->prepare("
@@ -42,11 +38,10 @@ try {
             WHERE fc.id = ?
         ");
         $stmt->execute([$constituency_id]);
-        $constituency_data = $stmt->fetch();
-        if ($constituency_data) {
-            $constituency_name = $constituency_data['name'];
-            error_log("View Wards - Found constituency: " . $constituency_data['name']);
-            error_log("View Wards - LGA JSON: " . ($constituency_data['lgas_json'] ?? 'NULL'));
+        $constituency = $stmt->fetch();
+        error_log("View Wards - Constituency found: " . ($constituency ? $constituency['name'] : 'NULL'));
+        if ($constituency) {
+            error_log("View Wards - LGA JSON: " . ($constituency['lgas_json'] ?? 'NULL'));
         }
     }
 } catch (Exception $e) {
@@ -54,24 +49,21 @@ try {
 }
 
 // ============================================================
-// GET LGA IDs FROM CONSTITUENCY - FIXED JSON PARSING
+// GET LGA IDs - IMPROVED WITH FALLBACK
 // ============================================================
 $lga_ids = [];
 $lga_list = '0';
+$lgas_for_filter = [];
 
-if ($constituency_data && !empty($constituency_data['lgas_json'])) {
+if ($constituency && !empty($constituency['lgas_json'])) {
     try {
-        // Parse JSON
-        $lga_names = json_decode($constituency_data['lgas_json'], true);
+        $lga_names = json_decode($constituency['lgas_json'], true);
         
-        // Check if it's a valid array
         if (is_array($lga_names) && !empty($lga_names)) {
-            error_log("View Wards - LGA Names from JSON: " . print_r($lga_names, true));
+            error_log("View Wards - Parsed LGA names: " . print_r($lga_names, true));
             
-            // Build placeholders for IN clause
+            // First, try to find LGAs by name
             $placeholders = implode(',', array_fill(0, count($lga_names), '?'));
-            
-            // Get LGA IDs from names
             $stmt = $db->prepare("
                 SELECT id, name 
                 FROM lgas 
@@ -81,47 +73,67 @@ if ($constituency_data && !empty($constituency_data['lgas_json'])) {
             ");
             $params = array_merge($lga_names, [$state_id]);
             $stmt->execute($params);
-            $lga_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+            $found_lgas = $stmt->fetchAll();
             
-            error_log("View Wards - Found LGA IDs: " . print_r($lga_ids, true));
-        } else {
-            error_log("View Wards - LGA JSON is not a valid array or empty");
+            if (!empty($found_lgas)) {
+                foreach ($found_lgas as $l) {
+                    $lga_ids[] = $l['id'];
+                    $lgas_for_filter[] = $l;
+                }
+                error_log("View Wards - Found LGAs by name: " . print_r($lga_ids, true));
+            } else {
+                // ============================================================
+                // CRITICAL FIX: If no LGAs found by name, try to get 
+                // all LGAs in the state as fallback
+                // ============================================================
+                error_log("View Wards - No LGAs found by name, using fallback - all LGAs in state");
+                $stmt = $db->prepare("
+                    SELECT id, name 
+                    FROM lgas 
+                    WHERE state_id = ? 
+                    AND is_active = 1
+                    ORDER BY name ASC
+                ");
+                $stmt->execute([$state_id]);
+                $all_lgas = $stmt->fetchAll();
+                
+                foreach ($all_lgas as $l) {
+                    $lga_ids[] = $l['id'];
+                    $lgas_for_filter[] = $l;
+                }
+                error_log("View Wards - Fallback LGAs found: " . print_r($lga_ids, true));
+            }
         }
     } catch (Exception $e) {
-        error_log("Error parsing LGA JSON: " . $e->getMessage());
+        error_log("Error processing LGA data: " . $e->getMessage());
     }
 }
 
-// If no LGA IDs found, try alternative: get all LGAs in the state
+// If still no LGAs, try one more fallback
 if (empty($lga_ids) && $state_id) {
+    error_log("View Wards - Final fallback: getting all LGAs in state");
     try {
-        error_log("View Wards - No LGA IDs found, falling back to all LGAs in state: $state_id");
-        $stmt = $db->prepare("SELECT id FROM lgas WHERE state_id = ? AND is_active = 1");
+        $stmt = $db->prepare("
+            SELECT id, name 
+            FROM lgas 
+            WHERE state_id = ? 
+            AND is_active = 1
+            ORDER BY name ASC
+        ");
         $stmt->execute([$state_id]);
-        $lga_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
-        error_log("View Wards - Fallback LGA IDs: " . print_r($lga_ids, true));
+        $all_lgas = $stmt->fetchAll();
+        foreach ($all_lgas as $l) {
+            $lga_ids[] = $l['id'];
+            $lgas_for_filter[] = $l;
+        }
+        error_log("View Wards - Final fallback LGAs: " . print_r($lga_ids, true));
     } catch (Exception $e) {
-        error_log("Error fetching fallback LGAs: " . $e->getMessage());
+        error_log("Error in final fallback: " . $e->getMessage());
     }
 }
 
 $lga_list = !empty($lga_ids) ? implode(',', array_map('intval', $lga_ids)) : '0';
-error_log("View Wards - Final LGA List: $lga_list");
-
-// ============================================================
-// GET LGAS FOR FILTER
-// ============================================================
-$lgas = [];
-try {
-    if ($lga_list !== '0') {
-        $stmt = $db->prepare("SELECT id, name FROM lgas WHERE id IN ($lga_list) ORDER BY name ASC");
-        $stmt->execute();
-        $lgas = $stmt->fetchAll();
-        error_log("View Wards - Found " . count($lgas) . " LGAs for filter");
-    }
-} catch (Exception $e) {
-    error_log("Error fetching LGAs for filter: " . $e->getMessage());
-}
+error_log("View Wards - Final LGA list: $lga_list");
 
 // ============================================================
 // GET FILTERS
@@ -136,70 +148,64 @@ $wards = [];
 $total_wards = 0;
 
 try {
-    // Build query
-    $where = ["w.is_active = 1"];
-    $params = [];
-    
-    // Use the LGA list
-    if ($lga_filter > 0) {
-        $where[] = "w.lga_id = ?";
-        $params[] = $lga_filter;
-        error_log("View Wards - Filtering by LGA: $lga_filter");
-    } elseif ($lga_list !== '0') {
-        $where[] = "w.lga_id IN ($lga_list)";
-        error_log("View Wards - Filtering by LGA list: $lga_list");
+    if ($lga_list !== '0') {
+        $where = ["w.is_active = 1"];
+        $params = [];
+        
+        if ($lga_filter > 0) {
+            $where[] = "w.lga_id = ?";
+            $params[] = $lga_filter;
+        } else {
+            $where[] = "w.lga_id IN ($lga_list)";
+        }
+        
+        if (!empty($search)) {
+            $where[] = "(w.name LIKE ? OR w.code LIKE ?)";
+            $params[] = "%$search%";
+            $params[] = "%$search%";
+        }
+        
+        // Add tenant_id for subqueries
+        $params[] = $tenant_id;
+        $params[] = $tenant_id;
+        
+        $where_clause = implode(" AND ", $where);
+        
+        $sql = "
+            SELECT 
+                w.id,
+                w.name,
+                w.code,
+                w.registered_voters,
+                w.is_active,
+                l.id as lga_id,
+                l.name as lga_name,
+                COUNT(DISTINCT pu.id) as pu_count,
+                (SELECT COUNT(*) FROM users u 
+                 WHERE u.ward_id = w.id AND u.tenant_id = ? AND u.status = 'active') as agent_count,
+                (SELECT COUNT(*) FROM results_ec8a r 
+                 JOIN polling_units pu2 ON r.pu_id = pu2.id 
+                 WHERE pu2.ward_id = w.id AND r.tenant_id = ?) as result_count
+            FROM wards w
+            JOIN lgas l ON w.lga_id = l.id
+            LEFT JOIN polling_units pu ON pu.ward_id = w.id AND pu.is_active = 1
+            WHERE $where_clause
+            GROUP BY w.id, w.name, w.code, w.registered_voters, w.is_active, l.id, l.name
+            ORDER BY l.name ASC, w.name ASC
+        ";
+        
+        error_log("View Wards - SQL: $sql");
+        
+        $stmt = $db->prepare($sql);
+        $stmt->execute($params);
+        $wards = $stmt->fetchAll();
+        $total_wards = count($wards);
+        
+        error_log("View Wards - Found $total_wards wards");
+        
     } else {
-        // If no LGA list, show nothing
-        $where[] = "1=0";
-        error_log("View Wards - No LGA list available");
+        error_log("View Wards - No LGA list available (lga_list = $lga_list)");
     }
-    
-    if (!empty($search)) {
-        $where[] = "(w.name LIKE ? OR w.code LIKE ?)";
-        $params[] = "%$search%";
-        $params[] = "%$search%";
-        error_log("View Wards - Search term: $search");
-    }
-    
-    // Add tenant_id for agent count subquery
-    $params[] = $tenant_id; // For agent_count
-    $params[] = $tenant_id; // For result_count
-    
-    $where_clause = implode(" AND ", $where);
-    
-    $sql = "
-        SELECT 
-            w.id,
-            w.name,
-            w.code,
-            w.registered_voters,
-            w.is_active,
-            l.id as lga_id,
-            l.name as lga_name,
-            COUNT(DISTINCT pu.id) as pu_count,
-            (SELECT COUNT(*) FROM users u 
-             WHERE u.ward_id = w.id AND u.tenant_id = ? AND u.status = 'active') as agent_count,
-            (SELECT COUNT(*) FROM results_ec8a r 
-             JOIN polling_units pu2 ON r.pu_id = pu2.id 
-             WHERE pu2.ward_id = w.id AND r.tenant_id = ?) as result_count
-        FROM wards w
-        JOIN lgas l ON w.lga_id = l.id
-        LEFT JOIN polling_units pu ON pu.ward_id = w.id AND pu.is_active = 1
-        WHERE $where_clause
-        GROUP BY w.id, w.name, w.code, w.registered_voters, w.is_active, l.id, l.name
-        ORDER BY l.name ASC, w.name ASC
-    ";
-    
-    error_log("View Wards - SQL: $sql");
-    error_log("View Wards - Params: " . print_r($params, true));
-    
-    $stmt = $db->prepare($sql);
-    $stmt->execute($params);
-    $wards = $stmt->fetchAll();
-    $total_wards = count($wards);
-    
-    error_log("View Wards - Found $total_wards wards");
-    
 } catch (Exception $e) {
     error_log("Error fetching wards: " . $e->getMessage());
 }
@@ -404,7 +410,7 @@ include '../includes/sidebar.php';
     text-align: left;
     font-size: 0.8rem;
     color: #92400E;
-    max-width: 500px;
+    max-width: 600px;
     margin-left: auto;
     margin-right: auto;
 }
@@ -434,7 +440,7 @@ include '../includes/sidebar.php';
                 <i class="fas fa-layer-group" style="color:var(--primary);"></i> View Wards
             </h2>
             <div style="font-size:0.85rem;color:var(--gray-500);">
-                <?php echo htmlspecialchars($constituency_name ?: 'Federal Constituency'); ?>
+                <?php echo htmlspecialchars($constituency['name'] ?? 'Federal Constituency'); ?>
             </div>
         </div>
         <p style="color:var(--gray-500);font-size:0.9rem;margin-bottom:20px;">
@@ -446,7 +452,7 @@ include '../includes/sidebar.php';
             <form method="GET" style="display:flex;gap:12px;flex-wrap:wrap;flex:1;align-items:center;">
                 <select name="lga">
                     <option value="">All LGAs</option>
-                    <?php foreach ($lgas as $lga): ?>
+                    <?php foreach ($lgas_for_filter as $lga): ?>
                         <option value="<?php echo $lga['id']; ?>" <?php echo ($lga_filter == $lga['id']) ? 'selected' : ''; ?>>
                             <?php echo htmlspecialchars($lga['name']); ?>
                         </option>
@@ -524,14 +530,18 @@ include '../includes/sidebar.php';
                             No wards found in your constituency. Try adjusting your filters.
                         <?php endif; ?>
                     </p>
-                    <?php if (empty($lgas)): ?>
+                    <?php if (empty($lgas_for_filter) || $lga_list === '0'): ?>
                         <div class="debug-info">
                             <strong>💡 Debug Info:</strong><br>
                             Constituency ID: <?php echo $constituency_id ?: 'Not set'; ?><br>
                             State ID: <?php echo $state_id ?: 'Not set'; ?><br>
                             LGA List: <?php echo $lga_list; ?><br>
-                            <?php if ($constituency_data && !empty($constituency_data['lgas_json'])): ?>
-                                LGA JSON: <?php echo htmlspecialchars($constituency_data['lgas_json']); ?>
+                            <?php if ($constituency && !empty($constituency['lgas_json'])): ?>
+                                LGA JSON: <?php echo htmlspecialchars($constituency['lgas_json']); ?><br>
+                                <span style="font-size:0.7rem;color:#92400E;">
+                                    <strong>Note:</strong> The LGAs listed in the JSON may not exist in the database yet.
+                                    Please add the required LGAs to the database.
+                                </span>
                             <?php else: ?>
                                 No LGA JSON found in constituency data.
                             <?php endif; ?>
