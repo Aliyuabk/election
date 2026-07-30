@@ -18,32 +18,51 @@ if (SessionManager::get('role_level') !== 'federal_constituency') {
     exit();
 }
 
+$user_name = SessionManager::get('user_name', 'Coordinator');
 $user_id = SessionManager::get('user_id');
-$tenant_id = SessionManager::get('tenant_id');
 $constituency_id = SessionManager::get('federal_constituency_id');
+$state_id = SessionManager::get('state_id');
+$tenant_id = SessionManager::get('tenant_id');
+
 $db = getDB();
 
-// Get LGA IDs
+// ============================================================
+// GET LGA IDs
+// ============================================================
 $lga_ids = [];
 try {
-    $stmt = $db->prepare("SELECT lgas_json FROM federal_constituencies WHERE id = ?");
-    $stmt->execute([$constituency_id]);
-    $lgas_json = $stmt->fetchColumn();
-    if ($lgas_json) {
-        $lga_ids = json_decode($lgas_json, true) ?: [];
+    if ($constituency_id) {
+        $stmt = $db->prepare("SELECT lgas_json FROM federal_constituencies WHERE id = ?");
+        $stmt->execute([$constituency_id]);
+        $lgas_json = $stmt->fetchColumn();
+        
+        if ($lgas_json) {
+            $lga_names = json_decode($lgas_json, true) ?: [];
+            
+            if (!empty($lga_names)) {
+                $placeholders = implode(',', array_fill(0, count($lga_names), '?'));
+                $stmt = $db->prepare("SELECT id FROM lgas WHERE name IN ($placeholders) AND state_id = ? AND is_active = 1");
+                $stmt->execute(array_merge($lga_names, [$state_id]));
+                $lga_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+            }
+        }
     }
 } catch (Exception $e) {
-    error_log("Error fetching LGA IDs: " . $e->getMessage());
+    error_log("Error getting LGA IDs: " . $e->getMessage());
 }
 
 $lga_list = !empty($lga_ids) ? implode(',', array_map('intval', $lga_ids)) : '0';
 
-// Get filters
+// ============================================================
+// GET FILTERS
+// ============================================================
 $status_filter = isset($_GET['status']) ? $_GET['status'] : 'pending';
 $lga_filter = isset($_GET['lga']) ? (int)$_GET['lga'] : 0;
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 
-// Get LGAs for filter
+// ============================================================
+// GET LGAS FOR FILTER
+// ============================================================
 $lgas = [];
 try {
     if ($lga_list !== '0') {
@@ -55,7 +74,9 @@ try {
     error_log("Error fetching LGAs: " . $e->getMessage());
 }
 
-// Get EC8A submissions
+// ============================================================
+// GET EC8A SUBMISSIONS
+// ============================================================
 $submissions = [];
 $total = 0;
 try {
@@ -63,7 +84,12 @@ try {
     $params = [$tenant_id];
     
     if ($lga_list !== '0') {
-        $where[] = "w.lga_id IN ($lga_list)";
+        if ($lga_filter > 0) {
+            $where[] = "w.lga_id = ?";
+            $params[] = $lga_filter;
+        } else {
+            $where[] = "w.lga_id IN ($lga_list)";
+        }
     } else {
         $where[] = "1=0";
     }
@@ -71,11 +97,6 @@ try {
     if (!empty($status_filter)) {
         $where[] = "r.status = ?";
         $params[] = $status_filter;
-    }
-    
-    if ($lga_filter > 0) {
-        $where[] = "w.lga_id = ?";
-        $params[] = $lga_filter;
     }
     
     if (!empty($search)) {
@@ -112,7 +133,9 @@ try {
     error_log("Error fetching EC8A submissions: " . $e->getMessage());
 }
 
-// Handle verification action
+// ============================================================
+// HANDLE VERIFICATION ACTION
+// ============================================================
 $action_error = '';
 $action_success = '';
 
@@ -423,9 +446,7 @@ include '../includes/sidebar.php';
     align-items: center;
     justify-content: center;
 }
-.modal-overlay.active {
-    display: flex;
-}
+.modal-overlay.active { display: flex; }
 .modal-box {
     background: white;
     border-radius: var(--radius);
@@ -438,9 +459,7 @@ include '../includes/sidebar.php';
     font-weight: 700;
     margin-bottom: 12px;
 }
-.modal-box .modal-body {
-    margin-bottom: 16px;
-}
+.modal-box .modal-body { margin-bottom: 16px; }
 .modal-box .modal-body textarea {
     width: 100%;
     padding: 10px 14px;
@@ -564,23 +583,10 @@ include '../includes/sidebar.php';
                                 <span class="code">(<?php echo htmlspecialchars($sub['pu_code']); ?>)</span>
                             </div>
                             <div class="submission-meta">
-                                <span>
-                                    <i class="fas fa-map-marker-alt"></i>
-                                    <?php echo htmlspecialchars($sub['ward_name']); ?>, <?php echo htmlspecialchars($sub['lga_name']); ?>
-                                </span>
-                                <span>
-                                    <i class="fas fa-user"></i>
-                                    <?php echo htmlspecialchars($sub['agent_name'] ?? 'Unknown'); ?>
-                                </span>
-                                <span>
-                                    <i class="fas fa-clock"></i>
-                                    <?php echo date('M d, Y g:i A', strtotime($sub['created_at'])); ?>
-                                </span>
-                                <span>
-                                    <span class="status-badge <?php echo $sub['status']; ?>">
-                                        <?php echo ucfirst($sub['status']); ?>
-                                    </span>
-                                </span>
+                                <span><i class="fas fa-map-marker-alt"></i> <?php echo htmlspecialchars($sub['ward_name']); ?>, <?php echo htmlspecialchars($sub['lga_name']); ?></span>
+                                <span><i class="fas fa-user"></i> <?php echo htmlspecialchars($sub['agent_name'] ?? 'Unknown'); ?></span>
+                                <span><i class="fas fa-clock"></i> <?php echo date('M d, Y g:i A', strtotime($sub['created_at'])); ?></span>
+                                <span><span class="status-badge <?php echo $sub['status']; ?>"><?php echo ucfirst($sub['status']); ?></span></span>
                             </div>
                         </div>
                     </div>
