@@ -129,17 +129,17 @@ try {
 }
 
 // ============================================================
-// HANDLE POPUP ACTIONS
+// POPUP DATA HANDLING
 // ============================================================
 $popup = isset($_GET['popup']) ? $_GET['popup'] : '';
 $lga_id = isset($_GET['lga']) ? (int)$_GET['lga'] : 0;
 $ward_id = isset($_GET['ward']) ? (int)$_GET['ward'] : 0;
 $pu_id = isset($_GET['pu']) ? (int)$_GET['pu'] : 0;
 
-// Get popup data
 $popup_data = null;
 $popup_wards = [];
 $popup_pus = [];
+$popup_agents = [];
 
 if ($popup === 'lga-details' && $lga_id > 0) {
     try {
@@ -217,16 +217,37 @@ if ($popup === 'pu-details' && $pu_id > 0) {
                 w.name as ward_name,
                 l.name as lga_name,
                 (SELECT COUNT(*) FROM agent_assignments aa WHERE aa.pu_id = pu.id AND aa.status = 'active') as agent_count,
-                (SELECT COUNT(*) FROM results_ec8a r WHERE r.pu_id = pu.id AND r.tenant_id = ?) as result_count
+                (SELECT COUNT(*) FROM results_ec8a r WHERE r.pu_id = pu.id AND r.tenant_id = ?) as result_count,
+                (SELECT COUNT(*) FROM incidents i WHERE i.pu_id = pu.id AND i.tenant_id = ?) as incident_count
             FROM polling_units pu
             JOIN wards w ON pu.ward_id = w.id
             JOIN lgas l ON w.lga_id = l.id
             WHERE pu.id = ?
         ");
-        $stmt->execute([$tenant_id, $pu_id]);
+        $stmt->execute([$tenant_id, $tenant_id, $pu_id]);
         $popup_data = $stmt->fetch();
     } catch (Exception $e) {
         error_log("Error fetching PU details: " . $e->getMessage());
+    }
+}
+
+if ($popup === 'coordinators' && $lga_id > 0) {
+    try {
+        $stmt = $db->prepare("
+            SELECT 
+                u.*,
+                r.name as role_name,
+                r.level as role_level
+            FROM users u
+            JOIN roles r ON u.role_id = r.id
+            WHERE u.lga_id = ? AND u.tenant_id = ? AND u.status = 'active'
+            AND r.level IN ('lga', 'ward')
+            ORDER BY r.level ASC, u.full_name ASC
+        ");
+        $stmt->execute([$lga_id, $tenant_id]);
+        $popup_agents = $stmt->fetchAll();
+    } catch (Exception $e) {
+        error_log("Error fetching coordinators: " . $e->getMessage());
     }
 }
 
@@ -236,6 +257,7 @@ include '../includes/sidebar.php';
 ?>
 
 <style>
+/* Main Styles */
 .constituency-header {
     background: white;
     border-radius: var(--radius);
@@ -344,10 +366,12 @@ include '../includes/sidebar.php';
     border-radius: 6px;
     text-decoration: none;
     font-weight: 500;
+    cursor: pointer;
 }
 .lga-card .lga-actions .btn-view {
     background: var(--primary);
     color: white;
+    border: none;
 }
 .lga-card .lga-actions .btn-view:hover {
     background: var(--primary-dark);
@@ -355,14 +379,13 @@ include '../includes/sidebar.php';
 .lga-card .lga-actions .btn-details {
     background: var(--gray-100);
     color: var(--gray-600);
+    border: none;
 }
 .lga-card .lga-actions .btn-details:hover {
     background: var(--gray-200);
 }
 
-/* ============================================================
-   POPUP / MODAL STYLES
-   ============================================================ */
+/* Popup Styles */
 .popup-overlay {
     display: none;
     position: fixed;
@@ -394,7 +417,7 @@ include '../includes/sidebar.php';
     to { opacity: 1; transform: translateY(0) scale(1); }
 }
 .popup-header {
-    padding: 20px 24px;
+    padding: 16px 24px;
     border-bottom: 1px solid var(--gray-200);
     display: flex;
     justify-content: space-between;
@@ -445,7 +468,7 @@ include '../includes/sidebar.php';
 .popup-body .ward-card {
     background: var(--gray-50);
     border-radius: 8px;
-    padding: 14px 16px;
+    padding: 12px 14px;
     border: 1px solid var(--gray-200);
 }
 .popup-body .ward-card .ward-name {
@@ -456,7 +479,7 @@ include '../includes/sidebar.php';
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 4px;
-    margin-top: 8px;
+    margin-top: 6px;
 }
 .popup-body .ward-card .ward-stats .stat .number {
     font-weight: 700;
@@ -500,7 +523,6 @@ include '../includes/sidebar.php';
 .status-badge.verified { background: #D1FAE5; color: #059669; }
 .status-badge.pending { background: #FEF3C7; color: #D97706; }
 .status-badge.no-result { background: #F3F4F6; color: #6B7280; }
-
 .popup-footer {
     padding: 16px 24px;
     border-top: 1px solid var(--gray-200);
@@ -624,15 +646,15 @@ include '../includes/sidebar.php';
                             </div>
                         </div>
                         <div class="lga-actions">
-                            <a href="#" class="btn-view" onclick="openPopup('lga-details&lga=<?php echo $lga['id']; ?>')">
+                            <button class="btn-view" onclick="openPopup('lga-details&lga=<?php echo $lga['id']; ?>')">
                                 <i class="fas fa-eye"></i> View Details
-                            </a>
-                            <a href="#" class="btn-details" onclick="openPopup('wards&lga=<?php echo $lga['id']; ?>')">
+                            </button>
+                            <button class="btn-details" onclick="openPopup('wards&lga=<?php echo $lga['id']; ?>')">
                                 <i class="fas fa-layer-group"></i> Wards
-                            </a>
-                            <a href="coordinators.php?lga=<?php echo $lga['id']; ?>" class="btn-details">
+                            </button>
+                            <button class="btn-details" onclick="openPopup('coordinators&lga=<?php echo $lga['id']; ?>')">
                                 <i class="fas fa-user-tie"></i> Coordinators
-                            </a>
+                            </button>
                         </div>
                     </div>
                 <?php endforeach; ?>
@@ -650,13 +672,12 @@ include '../includes/sidebar.php';
 POPUP / MODAL
 ============================================================ -->
 <div class="popup-overlay" id="popupOverlay" onclick="if(event.target===this) closePopup()">
-    <div class="popup-container" id="popupContainer">
+    <div class="popup-container">
         <div class="popup-header">
             <h3 id="popupTitle">Details</h3>
             <button class="popup-close" onclick="closePopup()">&times;</button>
         </div>
         <div class="popup-body" id="popupBody">
-            <!-- Content loaded via AJAX or preloaded -->
             <div id="popupContent">
                 <div style="text-align:center;padding:40px;color:var(--gray-400);">
                     <i class="fas fa-spinner fa-spin" style="font-size:2rem;"></i>
@@ -664,7 +685,7 @@ POPUP / MODAL
                 </div>
             </div>
         </div>
-        <div class="popup-footer" id="popupFooter">
+        <div class="popup-footer">
             <button class="btn btn-secondary" onclick="closePopup()">Close</button>
         </div>
     </div>
@@ -678,25 +699,24 @@ function openPopup(action) {
     var overlay = document.getElementById('popupOverlay');
     var content = document.getElementById('popupContent');
     var title = document.getElementById('popupTitle');
-    var footer = document.getElementById('popupFooter');
     
     overlay.classList.add('active');
     content.innerHTML = '<div style="text-align:center;padding:40px;color:var(--gray-400);"><i class="fas fa-spinner fa-spin" style="font-size:2rem;"></i><p>Loading...</p></div>';
     
-    // Parse action and parameters
+    // Parse action
     var params = new URLSearchParams(action);
     var popup = params.get('popup') || action.split('&')[0];
     var lgaId = params.get('lga') || 0;
     var wardId = params.get('ward') || 0;
     var puId = params.get('pu') || 0;
     
-    // Set title
     var titles = {
         'lga-details': 'LGA Details',
         'wards': 'Wards',
         'ward-details': 'Ward Details',
         'pus': 'Polling Units',
-        'pu-details': 'Polling Unit Details'
+        'pu-details': 'Polling Unit Details',
+        'coordinators': 'Coordinators'
     };
     title.textContent = titles[popup] || 'Details';
     
@@ -707,41 +727,36 @@ function openPopup(action) {
     if (puId) url += '&pu=' + puId;
     
     // Fetch content
-    fetch(url, {
-        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    })
-    .then(response => response.text())
-    .then(html => {
-        // Extract body content
-        var parser = new DOMParser();
-        var doc = parser.parseFromString(html, 'text/html');
-        var bodyContent = doc.querySelector('.popup-body-content');
-        if (bodyContent) {
-            content.innerHTML = bodyContent.innerHTML;
-        } else {
-            // Fallback: try to get content from the page
-            var mainContent = doc.querySelector('.main-content-inner');
-            if (mainContent) {
-                content.innerHTML = mainContent.innerHTML;
+    fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(response => response.text())
+        .then(html => {
+            var parser = new DOMParser();
+            var doc = parser.parseFromString(html, 'text/html');
+            var bodyContent = doc.querySelector('.popup-body-content');
+            if (bodyContent) {
+                content.innerHTML = bodyContent.innerHTML;
             } else {
-                content.innerHTML = html;
+                // Try to find content in the page
+                var mainContent = doc.querySelector('.main-content-inner');
+                if (mainContent) {
+                    content.innerHTML = mainContent.innerHTML;
+                } else {
+                    content.innerHTML = html;
+                }
             }
-        }
-    })
-    .catch(function() {
-        content.innerHTML = '<div style="text-align:center;padding:40px;color:var(--gray-500);"><i class="fas fa-exclamation-circle" style="font-size:2rem;color:var(--gray-300);display:block;margin-bottom:8px;"></i><p>Failed to load content.</p></div>';
-    });
+        })
+        .catch(function() {
+            content.innerHTML = '<div style="text-align:center;padding:40px;color:var(--gray-500);"><i class="fas fa-exclamation-circle" style="font-size:2rem;color:var(--gray-300);display:block;margin-bottom:8px;"></i><p>Failed to load content.</p></div>';
+        });
 }
 
 function closePopup() {
     document.getElementById('popupOverlay').classList.remove('active');
 }
 
-// Close popup with Escape key
+// Close with Escape key
 document.addEventListener('keydown', function(e) {
-    if (e.key === 'Escape') {
-        closePopup();
-    }
+    if (e.key === 'Escape') closePopup();
 });
 
 // Sidebar toggle
