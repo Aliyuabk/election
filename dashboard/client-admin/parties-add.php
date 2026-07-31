@@ -145,7 +145,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $filepath = $upload_dir . $filename;
                     
                     if (move_uploaded_file($file['tmp_name'], $filepath)) {
-                        $logo_url = '/election/uploads/parties/' . $filename;
+                        $logo_url = '/uploads/parties/' . $filename;
                         
                         // Delete old logo if editing
                         if ($is_edit && !empty($party['logo_url'])) {
