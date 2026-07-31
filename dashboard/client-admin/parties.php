@@ -65,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([$id, $tenant_id]);
                 $party = $stmt->fetch();
                 if ($party && !empty($party['logo_url'])) {
-                    $logo_path = '../../' . str_replace('/election/', '', $party['logo_url']);
+                    $logo_path = '../../' . str_replace('', '', $party['logo_url']);
                     if (file_exists($logo_path)) {
                         @unlink($logo_path);
                     }
