@@ -60,6 +60,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     throw new Exception("Cannot delete party. It has $count candidates assigned.");
                 }
                 
+                // Get logo path for deletion
+                $stmt = $db->prepare("SELECT logo_url FROM political_parties WHERE id = ? AND tenant_id = ?");
+                $stmt->execute([$id, $tenant_id]);
+                $party = $stmt->fetch();
+                if ($party && !empty($party['logo_url'])) {
+                    $logo_path = '../../' . str_replace('/election/', '', $party['logo_url']);
+                    if (file_exists($logo_path)) {
+                        @unlink($logo_path);
+                    }
+                }
+                
                 $stmt = $db->prepare("DELETE FROM political_parties WHERE id = ? AND tenant_id = ?");
                 $stmt->execute([$id, $tenant_id]);
                 
@@ -78,6 +89,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 logActivity($user_id, 'party_status_toggled', "Toggled party ID: $id to " . ($status ? 'active' : 'inactive'));
                 $action_result = ['success' => true, 'message' => 'Party status updated successfully.'];
                 break;
+                
+            case 'update_tenant_for_parties':
+                $stmt = $db->prepare("UPDATE political_parties SET tenant_id = ? WHERE tenant_id = 0");
+                $stmt->execute([$tenant_id]);
+                $count = $stmt->rowCount();
+                $action_result = ['success' => true, 'message' => "Updated $count parties to your tenant."];
+                break;
         }
     } catch (Exception $e) {
         $action_result = ['success' => false, 'message' => 'Error: ' . $e->getMessage()];
@@ -93,24 +111,24 @@ $offset = ($page - 1) * $limit;
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 $status_filter = isset($_GET['status']) ? (int)$_GET['status'] : -1;
 
-$where_conditions = ["p.tenant_id = ?"];
+$where_conditions = ["tenant_id = ?"];
 $params = [$tenant_id];
 
 if (!empty($search)) {
-    $where_conditions[] = "(p.name LIKE ? OR p.acronym LIKE ?)";
+    $where_conditions[] = "(name LIKE ? OR acronym LIKE ?)";
     $search_param = "%$search%";
     $params = array_merge($params, [$search_param, $search_param]);
 }
 
 if ($status_filter >= 0) {
-    $where_conditions[] = "p.is_active = ?";
+    $where_conditions[] = "is_active = ?";
     $params[] = $status_filter;
 }
 
 $where_clause = "WHERE " . implode(" AND ", $where_conditions);
 
 // Count total
-$count_sql = "SELECT COUNT(*) as total FROM political_parties p $where_clause";
+$count_sql = "SELECT COUNT(*) as total FROM political_parties $where_clause";
 $stmt = $db->prepare($count_sql);
 $stmt->execute($params);
 $total_parties = $stmt->fetch()['total'] ?? 0;
@@ -126,9 +144,8 @@ $sql = "
     LIMIT ? OFFSET ?
 ";
 
-// Build parameters: [tenant_id_for_subquery, ...where_params, limit, offset]
-$params_final = [];
-$params_final[] = $tenant_id; // For subquery
+// Build parameters
+$params_final = [$tenant_id]; // For subquery
 foreach ($params as $param) {
     $params_final[] = $param;
 }
@@ -436,10 +453,29 @@ include 'includes/sidebar.php';
     background: var(--gray-50);
     border-color: var(--gray-300);
 }
+.filter-bar .btn-warning {
+    padding: 8px 16px;
+    background: #FFFBEB;
+    color: #92400E;
+    border: 1.5px solid #FDE68A;
+    border-radius: 10px;
+    font-weight: 500;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: var(--transition);
+    font-family: 'Inter', sans-serif;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.filter-bar .btn-warning:hover {
+    background: #FEF3C7;
+}
 
 .party-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: 20px;
     margin-bottom: 20px;
 }
@@ -466,8 +502,8 @@ include 'includes/sidebar.php';
     position: relative;
 }
 .party-card .party-logo {
-    width: 64px;
-    height: 64px;
+    width: 70px;
+    height: 70px;
     border-radius: 12px;
     overflow: hidden;
     flex-shrink: 0;
@@ -488,7 +524,7 @@ include 'includes/sidebar.php';
     object-fit: cover;
 }
 .party-card .party-logo .no-logo {
-    font-size: 1.8rem;
+    font-size: 2rem;
     color: var(--gray-400);
 }
 .party-card .party-info {
@@ -740,6 +776,7 @@ include 'includes/sidebar.php';
 }
 .toast.success { background: var(--secondary); }
 .toast.error { background: var(--danger); }
+.toast.info { background: var(--primary); }
 
 @media (max-width: 768px) {
     .stats-grid { grid-template-columns: repeat(2, 1fr); }
@@ -762,7 +799,7 @@ include 'includes/sidebar.php';
     .stats-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
     .stat-item { padding: 12px 14px; }
     .stat-item .number { font-size: 1.3rem; }
-    .party-card .party-logo { width: 48px; height: 48px; }
+    .party-card .party-logo { width: 50px; height: 50px; }
     .party-card .party-info .party-name { font-size: 0.95rem; }
     .badge-status { font-size: 0.55rem; padding: 2px 8px; }
 }
@@ -918,10 +955,10 @@ include 'includes/sidebar.php';
                             <div class="action-dropdown">
                                 <button class="dropdown-btn" onclick="toggleDropdown(this)"><i class="fas fa-ellipsis-v"></i></button>
                                 <div class="dropdown-menu">
-                                    <a href="parties-view.php?id=<?php echo $party['id']; ?>">
+                                    <a href="#">
                                         <i class="fas fa-info-circle"></i> Details
                                     </a>
-                                    <a href="candidates.php?party_id=<?php echo $party['id']; ?>">
+                                    <a href="#">
                                         <i class="fas fa-users"></i> View Candidates
                                     </a>
                                     <?php if ($party['is_active']): ?>
