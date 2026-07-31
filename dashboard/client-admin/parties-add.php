@@ -16,7 +16,8 @@ if (!SessionManager::isLoggedIn()) {
 }
 
 // Check role - only client_admin can access this page
-if (SessionManager::get('role_level') !== 'client_admin') {
+$user_role_level = SessionManager::get('role_level');
+if ($user_role_level !== 'client_admin' && $user_role_level !== 'super_admin') {
     header('Location: ../client-admin/');
     exit();
 }
@@ -29,6 +30,12 @@ $user_id = SessionManager::get('user_id');
 $user_name = SessionManager::get('user_name', 'Administrator');
 $user_email = SessionManager::get('user_email', 'admin@example.com');
 $tenant_id = SessionManager::get('tenant_id');
+
+// If no tenant_id, redirect to tenant selection
+if (empty($tenant_id)) {
+    header('Location: ../client-admin/');
+    exit();
+}
 
 // ============================================================
 // GET PARTY ID FOR EDIT
@@ -76,102 +83,148 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         switch ($action) {
             case 'add_party':
+            case 'edit_party':
+                $id = (int)($_POST['id'] ?? 0);
                 $name = trim($_POST['name'] ?? '');
                 $acronym = trim($_POST['acronym'] ?? '');
+                $slogan = trim($_POST['slogan'] ?? '');
                 $chairman_name = trim($_POST['chairman_name'] ?? '');
                 $secretary_name = trim($_POST['secretary_name'] ?? '');
                 $contact_email = trim($_POST['contact_email'] ?? '');
                 $contact_phone = trim($_POST['contact_phone'] ?? '');
                 $website = trim($_POST['website'] ?? '');
-                $state_offices_json = json_encode($_POST['state_offices'] ?? []);
-                $social_media_json = json_encode([
+                $is_active = isset($_POST['is_active']) ? 1 : 0;
+                
+                $state_offices = isset($_POST['state_offices']) ? array_map('intval', $_POST['state_offices']) : [];
+                $state_offices_json = json_encode($state_offices);
+                
+                $social_media = [
                     'facebook' => trim($_POST['facebook'] ?? ''),
                     'twitter' => trim($_POST['twitter'] ?? ''),
                     'instagram' => trim($_POST['instagram'] ?? ''),
                     'linkedin' => trim($_POST['linkedin'] ?? ''),
                     'youtube' => trim($_POST['youtube'] ?? '')
-                ]);
+                ];
+                $social_media_json = json_encode($social_media);
                 
                 if (empty($name) || empty($acronym)) {
                     throw new Exception('Party name and acronym are required.');
                 }
                 
-                // Check if acronym exists
-                $stmt = $db->prepare("SELECT COUNT(*) as count FROM political_parties WHERE acronym = ? AND tenant_id = ?");
-                $stmt->execute([$acronym, $tenant_id]);
-                if ($stmt->fetch()['count'] > 0) {
-                    throw new Exception('Party acronym already exists.');
+                // Check if acronym exists (for new party or if acronym changed)
+                if (!$is_edit || ($is_edit && $party['acronym'] !== $acronym)) {
+                    $stmt = $db->prepare("SELECT COUNT(*) as count FROM political_parties WHERE acronym = ? AND tenant_id = ?");
+                    $stmt->execute([$acronym, $tenant_id]);
+                    if ($stmt->fetch()['count'] > 0) {
+                        throw new Exception('Party acronym already exists. Please choose a different one.');
+                    }
                 }
                 
                 // Handle logo upload
-                $logo_url = '';
-                if (!empty($_FILES['logo']['name'])) {
-                    $logo_url = '/uploads/parties/' . uniqid() . '_' . basename($_FILES['logo']['name']);
-                    // In production, move uploaded file
+                $logo_url = null;
+                if (isset($_FILES['logo']) && $_FILES['logo']['error'] === UPLOAD_ERR_OK) {
+                    $file = $_FILES['logo'];
+                    $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+                    $allowed = ['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp'];
+                    
+                    if (!in_array($ext, $allowed)) {
+                        throw new Exception('Invalid file type. Allowed: JPG, PNG, GIF, SVG, WEBP');
+                    }
+                    
+                    if ($file['size'] > 2 * 1024 * 1024) {
+                        throw new Exception('File size exceeds 2MB limit.');
+                    }
+                    
+                    // Create upload directory if it doesn't exist
+                    $upload_dir = '../../uploads/parties/';
+                    if (!file_exists($upload_dir)) {
+                        mkdir($upload_dir, 0777, true);
+                    }
+                    
+                    $filename = 'party_' . ($is_edit ? $id : time()) . '_' . uniqid() . '.' . $ext;
+                    $filepath = $upload_dir . $filename;
+                    
+                    if (move_uploaded_file($file['tmp_name'], $filepath)) {
+                        $logo_url = '/election/uploads/parties/' . $filename;
+                        
+                        // Delete old logo if editing
+                        if ($is_edit && !empty($party['logo_url'])) {
+                            $old_file = '../../' . str_replace('/election/', '', $party['logo_url']);
+                            if (file_exists($old_file)) {
+                                @unlink($old_file);
+                            }
+                        }
+                    } else {
+                        throw new Exception('Failed to upload logo.');
+                    }
                 }
                 
-                $stmt = $db->prepare("
-                    INSERT INTO political_parties (
-                        tenant_id, name, acronym, logo_url,
-                        chairman_name, secretary_name,
-                        contact_email, contact_phone, website,
-                        state_offices_json, social_media_json,
-                        is_active
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-                ");
-                $stmt->execute([
-                    $tenant_id, $name, $acronym, $logo_url,
-                    $chairman_name, $secretary_name,
-                    $contact_email, $contact_phone, $website,
-                    $state_offices_json, $social_media_json
-                ]);
-                
-                logActivity($user_id, 'party_added', "Added party: $name");
-                $action_result = ['success' => true, 'message' => "Party '$name' created successfully."];
-                break;
-                
-            case 'edit_party':
-                $id = (int)($_POST['id'] ?? 0);
-                $name = trim($_POST['name'] ?? '');
-                $acronym = trim($_POST['acronym'] ?? '');
-                $chairman_name = trim($_POST['chairman_name'] ?? '');
-                $secretary_name = trim($_POST['secretary_name'] ?? '');
-                $contact_email = trim($_POST['contact_email'] ?? '');
-                $contact_phone = trim($_POST['contact_phone'] ?? '');
-                $website = trim($_POST['website'] ?? '');
-                $state_offices_json = json_encode($_POST['state_offices'] ?? []);
-                $social_media_json = json_encode([
-                    'facebook' => trim($_POST['facebook'] ?? ''),
-                    'twitter' => trim($_POST['twitter'] ?? ''),
-                    'instagram' => trim($_POST['instagram'] ?? ''),
-                    'linkedin' => trim($_POST['linkedin'] ?? ''),
-                    'youtube' => trim($_POST['youtube'] ?? '')
-                ]);
-                $is_active = isset($_POST['is_active']) ? 1 : 0;
-                
-                if ($id <= 0 || empty($name) || empty($acronym)) {
-                    throw new Exception('Invalid data provided.');
+                if ($is_edit) {
+                    // Update existing party
+                    $sql = "
+                        UPDATE political_parties SET 
+                            name = ?,
+                            acronym = ?,
+                            slogan = ?,
+                            chairman_name = ?,
+                            secretary_name = ?,
+                            contact_email = ?,
+                            contact_phone = ?,
+                            website = ?,
+                            state_offices_json = ?,
+                            social_media_json = ?,
+                            is_active = ?
+                    ";
+                    $params = [
+                        $name, $acronym, $slogan, $chairman_name, $secretary_name,
+                        $contact_email, $contact_phone, $website,
+                        $state_offices_json, $social_media_json, $is_active
+                    ];
+                    
+                    // Add logo update if new logo uploaded
+                    if ($logo_url !== null) {
+                        $sql .= ", logo_url = ?";
+                        $params[] = $logo_url;
+                    }
+                    
+                    $sql .= " WHERE id = ? AND tenant_id = ?";
+                    $params[] = $id;
+                    $params[] = $tenant_id;
+                    
+                    $stmt = $db->prepare($sql);
+                    $stmt->execute($params);
+                    
+                    logActivity($user_id, 'party_updated', "Updated party: $name (ID: $id)");
+                    $action_result = ['success' => true, 'message' => "Party '$name' updated successfully."];
+                    
+                } else {
+                    // Insert new party
+                    $stmt = $db->prepare("
+                        INSERT INTO political_parties (
+                            tenant_id, name, acronym, logo_url, slogan,
+                            chairman_name, secretary_name,
+                            contact_email, contact_phone, website,
+                            state_offices_json, social_media_json,
+                            is_active, created_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW())
+                    ");
+                    $stmt->execute([
+                        $tenant_id, $name, $acronym, $logo_url, $slogan,
+                        $chairman_name, $secretary_name,
+                        $contact_email, $contact_phone, $website,
+                        $state_offices_json, $social_media_json
+                    ]);
+                    
+                    $new_id = $db->lastInsertId();
+                    logActivity($user_id, 'party_added', "Added party: $name (ID: $new_id)");
+                    $action_result = ['success' => true, 'message' => "Party '$name' created successfully."];
                 }
                 
-                $stmt = $db->prepare("
-                    UPDATE political_parties SET 
-                        name = ?, acronym = ?,
-                        chairman_name = ?, secretary_name = ?,
-                        contact_email = ?, contact_phone = ?, website = ?,
-                        state_offices_json = ?, social_media_json = ?,
-                        is_active = ?
-                    WHERE id = ? AND tenant_id = ?
-                ");
-                $stmt->execute([
-                    $name, $acronym,
-                    $chairman_name, $secretary_name,
-                    $contact_email, $contact_phone, $website,
-                    $state_offices_json, $social_media_json,
-                    $is_active, $id, $tenant_id
-                ]);
+                // Refresh data after successful save
+                $stmt = $db->prepare("SELECT * FROM political_parties WHERE id = ? AND tenant_id = ?");
+                $stmt->execute([$is_edit ? $id : $new_id ?? 0, $tenant_id]);
+                $party = $stmt->fetch();
                 
-                logActivity($user_id, 'party_updated', "Updated party ID: $id");
-                $action_result = ['success' => true, 'message' => 'Party updated successfully.'];
                 break;
         }
     } catch (Exception $e) {
@@ -179,10 +232,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+// ============================================================
+// INCLUDE HEADER & SIDEBAR
+// ============================================================
 include 'includes/base.php';
 include 'includes/sidebar.php';
 ?>
-<!-- The HTML remains the same as before, just remove the slogan field -->
+
 <style>
     /* ============================================================
        ADD/EDIT PARTY - PROFESSIONAL UI STYLES
@@ -572,6 +628,45 @@ include 'includes/sidebar.php';
     .toast.success { background: var(--secondary); }
     .toast.error { background: var(--danger); }
     
+    .current-logo {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 14px;
+        background: #F8FAFC;
+        border-radius: 8px;
+        border: 1px solid var(--gray-200);
+        margin-top: 8px;
+    }
+    .current-logo img {
+        width: 48px;
+        height: 48px;
+        border-radius: 8px;
+        object-fit: cover;
+        border: 1px solid var(--gray-200);
+    }
+    .current-logo .logo-info {
+        flex: 1;
+        font-size: 0.82rem;
+        color: var(--gray-600);
+    }
+    .current-logo .logo-info .logo-name {
+        font-weight: 500;
+        color: var(--gray-700);
+    }
+    .current-logo .logo-actions {
+        display: flex;
+        gap: 8px;
+    }
+    .current-logo .logo-actions a {
+        font-size: 0.75rem;
+        color: var(--primary);
+        text-decoration: none;
+    }
+    .current-logo .logo-actions a:hover {
+        text-decoration: underline;
+    }
+    
     @media (max-width: 768px) {
         .form-container {
             padding: 20px;
@@ -607,6 +702,9 @@ include 'includes/sidebar.php';
         }
         .checkbox-grid {
             grid-template-columns: 1fr;
+        }
+        .current-logo {
+            flex-wrap: wrap;
         }
     }
 </style>
@@ -662,23 +760,23 @@ include 'includes/sidebar.php';
                     <div class="form-group">
                         <label>Party Name <span class="required">*</span></label>
                         <input type="text" name="name" placeholder="e.g., All Progressives Congress" required
-                               value="<?php echo $is_edit ? htmlspecialchars($party['name']) : ''; ?>">
+                               value="<?php echo $is_edit ? htmlspecialchars($party['name'] ?? '') : ''; ?>">
                     </div>
 
                     <!-- Acronym -->
                     <div class="form-group">
                         <label>Acronym <span class="required">*</span></label>
                         <input type="text" name="acronym" placeholder="e.g., APC" maxlength="10" required
-                               value="<?php echo $is_edit ? htmlspecialchars($party['acronym']) : ''; ?>">
-                        <div class="help-text">Unique abbreviation for the party</div>
+                               value="<?php echo $is_edit ? htmlspecialchars($party['acronym'] ?? '') : ''; ?>">
+                        <div class="help-text">Unique abbreviation for the party (max 10 characters)</div>
                     </div>
 
                     <!-- Slogan -->
                     <div class="form-group full-width">
-                        <label>Slogan</label>
+                        <label>Slogan / Motto</label>
                         <input type="text" name="slogan" placeholder="e.g., Change is Coming" 
                                value="<?php echo $is_edit ? htmlspecialchars($party['slogan'] ?? '') : ''; ?>">
-                        <div class="help-text">Party slogan or motto</div>
+                        <div class="help-text">Party slogan or motto (optional)</div>
                     </div>
 
                     <!-- Chairman -->
@@ -720,10 +818,10 @@ include 'includes/sidebar.php';
                     <div class="form-group full-width">
                         <label>Party Logo</label>
                         <div class="file-upload-area" onclick="document.getElementById('logo').click()">
-                            <i class="fas fa-image"></i>
-                            <p>Click to upload party logo</p>
-                            <div class="file-types">Supported: JPG, PNG (Max 2MB)</div>
-                            <input type="file" name="logo" id="logo" accept=".jpg,.jpeg,.png">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <p><strong>Click to upload</strong> or drag and drop</p>
+                            <div class="file-types">Supported: JPG, PNG, GIF, SVG, WEBP (Max 2MB)</div>
+                            <input type="file" name="logo" id="logo" accept=".jpg,.jpeg,.png,.gif,.svg,.webp">
                         </div>
                         <div class="file-preview" id="logoPreview">
                             <div class="file-info">
@@ -737,13 +835,19 @@ include 'includes/sidebar.php';
                                 </button>
                             </div>
                         </div>
+                        
                         <?php if ($is_edit && !empty($party['logo_url'])): ?>
-                            <div style="margin-top:8px;padding:8px 12px;background:#F3F4F6;border-radius:6px;display:flex;align-items:center;gap:8px;">
-                                <i class="fas fa-check-circle" style="color:var(--secondary);"></i>
-                                <span style="font-size:0.8rem;color:var(--gray-600);">Current logo uploaded</span>
-                                <a href="<?php echo htmlspecialchars($party['logo_url']); ?>" target="_blank" style="margin-left:auto;font-size:0.7rem;color:var(--primary);text-decoration:none;">
-                                    View <i class="fas fa-external-link-alt"></i>
-                                </a>
+                            <div class="current-logo">
+                                <img src="<?php echo htmlspecialchars($party['logo_url']); ?>" alt="Current logo">
+                                <div class="logo-info">
+                                    <div class="logo-name">Current Logo</div>
+                                    <div style="font-size:0.7rem;color:var(--gray-400);">Upload a new logo to replace it</div>
+                                </div>
+                                <div class="logo-actions">
+                                    <a href="<?php echo htmlspecialchars($party['logo_url']); ?>" target="_blank">
+                                        <i class="fas fa-eye"></i> View
+                                    </a>
+                                </div>
                             </div>
                         <?php endif; ?>
                     </div>
@@ -753,7 +857,13 @@ include 'includes/sidebar.php';
                         <label>State Offices</label>
                         <div class="help-text">Select the states where the party has offices</div>
                         <?php 
-                        $selected_states = $is_edit ? json_decode($party['state_offices_json'] ?? '[]', true) : [];
+                        $selected_states = [];
+                        if ($is_edit && !empty($party['state_offices_json'])) {
+                            $selected_states = json_decode($party['state_offices_json'], true);
+                            if (!is_array($selected_states)) {
+                                $selected_states = [];
+                            }
+                        }
                         ?>
                         <div class="checkbox-grid">
                             <?php foreach ($states as $state): ?>
@@ -765,13 +875,20 @@ include 'includes/sidebar.php';
                                 </label>
                             <?php endforeach; ?>
                         </div>
+                        <div class="help-text">Hold Ctrl/Cmd to select multiple states</div>
                     </div>
 
                     <!-- Social Media -->
                     <div class="form-group full-width">
-                        <label>Social Media</label>
+                        <label>Social Media Profiles</label>
                         <?php 
-                        $social = $is_edit ? json_decode($party['social_media_json'] ?? '{}', true) : [];
+                        $social = [];
+                        if ($is_edit && !empty($party['social_media_json'])) {
+                            $social = json_decode($party['social_media_json'], true);
+                            if (!is_array($social)) {
+                                $social = [];
+                            }
+                        }
                         ?>
                         <div class="social-input">
                             <span class="social-icon facebook"><i class="fab fa-facebook-f"></i></span>
@@ -805,7 +922,7 @@ include 'includes/sidebar.php';
                     <div class="form-group full-width">
                         <div style="display:flex;align-items:center;gap:12px;padding:8px 0;">
                             <input type="checkbox" name="is_active" id="is_active" value="1" 
-                                   <?php echo ($is_edit && $party['is_active']) ? 'checked' : ''; ?>>
+                                   <?php echo ($is_edit && !empty($party['is_active'])) ? 'checked' : ''; ?>>
                             <label for="is_active" style="font-weight:400;cursor:pointer;">Active</label>
                             <span style="font-size:0.7rem;color:var(--gray-400);">Uncheck to suspend this party</span>
                         </div>
@@ -938,9 +1055,9 @@ function setupFileUpload(inputId, previewId, nameId, sizeId) {
 
 function removeFile(inputId) {
     var input = document.getElementById(inputId);
-    var preview = input.closest('.form-group').querySelector('.file-preview');
     if (input) {
         input.value = '';
+        var preview = input.closest('.form-group').querySelector('.file-preview');
         if (preview) {
             preview.classList.remove('show');
         }
@@ -950,6 +1067,42 @@ function removeFile(inputId) {
 // Setup file upload
 document.addEventListener('DOMContentLoaded', function() {
     setupFileUpload('logo', 'logoPreview', 'logoName', 'logoSize');
+});
+
+// ============================================================
+// DRAG AND DROP SUPPORT
+// ============================================================
+document.addEventListener('DOMContentLoaded', function() {
+    var dropArea = document.querySelector('.file-upload-area');
+    if (dropArea) {
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(function(eventName) {
+            dropArea.addEventListener(eventName, function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        });
+        
+        ['dragenter', 'dragover'].forEach(function(eventName) {
+            dropArea.addEventListener(eventName, function() {
+                dropArea.classList.add('dragover');
+            });
+        });
+        
+        ['dragleave', 'drop'].forEach(function(eventName) {
+            dropArea.addEventListener(eventName, function() {
+                dropArea.classList.remove('dragover');
+            });
+        });
+        
+        dropArea.addEventListener('drop', function(e) {
+            var files = e.dataTransfer.files;
+            var input = document.getElementById('logo');
+            if (input && files.length > 0) {
+                input.files = files;
+                input.dispatchEvent(new Event('change'));
+            }
+        });
+    }
 });
 
 // ============================================================
