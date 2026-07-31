@@ -16,7 +16,8 @@ if (!SessionManager::isLoggedIn()) {
 }
 
 // Check role - only client_admin can access this page
-if (SessionManager::get('role_level') !== 'client_admin') {
+$user_role_level = SessionManager::get('role_level');
+if ($user_role_level !== 'client_admin' && $user_role_level !== 'super_admin') {
     header('Location: ../client-admin/');
     exit();
 }
@@ -29,6 +30,12 @@ $user_id = SessionManager::get('user_id');
 $user_name = SessionManager::get('user_name', 'Administrator');
 $user_email = SessionManager::get('user_email', 'admin@example.com');
 $tenant_id = SessionManager::get('tenant_id');
+
+// If no tenant_id, redirect to tenant selection
+if (empty($tenant_id)) {
+    header('Location: ../client-admin/');
+    exit();
+}
 
 // ============================================================
 // GET CANDIDATE ID FOR EDIT
@@ -91,6 +98,13 @@ try {
     $stmt->execute([$tenant_id]);
     $parties = $stmt->fetchAll();
 } catch (Exception $e) {}
+
+// ============================================================
+// HELPER FUNCTION FOR SAFE HTML OUTPUT
+// ============================================================
+function safe($value) {
+    return htmlspecialchars($value ?? '', ENT_QUOTES, 'UTF-8');
+}
 
 // ============================================================
 // HANDLE FORM SUBMISSION
@@ -649,8 +663,8 @@ include 'includes/sidebar.php';
                             <option value="">Select Election</option>
                             <?php foreach ($elections as $election): ?>
                                 <option value="<?php echo $election['id']; ?>" 
-                                    <?php echo ($is_edit && $candidate['election_id'] == $election['id']) ? 'selected' : ''; ?>>
-                                    <?php echo htmlspecialchars($election['name']); ?>
+                                    <?php echo ($is_edit && isset($candidate['election_id']) && $candidate['election_id'] == $election['id']) ? 'selected' : ''; ?>>
+                                    <?php echo safe($election['name']); ?>
                                     (<?php echo date('M j, Y', strtotime($election['election_date'])); ?>)
                                 </option>
                             <?php endforeach; ?>
@@ -664,9 +678,9 @@ include 'includes/sidebar.php';
                             <option value="">Select Party</option>
                             <?php foreach ($parties as $party): ?>
                                 <option value="<?php echo $party['id']; ?>" 
-                                    <?php echo ($is_edit && $candidate['party_id'] == $party['id']) ? 'selected' : ''; ?>>
-                                    <?php echo htmlspecialchars($party['name']); ?>
-                                    (<?php echo htmlspecialchars($party['acronym']); ?>)
+                                    <?php echo ($is_edit && isset($candidate['party_id']) && $candidate['party_id'] == $party['id']) ? 'selected' : ''; ?>>
+                                    <?php echo safe($party['name']); ?>
+                                    (<?php echo safe($party['acronym']); ?>)
                                 </option>
                             <?php endforeach; ?>
                         </select>
@@ -677,14 +691,14 @@ include 'includes/sidebar.php';
                     <div class="form-group">
                         <label>First Name <span class="required">*</span></label>
                         <input type="text" name="first_name" placeholder="Enter first name" required
-                               value="<?php echo $is_edit ? htmlspecialchars($candidate['first_name']) : ''; ?>">
+                               value="<?php echo $is_edit ? safe($candidate['first_name'] ?? '') : ''; ?>">
                     </div>
 
                     <!-- Last Name -->
                     <div class="form-group">
                         <label>Last Name <span class="required">*</span></label>
                         <input type="text" name="last_name" placeholder="Enter last name" required
-                               value="<?php echo $is_edit ? htmlspecialchars($candidate['last_name']) : ''; ?>">
+                               value="<?php echo $is_edit ? safe($candidate['last_name'] ?? '') : ''; ?>">
                     </div>
 
                     <!-- Position -->
@@ -692,17 +706,17 @@ include 'includes/sidebar.php';
                         <label>Position <span class="required">*</span></label>
                         <select name="position" required>
                             <option value="">Select Position</option>
-                            <option value="presidential" <?php echo ($is_edit && $candidate['position'] == 'presidential') ? 'selected' : ''; ?>>Presidential</option>
-                            <option value="vice_presidential" <?php echo ($is_edit && $candidate['position'] == 'vice_presidential') ? 'selected' : ''; ?>>Vice Presidential</option>
-                            <option value="governorship" <?php echo ($is_edit && $candidate['position'] == 'governorship') ? 'selected' : ''; ?>>Governorship</option>
-                            <option value="deputy_governorship" <?php echo ($is_edit && $candidate['position'] == 'deputy_governorship') ? 'selected' : ''; ?>>Deputy Governorship</option>
-                            <option value="senatorial" <?php echo ($is_edit && $candidate['position'] == 'senatorial') ? 'selected' : ''; ?>>Senatorial</option>
-                            <option value="house_of_reps" <?php echo ($is_edit && $candidate['position'] == 'house_of_reps') ? 'selected' : ''; ?>>House of Representatives</option>
-                            <option value="house_of_assembly" <?php echo ($is_edit && $candidate['position'] == 'house_of_assembly') ? 'selected' : ''; ?>>House of Assembly</option>
-                            <option value="lga_chairman" <?php echo ($is_edit && $candidate['position'] == 'lga_chairman') ? 'selected' : ''; ?>>LGA Chairman</option>
-                            <option value="councillorship" <?php echo ($is_edit && $candidate['position'] == 'councillorship') ? 'selected' : ''; ?>>Councillorship</option>
-                            <option value="party_primary" <?php echo ($is_edit && $candidate['position'] == 'party_primary') ? 'selected' : ''; ?>>Party Primary</option>
-                            <option value="other" <?php echo ($is_edit && $candidate['position'] == 'other') ? 'selected' : ''; ?>>Other</option>
+                            <option value="presidential" <?php echo ($is_edit && isset($candidate['position']) && $candidate['position'] == 'presidential') ? 'selected' : ''; ?>>Presidential</option>
+                            <option value="vice_presidential" <?php echo ($is_edit && isset($candidate['position']) && $candidate['position'] == 'vice_presidential') ? 'selected' : ''; ?>>Vice Presidential</option>
+                            <option value="governorship" <?php echo ($is_edit && isset($candidate['position']) && $candidate['position'] == 'governorship') ? 'selected' : ''; ?>>Governorship</option>
+                            <option value="deputy_governorship" <?php echo ($is_edit && isset($candidate['position']) && $candidate['position'] == 'deputy_governorship') ? 'selected' : ''; ?>>Deputy Governorship</option>
+                            <option value="senatorial" <?php echo ($is_edit && isset($candidate['position']) && $candidate['position'] == 'senatorial') ? 'selected' : ''; ?>>Senatorial</option>
+                            <option value="house_of_reps" <?php echo ($is_edit && isset($candidate['position']) && $candidate['position'] == 'house_of_reps') ? 'selected' : ''; ?>>House of Representatives</option>
+                            <option value="house_of_assembly" <?php echo ($is_edit && isset($candidate['position']) && $candidate['position'] == 'house_of_assembly') ? 'selected' : ''; ?>>House of Assembly</option>
+                            <option value="lga_chairman" <?php echo ($is_edit && isset($candidate['position']) && $candidate['position'] == 'lga_chairman') ? 'selected' : ''; ?>>LGA Chairman</option>
+                            <option value="councillorship" <?php echo ($is_edit && isset($candidate['position']) && $candidate['position'] == 'councillorship') ? 'selected' : ''; ?>>Councillorship</option>
+                            <option value="party_primary" <?php echo ($is_edit && isset($candidate['position']) && $candidate['position'] == 'party_primary') ? 'selected' : ''; ?>>Party Primary</option>
+                            <option value="other" <?php echo ($is_edit && isset($candidate['position']) && $candidate['position'] == 'other') ? 'selected' : ''; ?>>Other</option>
                         </select>
                         <div class="help-text">The position the candidate is running for</div>
                     </div>
@@ -710,14 +724,14 @@ include 'includes/sidebar.php';
                     <!-- Biography -->
                     <div class="form-group full-width">
                         <label>Biography</label>
-                        <textarea name="biography" placeholder="Enter candidate's biography, background, and experience..." rows="3"><?php echo $is_edit ? htmlspecialchars($candidate['biography']) : ''; ?></textarea>
+                        <textarea name="biography" placeholder="Enter candidate's biography, background, and experience..." rows="3"><?php echo $is_edit ? safe($candidate['biography'] ?? '') : ''; ?></textarea>
                         <div class="help-text">Detailed background information about the candidate</div>
                     </div>
 
                     <!-- Manifesto -->
                     <div class="form-group full-width">
                         <label>Manifesto</label>
-                        <textarea name="manifesto" placeholder="Enter candidate's manifesto, goals, and promises..." rows="3"><?php echo $is_edit ? htmlspecialchars($candidate['manifesto']) : ''; ?></textarea>
+                        <textarea name="manifesto" placeholder="Enter candidate's manifesto, goals, and promises..." rows="3"><?php echo $is_edit ? safe($candidate['manifesto'] ?? '') : ''; ?></textarea>
                         <div class="help-text">The candidate's campaign manifesto and key promises</div>
                     </div>
 
@@ -725,44 +739,50 @@ include 'includes/sidebar.php';
                     <div class="form-group">
                         <label>Contact Email</label>
                         <input type="email" name="contact_email" placeholder="candidate@example.com"
-                               value="<?php echo $is_edit ? htmlspecialchars($candidate['contact_email']) : ''; ?>">
+                               value="<?php echo $is_edit ? safe($candidate['contact_email'] ?? '') : ''; ?>">
                     </div>
                     <div class="form-group">
                         <label>Contact Phone</label>
                         <input type="tel" name="contact_phone" placeholder="+234 800 000 0000"
-                               value="<?php echo $is_edit ? htmlspecialchars($candidate['contact_phone']) : ''; ?>">
+                               value="<?php echo $is_edit ? safe($candidate['contact_phone'] ?? '') : ''; ?>">
                     </div>
 
                     <!-- Social Media -->
                     <div class="form-group full-width">
                         <label>Social Media &amp; Links</label>
                         <?php 
-                        $social = $is_edit ? json_decode($candidate['social_media_json'] ?? '{}', true) : [];
+                        $social = [];
+                        if ($is_edit && !empty($candidate['social_media_json'])) {
+                            $social = json_decode($candidate['social_media_json'], true);
+                            if (!is_array($social)) {
+                                $social = [];
+                            }
+                        }
                         ?>
                         <div class="social-input">
                             <span class="social-icon facebook"><i class="fab fa-facebook-f"></i></span>
                             <input type="url" name="facebook" placeholder="Facebook URL" 
-                                   value="<?php echo htmlspecialchars($social['facebook'] ?? ''); ?>">
+                                   value="<?php echo safe($social['facebook'] ?? ''); ?>">
                         </div>
                         <div class="social-input" style="margin-top:6px;">
                             <span class="social-icon twitter"><i class="fab fa-twitter"></i></span>
                             <input type="url" name="twitter" placeholder="Twitter URL"
-                                   value="<?php echo htmlspecialchars($social['twitter'] ?? ''); ?>">
+                                   value="<?php echo safe($social['twitter'] ?? ''); ?>">
                         </div>
                         <div class="social-input" style="margin-top:6px;">
                             <span class="social-icon instagram"><i class="fab fa-instagram"></i></span>
                             <input type="url" name="instagram" placeholder="Instagram URL"
-                                   value="<?php echo htmlspecialchars($social['instagram'] ?? ''); ?>">
+                                   value="<?php echo safe($social['instagram'] ?? ''); ?>">
                         </div>
                         <div class="social-input" style="margin-top:6px;">
                             <span class="social-icon linkedin"><i class="fab fa-linkedin-in"></i></span>
                             <input type="url" name="linkedin" placeholder="LinkedIn URL"
-                                   value="<?php echo htmlspecialchars($social['linkedin'] ?? ''); ?>">
+                                   value="<?php echo safe($social['linkedin'] ?? ''); ?>">
                         </div>
                         <div class="social-input" style="margin-top:6px;">
                             <span class="social-icon website"><i class="fas fa-globe"></i></span>
                             <input type="url" name="website" placeholder="Website URL"
-                                   value="<?php echo htmlspecialchars($social['website'] ?? ''); ?>">
+                                   value="<?php echo safe($social['website'] ?? ''); ?>">
                         </div>
                         <div class="help-text">Enter the full URL for each social media profile</div>
                     </div>
@@ -792,7 +812,7 @@ include 'includes/sidebar.php';
                             <div style="margin-top:8px;padding:8px 12px;background:#F3F4F6;border-radius:6px;display:flex;align-items:center;gap:8px;">
                                 <i class="fas fa-check-circle" style="color:var(--secondary);"></i>
                                 <span style="font-size:0.8rem;color:var(--gray-600);">Current photo uploaded</span>
-                                <a href="<?php echo htmlspecialchars($candidate['photograph_url']); ?>" target="_blank" style="margin-left:auto;font-size:0.7rem;color:var(--primary);text-decoration:none;">
+                                <a href="<?php echo safe($candidate['photograph_url']); ?>" target="_blank" style="margin-left:auto;font-size:0.7rem;color:var(--primary);text-decoration:none;">
                                     View <i class="fas fa-external-link-alt"></i>
                                 </a>
                             </div>
@@ -824,48 +844,11 @@ include 'includes/sidebar.php';
                             <div style="margin-top:8px;padding:8px 12px;background:#F3F4F6;border-radius:6px;display:flex;align-items:center;gap:8px;">
                                 <i class="fas fa-check-circle" style="color:var(--secondary);"></i>
                                 <span style="font-size:0.8rem;color:var(--gray-600);">Current logo uploaded</span>
-                                <a href="<?php echo htmlspecialchars($candidate['campaign_logo_url']); ?>" target="_blank" style="margin-left:auto;font-size:0.7rem;color:var(--primary);text-decoration:none;">
+                                <a href="<?php echo safe($candidate['campaign_logo_url']); ?>" target="_blank" style="margin-left:auto;font-size:0.7rem;color:var(--primary);text-decoration:none;">
                                     View <i class="fas fa-external-link-alt"></i>
                                 </a>
                             </div>
                         <?php endif; ?>
-                    </div>
-
-                    <!-- Manifesto PDF Upload -->
-                    <div class="form-group full-width">
-                        <label>Manifesto Document (PDF)</label>
-                        <div class="file-upload-area" onclick="document.getElementById('manifesto_file').click()">
-                            <i class="fas fa-file-pdf"></i>
-                            <p>Click to upload manifesto PDF</p>
-                            <div class="file-types">Supported: PDF (Max 5MB)</div>
-                            <input type="file" name="manifesto_file" id="manifesto_file" accept=".pdf">
-                        </div>
-                        <div class="file-preview" id="manifestoPreview">
-                            <div class="file-info">
-                                <div class="file-icon pdf"><i class="fas fa-file-pdf"></i></div>
-                                <div class="file-details">
-                                    <div class="file-name" id="manifestoName">manifesto.pdf</div>
-                                    <div class="file-size" id="manifestoSize">0 KB</div>
-                                </div>
-                                <button type="button" class="file-remove" onclick="removeFile('manifesto_file')">
-                                    <i class="fas fa-times"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Supporting Documents -->
-                    <div class="form-group full-width">
-                        <label>Supporting Documents</label>
-                        <div class="file-upload-area" onclick="document.getElementById('supporting_docs').click()">
-                            <i class="fas fa-folder-open"></i>
-                            <p>Click to upload supporting documents</p>
-                            <div class="file-types">Supported: PDF, DOC, DOCX (Max 10MB)</div>
-                            <input type="file" name="supporting_docs[]" id="supporting_docs" multiple accept=".pdf,.doc,.docx">
-                        </div>
-                        <div style="margin-top:8px;font-size:0.75rem;color:var(--gray-400);">
-                            <i class="fas fa-info-circle"></i> You can upload multiple documents (CV, credentials, etc.)
-                        </div>
                     </div>
 
                     <!-- Status (Edit only) -->
@@ -873,7 +856,7 @@ include 'includes/sidebar.php';
                     <div class="form-group full-width">
                         <div style="display:flex;align-items:center;gap:12px;padding:8px 0;">
                             <input type="checkbox" name="is_active" id="is_active" value="1" 
-                                   <?php echo ($is_edit && $candidate['is_active']) ? 'checked' : ''; ?>>
+                                   <?php echo ($is_edit && isset($candidate['is_active']) && $candidate['is_active']) ? 'checked' : ''; ?>>
                             <label for="is_active" style="font-weight:400;cursor:pointer;">Active</label>
                             <span style="font-size:0.7rem;color:var(--gray-400);">Uncheck to suspend this candidate</span>
                         </div>
@@ -1019,7 +1002,6 @@ function removeFile(inputId) {
 document.addEventListener('DOMContentLoaded', function() {
     setupFileUpload('photograph', 'photographPreview', 'photographName', 'photographSize');
     setupFileUpload('campaign_logo', 'logoPreview', 'logoName', 'logoSize');
-    setupFileUpload('manifesto_file', 'manifestoPreview', 'manifestoName', 'manifestoSize');
 });
 
 // ============================================================
