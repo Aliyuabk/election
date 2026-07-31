@@ -18,31 +18,55 @@ if (SessionManager::get('role_level') !== 'federal_constituency') {
     exit();
 }
 
+$user_name = SessionManager::get('user_name', 'Coordinator');
+$user_id = SessionManager::get('user_id');
 $constituency_id = SessionManager::get('federal_constituency_id');
+$state_id = SessionManager::get('state_id');
 $tenant_id = SessionManager::get('tenant_id');
+
 $db = getDB();
 
-// Get LGA IDs
+// ============================================================
+// GET LGA IDs
+// ============================================================
 $lga_ids = [];
 try {
-    $stmt = $db->prepare("SELECT lgas_json FROM federal_constituencies WHERE id = ?");
-    $stmt->execute([$constituency_id]);
-    $lgas_json = $stmt->fetchColumn();
-    if ($lgas_json) {
-        $lga_ids = json_decode($lgas_json, true) ?: [];
+    if ($constituency_id) {
+        $stmt = $db->prepare("SELECT lgas_json FROM federal_constituencies WHERE id = ?");
+        $stmt->execute([$constituency_id]);
+        $lgas_json = $stmt->fetchColumn();
+        
+        if ($lgas_json) {
+            $lga_names = json_decode($lgas_json, true) ?: [];
+            
+            if (!empty($lga_names)) {
+                $placeholders = implode(',', array_fill(0, count($lga_names), '?'));
+                $stmt = $db->prepare("SELECT id FROM lgas WHERE name IN ($placeholders) AND state_id = ? AND is_active = 1");
+                $stmt->execute(array_merge($lga_names, [$state_id]));
+                $lga_ids = $stmt->fetchAll(PDO::FETCH_COLUMN);
+            }
+        }
     }
 } catch (Exception $e) {
-    error_log("Error fetching LGA IDs: " . $e->getMessage());
+    error_log("Error getting LGA IDs: " . $e->getMessage());
 }
 
 $lga_list = !empty($lga_ids) ? implode(',', array_map('intval', $lga_ids)) : '0';
 
-// Get filters
+// ============================================================
+// GET FILTERS
+// ============================================================
 $role_filter = isset($_GET['role']) ? $_GET['role'] : '';
 $lga_filter = isset($_GET['lga']) ? (int)$_GET['lga'] : 0;
+$ward_filter = isset($_GET['ward']) ? (int)$_GET['ward'] : 0;
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
+$page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+$limit = 20;
+$offset = ($page - 1) * $limit;
 
-// Get LGAs for filter
+// ============================================================
+// GET LGAS FOR FILTER
+// ============================================================
 $lgas = [];
 try {
     if ($lga_list !== '0') {
@@ -54,14 +78,17 @@ try {
     error_log("Error fetching LGAs: " . $e->getMessage());
 }
 
-// Get coordinators
+// ============================================================
+// GET COORDINATORS
+// ============================================================
 $coordinators = [];
-$total = 0;
+$total_coordinators = 0;
+
 try {
     $where = ["u.tenant_id = ?", "u.status = 'active'"];
     $params = [$tenant_id];
     
-    if ($role_filter) {
+    if (!empty($role_filter)) {
         $where[] = "r.level = ?";
         $params[] = $role_filter;
     } else {
@@ -77,6 +104,11 @@ try {
         $where[] = "1=0";
     }
     
+    if ($ward_filter > 0) {
+        $where[] = "u.ward_id = ?";
+        $params[] = $ward_filter;
+    }
+    
     if (!empty($search)) {
         $where[] = "(u.first_name LIKE ? OR u.last_name LIKE ? OR u.email LIKE ?)";
         $params[] = "%$search%";
@@ -86,28 +118,73 @@ try {
     
     $where_clause = implode(" AND ", $where);
     
-    $stmt = $db->prepare("
+    // Get total count
+    $count_sql = "SELECT COUNT(*) FROM users u JOIN roles r ON u.role_id = r.id WHERE $where_clause";
+    $count_params = array_slice($params, 0);
+    $stmt = $db->prepare($count_sql);
+    $stmt->execute($count_params);
+    $total_coordinators = (int)$stmt->fetchColumn();
+    
+    // Get data
+    $params[] = $limit;
+    $params[] = $offset;
+    
+    $sql = "
         SELECT 
             u.*,
             r.name as role_name,
             r.level as role_level,
             l.name as lga_name,
             w.name as ward_name,
-            (SELECT COUNT(*) FROM users u2 
-             WHERE u2.created_by = u.id AND u2.status = 'active') as subordinates_count
+            (SELECT COUNT(*) FROM users u2 WHERE u2.created_by = u.id AND u2.status = 'active') as subordinates_count
         FROM users u
         JOIN roles r ON u.role_id = r.id
         LEFT JOIN lgas l ON u.lga_id = l.id
         LEFT JOIN wards w ON u.ward_id = w.id
         WHERE $where_clause
         ORDER BY r.level ASC, u.full_name ASC
-        LIMIT 100
-    ");
+        LIMIT ? OFFSET ?
+    ";
+    $stmt = $db->prepare($sql);
     $stmt->execute($params);
     $coordinators = $stmt->fetchAll();
-    $total = count($coordinators);
+    
 } catch (Exception $e) {
     error_log("Error fetching coordinators: " . $e->getMessage());
+}
+
+// ============================================================
+// POPUP DATA HANDLING
+// ============================================================
+$popup = isset($_GET['popup']) ? $_GET['popup'] : '';
+$coordinator_id = isset($_GET['coordinator']) ? (int)$_GET['coordinator'] : 0;
+
+$popup_data = null;
+
+if ($popup === 'coordinator-details' && $coordinator_id > 0) {
+    try {
+        $stmt = $db->prepare("
+            SELECT 
+                u.*,
+                r.name as role_name,
+                r.level as role_level,
+                l.name as lga_name,
+                w.name as ward_name,
+                pu.name as pu_name,
+                s.name as state_name
+            FROM users u
+            JOIN roles r ON u.role_id = r.id
+            LEFT JOIN lgas l ON u.lga_id = l.id
+            LEFT JOIN wards w ON u.ward_id = w.id
+            LEFT JOIN polling_units pu ON u.pu_id = pu.id
+            LEFT JOIN states s ON u.state_id = s.id
+            WHERE u.id = ?
+        ");
+        $stmt->execute([$coordinator_id]);
+        $popup_data = $stmt->fetch();
+    } catch (Exception $e) {
+        error_log("Error fetching coordinator details: " . $e->getMessage());
+    }
 }
 
 $page_title = 'Coordinators';
@@ -205,23 +282,23 @@ include '../includes/sidebar.php';
     gap: 14px;
 }
 .coordinator-card .coordinator-avatar {
-    width: 48px;
-    height: 48px;
+    width: 44px;
+    height: 44px;
     border-radius: 50%;
     background: var(--primary);
     color: white;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.1rem;
+    font-size: 1rem;
     font-weight: 700;
     flex-shrink: 0;
+    overflow: hidden;
 }
 .coordinator-card .coordinator-avatar img {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    border-radius: 50%;
 }
 .coordinator-card .coordinator-details .name {
     font-weight: 600;
@@ -256,12 +333,21 @@ include '../includes/sidebar.php';
     display: flex;
     gap: 6px;
 }
-.coordinator-card .coordinator-actions a {
+.coordinator-card .coordinator-actions button {
     padding: 4px 12px;
     border-radius: 6px;
     font-size: 0.7rem;
     font-weight: 500;
     text-decoration: none;
+    border: none;
+    cursor: pointer;
+}
+.coordinator-card .coordinator-actions .btn-profile {
+    background: var(--primary);
+    color: white;
+}
+.coordinator-card .coordinator-actions .btn-profile:hover {
+    background: var(--primary-dark);
 }
 .coordinator-card .coordinator-actions .btn-view {
     background: var(--gray-100);
@@ -270,12 +356,37 @@ include '../includes/sidebar.php';
 .coordinator-card .coordinator-actions .btn-view:hover {
     background: var(--gray-200);
 }
-.coordinator-card .coordinator-actions .btn-profile {
+
+.pagination {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+}
+.pagination a,
+.pagination span {
+    padding: 6px 12px;
+    border: 1px solid var(--gray-200);
+    border-radius: 6px;
+    text-decoration: none;
+    color: var(--gray-600);
+    font-size: 0.8rem;
+    transition: var(--transition);
+}
+.pagination a:hover {
     background: var(--primary);
     color: white;
+    border-color: var(--primary);
 }
-.coordinator-card .coordinator-actions .btn-profile:hover {
-    background: var(--primary-dark);
+.pagination .active {
+    background: var(--primary);
+    color: white;
+    border-color: var(--primary);
+}
+.pagination .disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
 
 .empty-state {
@@ -295,25 +406,97 @@ include '../includes/sidebar.php';
     margin-bottom: 4px;
 }
 
+/* Popup styles */
+.popup-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0,0,0,0.5);
+    z-index: 1000;
+    align-items: flex-start;
+    justify-content: center;
+    overflow-y: auto;
+    padding: 40px 20px;
+}
+.popup-overlay.active { display: flex; }
+.popup-container {
+    background: white;
+    border-radius: var(--radius);
+    max-width: 700px;
+    width: 100%;
+    margin: auto;
+    animation: popupSlideIn 0.3s ease;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+}
+@keyframes popupSlideIn {
+    from { opacity: 0; transform: translateY(-20px) scale(0.95); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.popup-header {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--gray-200);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.popup-header h3 { font-size: 1.1rem; font-weight: 700; margin: 0; }
+.popup-header .popup-close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: var(--gray-400);
+    cursor: pointer;
+    transition: var(--transition);
+    padding: 4px 8px;
+}
+.popup-header .popup-close:hover { color: var(--gray-600); }
+.popup-body { padding: 24px; max-height: 70vh; overflow-y: auto; }
+.popup-body .detail-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+.popup-body .detail-item .label {
+    font-size: 0.7rem;
+    color: var(--gray-400);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.popup-body .detail-item .value {
+    font-size: 0.95rem;
+    font-weight: 500;
+}
+.popup-footer {
+    padding: 16px 24px;
+    border-top: 1px solid var(--gray-200);
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.popup-footer .btn {
+    padding: 8px 18px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.8rem;
+    text-decoration: none;
+    border: none;
+    cursor: pointer;
+}
+.popup-footer .btn-secondary {
+    background: var(--gray-100);
+    color: var(--gray-600);
+}
+
 @media (max-width: 768px) {
-    .filter-section {
-        flex-direction: column;
-        align-items: stretch;
-    }
-    .coordinator-card {
-        flex-direction: column;
-        align-items: stretch;
-        text-align: center;
-    }
-    .coordinator-card .coordinator-info {
-        flex-direction: column;
-    }
-    .coordinator-card .coordinator-meta {
-        text-align: center;
-    }
-    .coordinator-card .coordinator-actions {
-        justify-content: center;
-    }
+    .filter-section { flex-direction: column; align-items: stretch; }
+    .coordinator-card { flex-direction: column; align-items: stretch; text-align: center; }
+    .coordinator-card .coordinator-info { flex-direction: column; }
+    .coordinator-card .coordinator-meta { text-align: center; }
+    .coordinator-card .coordinator-actions { justify-content: center; }
+    .popup-body .detail-row { grid-template-columns: 1fr; }
 }
 </style>
 
@@ -352,10 +535,10 @@ include '../includes/sidebar.php';
 
         <!-- Results -->
         <div class="results-summary">
-            <div class="count"><span><?php echo number_format($total); ?></span> coordinators found</div>
-            <?php if ($total >= 100): ?>
+            <div class="count"><span><?php echo number_format($total_coordinators); ?></span> coordinators found</div>
+            <?php if ($total_coordinators > $limit): ?>
                 <div style="font-size:0.75rem;color:var(--gray-400);">
-                    <i class="fas fa-info-circle"></i> Showing first 100
+                    Showing <?php echo $offset + 1; ?> - <?php echo min($offset + $limit, $total_coordinators); ?> of <?php echo number_format($total_coordinators); ?>
                 </div>
             <?php endif; ?>
         </div>
@@ -375,10 +558,7 @@ include '../includes/sidebar.php';
                         </div>
                         <div class="coordinator-details">
                             <div class="name"><?php echo htmlspecialchars($coordinator['full_name']); ?></div>
-                            <div class="email">
-                                <i class="fas fa-envelope" style="font-size:0.65rem;"></i>
-                                <?php echo htmlspecialchars($coordinator['email']); ?>
-                            </div>
+                            <div class="email"><i class="fas fa-envelope" style="font-size:0.65rem;"></i> <?php echo htmlspecialchars($coordinator['email']); ?></div>
                             <div class="location">
                                 <i class="fas fa-map-marker-alt" style="font-size:0.65rem;"></i>
                                 <?php 
@@ -400,15 +580,51 @@ include '../includes/sidebar.php';
                         </div>
                     </div>
                     <div class="coordinator-actions">
-                        <a href="coordinator-profile.php?id=<?php echo $coordinator['id']; ?>" class="btn-profile">
+                        <button class="btn-profile" onclick="openPopup('coordinator-details&coordinator=<?php echo $coordinator['id']; ?>')">
                             <i class="fas fa-id-card"></i> Profile
-                        </a>
-                        <a href="coordinator-activity.php?id=<?php echo $coordinator['id']; ?>" class="btn-view">
+                        </button>
+                        <button class="btn-view" onclick="window.location.href='coordinator-activity.php?id=<?php echo $coordinator['id']; ?>'">
                             <i class="fas fa-clock"></i> Activity
-                        </a>
+                        </button>
                     </div>
                 </div>
             <?php endforeach; ?>
+            
+            <!-- Pagination -->
+            <?php if ($total_coordinators > $limit): ?>
+                <div class="pagination">
+                    <?php
+                    $total_pages = ceil($total_coordinators / $limit);
+                    $query_params = $_GET;
+                    unset($query_params['page']);
+                    $base_url = '?' . http_build_query($query_params);
+                    
+                    if ($page > 1): ?>
+                        <a href="<?php echo $base_url; ?>&page=<?php echo $page - 1; ?>">
+                            <i class="fas fa-chevron-left"></i>
+                        </a>
+                    <?php else: ?>
+                        <span class="disabled"><i class="fas fa-chevron-left"></i></span>
+                    <?php endif; ?>
+                    
+                    <?php for ($i = max(1, $page - 2); $i <= min($total_pages, $page + 2); $i++): ?>
+                        <?php if ($i == $page): ?>
+                            <span class="active"><?php echo $i; ?></span>
+                        <?php else: ?>
+                            <a href="<?php echo $base_url; ?>&page=<?php echo $i; ?>"><?php echo $i; ?></a>
+                        <?php endif; ?>
+                    <?php endfor; ?>
+                    
+                    <?php if ($page < $total_pages): ?>
+                        <a href="<?php echo $base_url; ?>&page=<?php echo $page + 1; ?>">
+                            <i class="fas fa-chevron-right"></i>
+                        </a>
+                    <?php else: ?>
+                        <span class="disabled"><i class="fas fa-chevron-right"></i></span>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
+            
         <?php else: ?>
             <div class="empty-state">
                 <i class="fas fa-user-tie"></i>
@@ -419,7 +635,70 @@ include '../includes/sidebar.php';
     </div>
 </main>
 
+<!-- Popup -->
+<div class="popup-overlay" id="popupOverlay" onclick="if(event.target===this) closePopup()">
+    <div class="popup-container">
+        <div class="popup-header">
+            <h3 id="popupTitle">Coordinator Details</h3>
+            <button class="popup-close" onclick="closePopup()">&times;</button>
+        </div>
+        <div class="popup-body" id="popupBody">
+            <div id="popupContent">
+                <div style="text-align:center;padding:40px;color:var(--gray-400);">
+                    <i class="fas fa-spinner fa-spin" style="font-size:2rem;"></i>
+                    <p>Loading...</p>
+                </div>
+            </div>
+        </div>
+        <div class="popup-footer">
+            <button class="btn btn-secondary" onclick="closePopup()">Close</button>
+        </div>
+    </div>
+</div>
+
 <script>
+function openPopup(action) {
+    var overlay = document.getElementById('popupOverlay');
+    var content = document.getElementById('popupContent');
+    var title = document.getElementById('popupTitle');
+    
+    overlay.classList.add('active');
+    content.innerHTML = '<div style="text-align:center;padding:40px;color:var(--gray-400);"><i class="fas fa-spinner fa-spin" style="font-size:2rem;"></i><p>Loading...</p></div>';
+    
+    var params = new URLSearchParams(action);
+    var popup = params.get('popup') || action.split('&')[0];
+    var coordinatorId = params.get('coordinator') || 0;
+    
+    title.textContent = 'Coordinator Details';
+    
+    var url = window.location.pathname + '?popup=' + popup;
+    if (coordinatorId) url += '&coordinator=' + coordinatorId;
+    
+    fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+        .then(response => response.text())
+        .then(html => {
+            var parser = new DOMParser();
+            var doc = parser.parseFromString(html, 'text/html');
+            var bodyContent = doc.querySelector('.popup-body-content');
+            if (bodyContent) {
+                content.innerHTML = bodyContent.innerHTML;
+            } else {
+                content.innerHTML = html;
+            }
+        })
+        .catch(function() {
+            content.innerHTML = '<div style="text-align:center;padding:40px;color:var(--gray-500);"><i class="fas fa-exclamation-circle" style="font-size:2rem;color:var(--gray-300);display:block;margin-bottom:8px;"></i><p>Failed to load content.</p></div>';
+        });
+}
+
+function closePopup() {
+    document.getElementById('popupOverlay').classList.remove('active');
+}
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closePopup();
+});
+
 // Sidebar toggle (standard)
 var sidebar = document.getElementById('sidebar');
 var sidebarToggle = document.getElementById('sidebarToggle');

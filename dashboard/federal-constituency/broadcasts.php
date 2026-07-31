@@ -18,25 +18,17 @@ if (SessionManager::get('role_level') !== 'federal_constituency') {
     exit();
 }
 
+$user_name = SessionManager::get('user_name', 'Coordinator');
 $user_id = SessionManager::get('user_id');
 $tenant_id = SessionManager::get('tenant_id');
 $constituency_id = SessionManager::get('federal_constituency_id');
+$state_id = SessionManager::get('state_id');
+
 $db = getDB();
 
-// Get LGA IDs
-$lga_ids = [];
-try {
-    $stmt = $db->prepare("SELECT lgas_json FROM federal_constituencies WHERE id = ?");
-    $stmt->execute([$constituency_id]);
-    $lgas_json = $stmt->fetchColumn();
-    if ($lgas_json) {
-        $lga_ids = json_decode($lgas_json, true) ?: [];
-    }
-} catch (Exception $e) {
-    error_log("Error fetching LGA IDs: " . $e->getMessage());
-}
-
-// Get broadcasts
+// ============================================================
+// GET BROADCASTS
+// ============================================================
 $broadcasts = [];
 try {
     $stmt = $db->prepare("
@@ -51,6 +43,22 @@ try {
     $broadcasts = $stmt->fetchAll();
 } catch (Exception $e) {
     error_log("Error fetching broadcasts: " . $e->getMessage());
+}
+
+// ============================================================
+// HANDLE DELETE
+// ============================================================
+if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
+    $id = (int)$_GET['delete'];
+    try {
+        $stmt = $db->prepare("DELETE FROM broadcasts WHERE id = ? AND tenant_id = ? AND status = 'draft'");
+        $stmt->execute([$id, $tenant_id]);
+        $success = 'Broadcast deleted successfully.';
+        header('Location: broadcasts.php?deleted=1');
+        exit();
+    } catch (Exception $e) {
+        error_log("Error deleting broadcast: " . $e->getMessage());
+    }
 }
 
 $page_title = 'Broadcasts';
@@ -266,6 +274,8 @@ include '../includes/sidebar.php';
     display: inline-flex;
     align-items: center;
     gap: 8px;
+    border: none;
+    cursor: pointer;
 }
 .quick-actions-row .btn-primary {
     background: var(--primary);
@@ -308,6 +318,12 @@ include '../includes/sidebar.php';
             Send announcements and instructions to coordinators in your constituency.
         </p>
 
+        <?php if (isset($_GET['deleted'])): ?>
+            <div class="alert alert-success" style="padding:12px 16px;border-radius:10px;background:#ECFDF5;color:#065F46;border:1px solid #A7F3D0;margin-bottom:16px;">
+                <i class="fas fa-check-circle"></i> Broadcast deleted successfully.
+            </div>
+        <?php endif; ?>
+
         <!-- Quick Actions -->
         <div class="quick-actions-row">
             <a href="broadcasts-create.php" class="btn btn-primary">
@@ -315,9 +331,6 @@ include '../includes/sidebar.php';
             </a>
             <a href="broadcasts-schedule.php" class="btn btn-secondary">
                 <i class="fas fa-calendar-plus"></i> Schedule
-            </a>
-            <a href="broadcasts-history.php" class="btn btn-secondary">
-                <i class="fas fa-history"></i> History
             </a>
         </div>
 
@@ -371,28 +384,11 @@ include '../includes/sidebar.php';
                                 <?php echo htmlspecialchars($broadcast['title']); ?>
                             </div>
                             <div class="broadcast-meta">
-                                <span>
-                                    <i class="fas fa-user"></i> 
-                                    <?php echo htmlspecialchars($broadcast['sender_name'] ?? 'System'); ?>
-                                </span>
-                                <span>
-                                    <i class="fas fa-clock"></i> 
-                                    <?php echo date('M d, Y g:i A', strtotime($broadcast['created_at'])); ?>
-                                </span>
-                                <span>
-                                    <i class="fas fa-users"></i> 
-                                    <?php echo ucfirst(str_replace('_', ' ', $broadcast['target_audience'] ?? 'All')); ?>
-                                </span>
-                                <span>
-                                    <span class="status-badge <?php echo $broadcast['status']; ?>">
-                                        <?php echo ucfirst($broadcast['status']); ?>
-                                    </span>
-                                </span>
-                                <span>
-                                    <span class="priority-badge <?php echo $broadcast['priority'] ?? 'low'; ?>">
-                                        <?php echo ucfirst($broadcast['priority'] ?? 'Low'); ?>
-                                    </span>
-                                </span>
+                                <span><i class="fas fa-user"></i> <?php echo htmlspecialchars($broadcast['sender_name'] ?? 'System'); ?></span>
+                                <span><i class="fas fa-clock"></i> <?php echo date('M d, Y g:i A', strtotime($broadcast['created_at'])); ?></span>
+                                <span><i class="fas fa-users"></i> <?php echo ucfirst(str_replace('_', ' ', $broadcast['target_audience'] ?? 'All')); ?></span>
+                                <span><span class="status-badge <?php echo $broadcast['status']; ?>"><?php echo ucfirst($broadcast['status']); ?></span></span>
+                                <span><span class="priority-badge <?php echo $broadcast['priority'] ?? 'low'; ?>"><?php echo ucfirst($broadcast['priority'] ?? 'Low'); ?></span></span>
                             </div>
                         </div>
                         <div style="text-align:right;">
@@ -426,7 +422,7 @@ include '../includes/sidebar.php';
                                     <i class="fas fa-paper-plane"></i> Send Now
                                 </a>
                             <?php endif; ?>
-                            <a href="broadcasts-delete.php?id=<?php echo $broadcast['id']; ?>" class="btn-delete" 
+                            <a href="broadcasts.php?delete=<?php echo $broadcast['id']; ?>" class="btn-delete" 
                                onclick="return confirm('Delete this broadcast?')">
                                 <i class="fas fa-trash"></i> Delete
                             </a>
