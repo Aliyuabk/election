@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost:3306
--- Generation Time: Jul 27, 2026 at 04:44 PM
+-- Generation Time: Jul 31, 2026 at 07:36 PM
 -- Server version: 8.0.41
 -- PHP Version: 8.4.21
 
@@ -603,7 +603,46 @@ INSERT INTO `activity_logs` (`id`, `user_id`, `tenant_id`, `activity_type`, `des
 (685, 21, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', '2026-07-27 13:39:01'),
 (686, 21, NULL, 'user_updated', 'Updated user: senatorial cood (ID: 34)', NULL, NULL, '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', '2026-07-27 13:39:35'),
 (687, 21, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', '2026-07-27 13:39:44'),
-(688, 34, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', '2026-07-27 13:39:57');
+(688, 34, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', '2026-07-27 13:39:57'),
+(689, 34, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', '2026-07-27 13:56:45'),
+(690, 34, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', '2026-07-27 13:57:21'),
+(691, 34, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.92.30', 'a78b31e33002aa024cb817dbddb8d657948cdd935874c5150cf83f8d81a3426e', '2026-07-28 16:46:28'),
+(692, 34, NULL, 'broadcast_created', 'Created broadcast: Hello (ID: 16)', NULL, NULL, '102.91.92.30', 'a78b31e33002aa024cb817dbddb8d657948cdd935874c5150cf83f8d81a3426e', '2026-07-28 17:15:21'),
+(693, 34, NULL, 'broadcast_sent', 'Sent broadcast: Hello to 1 recipients (ID: 16)', NULL, NULL, '102.91.92.30', 'a78b31e33002aa024cb817dbddb8d657948cdd935874c5150cf83f8d81a3426e', '2026-07-28 17:15:28'),
+(694, 34, NULL, 'broadcast_created', 'Created broadcast: aaaa (ID: 17)', NULL, NULL, '102.91.92.30', 'a78b31e33002aa024cb817dbddb8d657948cdd935874c5150cf83f8d81a3426e', '2026-07-28 17:16:29'),
+(695, 34, NULL, 'broadcast_sent', 'Sent broadcast: aaaa to 1 recipients (ID: 17)', NULL, NULL, '102.91.92.30', 'a78b31e33002aa024cb817dbddb8d657948cdd935874c5150cf83f8d81a3426e', '2026-07-28 17:16:35'),
+(696, 34, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.90.98.113', 'bea0afb003b9e4ee6223475299df2485ec41f9ce807383e5c9521f3977a12815', '2026-07-28 19:04:13'),
+(697, 34, NULL, 'profile_updated', 'Updated profile information', NULL, NULL, '102.90.98.113', 'bea0afb003b9e4ee6223475299df2485ec41f9ce807383e5c9521f3977a12815', '2026-07-28 19:31:03'),
+(698, 34, NULL, '2fa_enabled', '2FA enabled', NULL, NULL, '102.90.98.113', 'bea0afb003b9e4ee6223475299df2485ec41f9ce807383e5c9521f3977a12815', '2026-07-28 19:31:24'),
+(699, 34, NULL, '2fa_disabled', '2FA disabled', NULL, NULL, '102.90.98.113', 'bea0afb003b9e4ee6223475299df2485ec41f9ce807383e5c9521f3977a12815', '2026-07-28 19:31:25'),
+(700, 34, NULL, 'session_revoked', 'Revoked all other sessions', NULL, NULL, '102.90.98.113', 'bea0afb003b9e4ee6223475299df2485ec41f9ce807383e5c9521f3977a12815', '2026-07-28 19:31:29'),
+(701, 34, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.90.98.113', 'bea0afb003b9e4ee6223475299df2485ec41f9ce807383e5c9521f3977a12815', '2026-07-28 20:14:39'),
+(702, 21, NULL, 'login', 'User logged in successfully', NULL, NULL, '197.210.71.167', 'e3a223d93d679b8f1c9f493b61f4d64a8651da005e842f4d8f848a260fa9ad0b', '2026-07-29 17:52:48'),
+(703, 21, NULL, 'logout', 'User logged out successfully', NULL, NULL, '197.210.71.167', 'e3a223d93d679b8f1c9f493b61f4d64a8651da005e842f4d8f848a260fa9ad0b', '2026-07-29 18:00:06'),
+(704, 33, NULL, 'login', 'User logged in successfully', NULL, NULL, '197.210.71.167', 'e3a223d93d679b8f1c9f493b61f4d64a8651da005e842f4d8f848a260fa9ad0b', '2026-07-29 18:00:58'),
+(705, 33, NULL, 'logout', 'User logged out successfully', NULL, NULL, '197.210.71.167', 'e3a223d93d679b8f1c9f493b61f4d64a8651da005e842f4d8f848a260fa9ad0b', '2026-07-29 18:25:36'),
+(706, 33, NULL, 'login', 'User logged in successfully', NULL, NULL, '197.210.71.167', 'e3a223d93d679b8f1c9f493b61f4d64a8651da005e842f4d8f848a260fa9ad0b', '2026-07-29 18:26:56'),
+(707, 33, NULL, 'login', 'User logged in successfully', NULL, NULL, '154.68.230.50', 'a649fe690d29984f09a3cefcaf0bfdd7d3f744fc6085889db4711e34ae5d481e', '2026-07-30 13:16:02'),
+(708, 7, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.104.140', '3efdff140a755543afeb09da15a3e9b7ebcc7e13884bf3ca1508f90a5c041c8e', '2026-07-31 10:42:03'),
+(709, 7, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.104.140', '3efdff140a755543afeb09da15a3e9b7ebcc7e13884bf3ca1508f90a5c041c8e', '2026-07-31 10:46:52'),
+(710, 7, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.104.140', '3efdff140a755543afeb09da15a3e9b7ebcc7e13884bf3ca1508f90a5c041c8e', '2026-07-31 10:47:23'),
+(711, 7, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.104.140', '3efdff140a755543afeb09da15a3e9b7ebcc7e13884bf3ca1508f90a5c041c8e', '2026-07-31 10:47:41'),
+(712, 21, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.104.140', '3efdff140a755543afeb09da15a3e9b7ebcc7e13884bf3ca1508f90a5c041c8e', '2026-07-31 10:47:47'),
+(713, 21, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.104.140', '3efdff140a755543afeb09da15a3e9b7ebcc7e13884bf3ca1508f90a5c041c8e', '2026-07-31 11:19:52'),
+(714, 33, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.104.140', '3efdff140a755543afeb09da15a3e9b7ebcc7e13884bf3ca1508f90a5c041c8e', '2026-07-31 11:20:03'),
+(715, 33, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.104.140', '3efdff140a755543afeb09da15a3e9b7ebcc7e13884bf3ca1508f90a5c041c8e', '2026-07-31 11:38:06'),
+(716, 21, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.104.140', '3efdff140a755543afeb09da15a3e9b7ebcc7e13884bf3ca1508f90a5c041c8e', '2026-07-31 11:53:41'),
+(717, 27, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.78.187', '0aed8e5a32ca24543d935fac739c287af801a13820d59c7bee94650db45b47a3', '2026-07-31 14:34:58'),
+(718, 21, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.78.187', 'db987f91b9dffc9e47ee15f0fa2ed51e352d28534c7209bd6106c9669fb259e1', '2026-07-31 14:37:09'),
+(719, 21, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.78.187', 'db987f91b9dffc9e47ee15f0fa2ed51e352d28534c7209bd6106c9669fb259e1', '2026-07-31 14:37:38'),
+(720, 21, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.104.164', '269be98f11744b1307917406db421d9584ee65f3bf4ba16f2a9ea610d669571c', '2026-07-31 15:53:23'),
+(721, 21, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.104.164', '269be98f11744b1307917406db421d9584ee65f3bf4ba16f2a9ea610d669571c', '2026-07-31 16:30:44'),
+(722, 21, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.104.164', '269be98f11744b1307917406db421d9584ee65f3bf4ba16f2a9ea610d669571c', '2026-07-31 16:31:15'),
+(723, 7, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.104.164', '269be98f11744b1307917406db421d9584ee65f3bf4ba16f2a9ea610d669571c', '2026-07-31 16:32:09'),
+(724, 7, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.104.164', '269be98f11744b1307917406db421d9584ee65f3bf4ba16f2a9ea610d669571c', '2026-07-31 16:32:32'),
+(725, 7, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.104.164', '269be98f11744b1307917406db421d9584ee65f3bf4ba16f2a9ea610d669571c', '2026-07-31 16:33:25'),
+(726, 7, NULL, 'logout', 'User logged out successfully', NULL, NULL, '102.91.104.164', '269be98f11744b1307917406db421d9584ee65f3bf4ba16f2a9ea610d669571c', '2026-07-31 16:33:53'),
+(727, 21, NULL, 'login', 'User logged in successfully', NULL, NULL, '102.91.104.164', '269be98f11744b1307917406db421d9584ee65f3bf4ba16f2a9ea610d669571c', '2026-07-31 16:34:14');
 
 -- --------------------------------------------------------
 
@@ -828,7 +867,9 @@ INSERT INTO `broadcasts` (`id`, `tenant_id`, `election_id`, `sender_id`, `title`
 (12, 14, NULL, 24, 'TTTddv', 'dnbcdbc', 'lga', NULL, NULL, '[\"email\"]', NULL, '2026-07-10 09:52:57', 'failed', 0, 0, '2026-07-10 09:52:57'),
 (13, 14, NULL, 27, 'hello', 'how are', 'role_specific', '[26]', NULL, '[\"email\"]', NULL, '2026-07-19 11:37:23', 'sent', 0, 1, '2026-07-19 11:37:23'),
 (14, 14, NULL, 27, 'hello', 'how are', 'role_specific', '[26]', NULL, '[\"email\"]', NULL, '2026-07-19 11:37:48', 'sent', 0, 1, '2026-07-19 11:37:48'),
-(15, 14, NULL, 27, 'aasd', 'dwdwe', 'all', NULL, NULL, '[\"email\",\"in_app\"]', NULL, '2026-07-23 16:20:23', 'sent', 0, 10, '2026-07-23 16:20:14');
+(15, 14, NULL, 27, 'aasd', 'dwdwe', 'all', NULL, NULL, '[\"email\",\"in_app\"]', NULL, '2026-07-23 16:20:23', 'sent', 0, 10, '2026-07-23 16:20:14'),
+(16, 14, NULL, 34, 'Hello', 'Come tommorow', 'role_specific', '[\"1\"]', 7, '[\"email\",\"in_app\"]', NULL, '2026-07-28 17:15:28', 'sent', 0, 1, '2026-07-28 17:15:21'),
+(17, 14, NULL, 34, 'aaaa', 'aaa', 'role_specific', '[\"1\"]', 10, '[\"email\"]', NULL, '2026-07-28 17:16:35', 'sent', 0, 1, '2026-07-28 17:16:29');
 
 -- --------------------------------------------------------
 
@@ -1041,17 +1082,6 @@ CREATE TABLE `elections` (
   `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   `deleted_at` timestamp NULL DEFAULT NULL
 ) ;
-
---
--- Dumping data for table `elections`
---
-
-INSERT INTO `elections` (`id`, `tenant_id`, `name`, `type`, `cycle`, `election_date`, `start_time`, `end_time`, `states_json`, `lgas_json`, `wards_json`, `pus_json`, `status`, `description`, `logo_url`, `settings_json`, `created_by`, `created_at`, `updated_at`, `deleted_at`) VALUES
-(11, 14, '2027 Governorship Election', 'governorship', '2031', '2026-07-09', '18:29:00', NULL, '[1]', '[]', '[\"1\"]', '[]', 'active', '', NULL, NULL, 7, '2026-07-09 14:31:57', '2026-07-24 15:14:39', NULL),
-(12, 14, '2027 Governorship Election', 'governorship', '2031', '2026-07-31', NULL, NULL, '[1]', NULL, NULL, NULL, 'draft', '', NULL, NULL, 24, '2026-07-10 00:26:31', '2026-07-10 00:26:31', NULL),
-(13, 14, '2027 Governorship Election', 'governorship', '2031', '2026-07-24', NULL, NULL, '[1]', NULL, NULL, NULL, 'draft', '', NULL, NULL, 24, '2026-07-10 00:27:09', '2026-07-10 00:27:09', NULL),
-(14, 14, '2027 Governorship Election', 'house_of_reps', '2031', '2026-07-09', NULL, NULL, '[1]', NULL, NULL, NULL, 'draft', '', NULL, NULL, 24, '2026-07-10 00:41:38', '2026-07-10 00:41:38', NULL),
-(15, 14, '2027 Governorship Election', 'governorship', '2031', '2026-07-11', NULL, NULL, '[1]', '[]', '[]', '[]', 'upcoming', '', NULL, NULL, 24, '2026-07-10 00:45:14', '2026-07-10 00:45:14', NULL);
 
 -- --------------------------------------------------------
 
@@ -1274,7 +1304,93 @@ CREATE TABLE `lgas` (
 --
 
 INSERT INTO `lgas` (`id`, `state_id`, `code`, `name`, `gps_lat`, `gps_lng`, `registered_voters`, `is_active`) VALUES
-(1, 1, 'BK', 'Birnin Kudu', NULL, NULL, 0, 1);
+(1, 1, 'BK', 'Birnin Kudu', NULL, NULL, 0, 1),
+(2, 2, 'ALK', 'Alkaleri', NULL, NULL, 0, 1),
+(3, 2, 'BAU', 'Bauchi', NULL, NULL, 0, 1),
+(4, 2, 'BOG', 'Bogoro', NULL, NULL, 0, 1),
+(5, 2, 'DAM', 'Dambam', NULL, NULL, 0, 1),
+(6, 2, 'DAR', 'Darazo', NULL, NULL, 0, 1),
+(7, 2, 'DAS', 'Dass', NULL, NULL, 0, 1),
+(8, 2, 'GAM', 'Gamawa', NULL, NULL, 0, 1),
+(9, 2, 'GAN', 'Ganjuwa', NULL, NULL, 0, 1),
+(10, 2, 'GIA', 'Giade', NULL, NULL, 0, 1),
+(11, 2, 'ITA', 'Itas/Gadau', NULL, NULL, 0, 1),
+(12, 2, 'JAM', 'Jama\'Are', NULL, NULL, 0, 1),
+(13, 2, 'KAT', 'Katagum', NULL, NULL, 0, 1),
+(14, 2, 'KIR', 'Kirfi', NULL, NULL, 0, 1),
+(15, 2, 'MIS', 'Misau', NULL, NULL, 0, 1),
+(16, 2, 'NIN', 'Ningi', NULL, NULL, 0, 1),
+(17, 2, 'SHI', 'Shira', NULL, NULL, 0, 1),
+(18, 2, 'TAF', 'Tafawa Balewa', NULL, NULL, 0, 1),
+(19, 2, 'TOR', 'Toro', NULL, NULL, 0, 1),
+(20, 2, 'WAR', 'Warji', NULL, NULL, 0, 1),
+(21, 2, 'ZAK', 'Zaki', NULL, NULL, 0, 1),
+(22, 1, 'AUY', 'Auyo', NULL, NULL, 0, 1),
+(23, 1, 'BAB', 'Babura', NULL, NULL, 0, 1),
+(24, 1, 'BIR', 'Birnin Kudu', NULL, NULL, 0, 1),
+(25, 1, 'BUJ', 'Buji', NULL, NULL, 0, 1),
+(26, 1, 'DUT', 'Dutse', NULL, NULL, 0, 1),
+(27, 1, 'GAR', 'Garki', NULL, NULL, 0, 1),
+(28, 1, 'GUM', 'Gumel', NULL, NULL, 0, 1),
+(29, 1, 'GUR', 'Guri', NULL, NULL, 0, 1),
+(30, 1, 'GWA', 'Gwaram', NULL, NULL, 0, 1),
+(31, 1, 'GWI', 'Gwiwa', NULL, NULL, 0, 1),
+(32, 1, 'HAD', 'Hadejia', NULL, NULL, 0, 1),
+(33, 1, 'JAH', 'Jahun', NULL, NULL, 0, 1),
+(34, 1, 'KAF', 'Kafin Hausa', NULL, NULL, 0, 1),
+(35, 1, 'KAU', 'Kaugama', NULL, NULL, 0, 1),
+(36, 1, 'KAZ', 'Kazaure', NULL, NULL, 0, 1),
+(37, 1, 'KIR', 'Kiri Kasamma', NULL, NULL, 0, 1),
+(38, 1, 'KIY', 'Kiyawa', NULL, NULL, 0, 1),
+(39, 1, 'MAI', 'Maigatari', NULL, NULL, 0, 1),
+(40, 1, 'MAL', 'Malam Madori', NULL, NULL, 0, 1),
+(41, 1, 'MIG', 'Miga', NULL, NULL, 0, 1),
+(42, 1, 'RIN', 'Ringim', NULL, NULL, 0, 1),
+(43, 1, 'RON', 'Roni', NULL, NULL, 0, 1),
+(44, 1, 'SUL', 'Sule Tankarkar', NULL, NULL, 0, 1),
+(45, 1, 'TAU', 'Taura', NULL, NULL, 0, 1),
+(46, 1, 'YAN', 'Yankwashi', NULL, NULL, 0, 1),
+(48, 3, 'AJI', 'Ajingi', NULL, NULL, 0, 1),
+(49, 3, 'ALB', 'Albasu', NULL, NULL, 0, 1),
+(50, 3, 'BAG', 'Bagwai', NULL, NULL, 0, 1),
+(51, 3, 'BEB', 'Bebeji', NULL, NULL, 0, 1),
+(52, 3, 'BIC', 'Bichi', NULL, NULL, 0, 1),
+(53, 3, 'BUN', 'Bunkure', NULL, NULL, 0, 1),
+(54, 3, 'DAL', 'Dala', NULL, NULL, 0, 1),
+(55, 3, 'DAM', 'Dambatta', NULL, NULL, 0, 1),
+(56, 3, 'DAW', 'Dawakin Kudu', NULL, NULL, 0, 1),
+(57, 3, 'DOG', 'Doguwa', NULL, NULL, 0, 1),
+(58, 3, 'FAG', 'Fagge', NULL, NULL, 0, 1),
+(59, 3, 'GAB', 'Gabasawa', NULL, NULL, 0, 1),
+(60, 3, 'GAR', 'Garko', NULL, NULL, 0, 1),
+(61, 3, 'GAY', 'Gaya', NULL, NULL, 0, 1),
+(62, 3, 'GEZ', 'Gezawa', NULL, NULL, 0, 1),
+(63, 3, 'GWA', 'Gwale', NULL, NULL, 0, 1),
+(64, 3, 'KAB', 'Kabo', NULL, NULL, 0, 1),
+(65, 3, 'KAN', 'Kano Municipal', NULL, NULL, 0, 1),
+(66, 3, 'KAR', 'Karaye', NULL, NULL, 0, 1),
+(67, 3, 'KIB', 'Kibiya', NULL, NULL, 0, 1),
+(68, 3, 'KIR', 'Kiru', NULL, NULL, 0, 1),
+(69, 3, 'KUM', 'Kumbotso', NULL, NULL, 0, 1),
+(70, 3, 'KUN', 'Kunchi', NULL, NULL, 0, 1),
+(71, 3, 'KUR', 'Kura', NULL, NULL, 0, 1),
+(72, 3, 'MAD', 'Madobi', NULL, NULL, 0, 1),
+(73, 3, 'MAK', 'Makoda', NULL, NULL, 0, 1),
+(74, 3, 'MIN', 'Minjibir', NULL, NULL, 0, 1),
+(75, 3, 'NAS', 'Nasarawa', NULL, NULL, 0, 1),
+(76, 3, 'RAN', 'Rano', NULL, NULL, 0, 1),
+(77, 3, 'RIM', 'Rimin Gado', NULL, NULL, 0, 1),
+(78, 3, 'ROG', 'Rogo', NULL, NULL, 0, 1),
+(79, 3, 'SHA', 'Shanono', NULL, NULL, 0, 1),
+(80, 3, 'SUM', 'Sumaila', NULL, NULL, 0, 1),
+(81, 3, 'TAK', 'Takai', NULL, NULL, 0, 1),
+(82, 3, 'TAR', 'Tarauni', NULL, NULL, 0, 1),
+(83, 3, 'TOF', 'Tofa', NULL, NULL, 0, 1),
+(84, 3, 'TSA', 'Tsanyawa', NULL, NULL, 0, 1),
+(85, 3, 'TUD', 'Tudun Wada', NULL, NULL, 0, 1),
+(86, 3, 'UNG', 'Ungogo', NULL, NULL, 0, 1),
+(87, 3, 'WAR', 'Warawa', NULL, NULL, 0, 1),
+(88, 3, 'WUD', 'Wudil', NULL, NULL, 0, 1);
 
 -- --------------------------------------------------------
 
@@ -1496,7 +1612,26 @@ INSERT INTO `login_attempts` (`id`, `user_id`, `email`, `ip_address`, `user_agen
 (243, 21, 'lubunaaliyuabk@gmail.com', '102.91.103.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-27 13:16:37'),
 (244, 34, 'senatorial@gmail.com', '102.91.103.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-27 13:31:35'),
 (245, 21, 'lubunaaliyuabk@gmail.com', '102.91.103.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-27 13:39:01'),
-(246, 34, 'senatorial@gmail.com', '102.91.103.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-27 13:39:57');
+(246, 34, 'senatorial@gmail.com', '102.91.103.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-27 13:39:57'),
+(247, 34, 'senatorial@gmail.com', '102.91.103.236', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-27 13:57:21'),
+(248, 34, 'senatorial@gmail.com', '102.91.92.30', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-28 16:46:28'),
+(249, 34, 'senatorial@gmail.com', '102.90.98.113', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-28 19:04:13'),
+(250, 21, 'lubunaaliyuabk@gmail.com', '197.210.71.167', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-29 17:52:48'),
+(251, 33, 'federal@gmail.com', '197.210.71.167', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-29 18:00:58'),
+(252, 33, 'federal@gmail.com', '197.210.71.167', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-29 18:26:56'),
+(253, 33, 'federal@gmail.com', '154.68.230.50', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-30 13:16:02'),
+(254, 7, 'aliyuabubakar11117@gmail.com', '102.91.104.140', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-31 10:42:03'),
+(255, 7, 'aliyuabubakar11117@gmail.com', '102.91.104.140', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-31 10:47:23'),
+(256, 21, 'lubunaaliyuabk@gmail.com', '102.91.104.140', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-31 10:47:47'),
+(257, 33, 'federal@gmail.com', '102.91.104.140', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-31 11:20:03'),
+(258, 21, 'lubunaaliyuabk@gmail.com', '102.91.104.140', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-31 11:53:41'),
+(259, 27, 'abarshiaminu2005@gmail.com', '102.91.78.187', 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', 'login', 1, '2026-07-31 14:34:58'),
+(260, 21, 'lubunaaliyuabk@gmail.com', '102.91.78.187', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-31 14:37:09'),
+(261, 21, 'lubunaaliyuabk@gmail.com', '102.91.104.164', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-31 15:53:23'),
+(262, 21, 'lubunaaliyuabk@gmail.com', '102.91.104.164', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-31 16:30:44'),
+(263, 7, 'aliyuabubakar11117@gmail.com', '102.91.104.164', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-31 16:32:09'),
+(264, 7, 'aliyuabubakar11117@gmail.com', '102.91.104.164', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-31 16:33:25'),
+(265, 21, 'lubunaaliyuabk@gmail.com', '102.91.104.164', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', 'login', 1, '2026-07-31 16:34:14');
 
 -- --------------------------------------------------------
 
@@ -1700,7 +1835,10 @@ INSERT INTO `otp_verifications` (`id`, `user_id`, `otp_code`, `type`, `channel`,
 (53, 21, '882564', 'login', 'email', '2026-07-27 13:02:31', 0, NULL, 0, '2026-07-27 12:57:31'),
 (54, 21, '734165', 'login', 'email', '2026-07-27 13:02:58', 1, '2026-07-27 12:58:39', 0, '2026-07-27 12:57:58'),
 (55, 21, '291391', 'login', 'email', '2026-07-27 13:07:58', 1, '2026-07-27 13:03:33', 0, '2026-07-27 13:02:58'),
-(56, 21, '044142', 'login', 'email', '2026-07-27 13:20:08', 1, '2026-07-27 13:15:32', 0, '2026-07-27 13:15:08');
+(56, 21, '044142', 'login', 'email', '2026-07-27 13:20:08', 1, '2026-07-27 13:15:32', 0, '2026-07-27 13:15:08'),
+(57, 28, '725150', 'login', 'email', '2026-07-31 10:52:01', 0, NULL, 0, '2026-07-31 10:47:01'),
+(58, 28, '021494', 'login', 'email', '2026-07-31 10:52:03', 0, NULL, 0, '2026-07-31 10:47:03'),
+(59, 28, '922473', 'login', 'email', '2026-07-31 10:52:05', 0, NULL, 0, '2026-07-31 10:47:05');
 
 -- --------------------------------------------------------
 
@@ -1790,6 +1928,34 @@ CREATE TABLE `political_parties` (
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ;
 
+--
+-- Dumping data for table `political_parties`
+--
+
+INSERT INTO `political_parties` (`id`, `tenant_id`, `name`, `acronym`, `logo_url`, `chairman_name`, `secretary_name`, `contact_email`, `contact_phone`, `website`, `social_media_json`, `state_offices_json`, `is_active`, `created_at`) VALUES
+(2, 0, 'Accord', 'A', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-31 15:51:19'),
+(3, 0, 'Action Alliance', 'AA', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-31 15:51:19'),
+(4, 0, 'Action Democratic Party', 'ADP', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-31 15:51:19'),
+(5, 0, 'Action Peoples Party', 'APP', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-31 15:51:19'),
+(6, 0, 'African Action Congress', 'AAC', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-31 15:51:19'),
+(7, 0, 'African Democratic Congress', 'ADC', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-31 15:51:19'),
+(8, 0, 'All Progressives Congress', 'APC', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-31 15:51:19'),
+(9, 0, 'All Progressives Grand Alliance', 'APGA', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-31 15:51:19'),
+(10, 0, 'Allied Peoples Movement', 'APM', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-31 15:51:19'),
+(11, 0, 'Boot Party', 'BP', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-31 15:51:19'),
+(12, 0, 'Democratic Leadership Alliance', 'DLA', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-31 15:51:19'),
+(13, 0, 'Labour Party', 'LP', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-31 15:51:19'),
+(14, 0, 'National Democratic Party', 'NDP', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-31 15:51:19'),
+(15, 0, 'National Rescue Movement', 'NRM', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-31 15:51:19'),
+(16, 0, 'New Nigeria Peoples Party', 'NNPP', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-31 15:51:19'),
+(17, 0, 'Nigeria Democratic Congress', 'NDC', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-31 15:51:19'),
+(18, 0, 'Peoples Democratic Party', 'PDP', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-31 15:51:19'),
+(19, 0, 'Peoples Redemption Party', 'PRP', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-31 15:51:19'),
+(20, 0, 'Social Democratic Party', 'SDP', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-31 15:51:19'),
+(21, 0, 'Young Progressive Party', 'YPP', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-31 15:51:19'),
+(22, 0, 'Youth Party', 'YP', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-31 15:51:19'),
+(23, 0, 'Zenith Labour Party', 'ZLP', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-31 15:51:19');
+
 -- --------------------------------------------------------
 
 --
@@ -1851,7 +2017,227 @@ INSERT INTO `polling_units` (`id`, `ward_id`, `code`, `name`, `description`, `gp
 (30, 1, '17-03-02-030', 'U.B.E SCH.', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 1, NULL, 1, '2026-07-09 13:39:19'),
 (31, 1, '17-03-02-031', 'GINDIN TRANSFORMER DANGARI', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 1, NULL, 1, '2026-07-09 13:39:19'),
 (32, 1, '17-03-02-032', 'MAKWALLA', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 1, NULL, 1, '2026-07-09 13:39:19'),
-(33, 1, '17-03-02-033', 'MADAKANCHI POLE WIRE', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 1, NULL, 1, '2026-07-09 13:39:19');
+(33, 1, '17-03-02-033', 'MADAKANCHI POLE WIRE', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 1, NULL, 1, '2026-07-09 13:39:19'),
+(35, 2, 'ALK-01-001', 'Alkaleri Central', NULL, NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 11:53:05'),
+(36, 2, 'ALK-01-002', 'Alkaleri Primary School', NULL, NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 11:53:05'),
+(37, 2, 'ALK-01-003', 'Alkaleri Market', NULL, NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 11:53:05'),
+(38, 70, '17-03-03-001', 'KANTOGA GARI KANTOGA P.S', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(39, 70, '17-03-03-002', 'KANTOGA GORAWA KANTOGA P.SCH.', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(40, 70, '17-03-03-003', 'UNG. GALADIMA WUDILAWA UNG. GALADIMA P.SCH.', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(41, 70, '17-03-03-004', 'UNG. GALADIMA UNG. GALADIMA P.SCH.', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(42, 70, '17-03-03-005', 'UNG. MAMAN TSOHUWA UNG. MAMMAN', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(43, 70, '17-03-03-006', 'BAJI/KANTOGA KUFAI UNG. BAJI', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(44, 70, '17-03-03-007', 'KARFAWA UNG. BABUWA KARFAWA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(45, 70, '17-03-03-008', 'KADANI KADANI', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(46, 70, '17-03-03-009', 'ZANGA GARI ZANGA P.S', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(47, 70, '17-03-03-010', 'BAGGA MAUDU BAGGA MAUDU P.SCH.', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(48, 70, '17-03-03-011', 'BIGIDAN KAWARI BIGIDAN KAWARI', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(49, 70, '17-03-03-012', 'BIGIDAN BIGIDAN P.SCH. I', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(50, 70, '17-03-03-013', 'BIGIDAN BIGIDAN P.SCH. II', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(51, 70, '17-03-03-014', 'TSARA DAGAJI DAGAJI', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(52, 70, '17-03-03-015', 'KYANKA A KOTA KYANKA A KOTA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(53, 70, '17-03-03-016', 'UNG. GIDE FAI FAI', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(54, 70, '17-03-03-017', 'KULUMI KULUMI', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(55, 70, '17-03-03-018', 'KAROFI KAROFI', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(56, 70, '17-03-03-019', 'WARWADE YAMMA WARWADE P.SCH.', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(57, 70, '17-03-03-020', 'WARWADE GABAS WARWADE GABAS', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(58, 70, '17-03-03-021', 'MUNGULO/GURUMA MUNGULO', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(59, 70, '17-03-03-022', 'YALWAN KARGO SABUWA YALWAN KALGO', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(60, 70, '17-03-03-023', 'KAFIN GANA GABAS KAFIN GANA GABAS', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(61, 70, '17-03-03-024', 'KAFIN GANA YAMMA KAFIN GANA YAMMA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(62, 70, '17-03-03-025', 'GATARI / KWADAGE GATARI', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(63, 70, '17-03-03-026', 'HALIMBE / HALIMBE', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(64, 70, '17-03-03-027', 'RUDA / RUDA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(65, 70, '17-03-03-028', 'TSOHUWAR KANTOGA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(66, 70, '17-03-03-029', 'KANTOGA SENIOR SEC. SCH. II', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(67, 70, '17-03-03-030', 'WARWADE PRI. SCH. II', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(68, 70, '17-03-03-031', 'KAFIN GANA PRI. SCH. II', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(69, 70, '17-03-03-032', 'KAFIN GANA JUNIOR SEC. SCH. II', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(70, 71, '17-03-04-001', 'KIYAKO P.S', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(71, 71, '17-03-04-002', 'KIYAKO BAKIN KASUWA, BAKIN KASUWA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(72, 71, '17-03-04-003', 'GIDAN DASHI/ JIGAWA JIGAWA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(73, 71, '17-03-04-004', 'SARKIN GABAS/GWARJI UNG. SARKIN BAKA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(74, 71, '17-03-04-005', 'BURUM KANAWA/WARDAWA BURUM KANAWA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(75, 71, '17-03-04-006', 'ZARENA P.S ZARAINA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(76, 71, '17-03-04-007', 'ZARENA ZARENA P.SCH.', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(77, 71, '17-03-04-008', 'BARWA, BARWA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(78, 71, '17-03-04-009', 'BAMAINA FADA BAMAINA P.SCH.', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(79, 71, '17-03-04-010', 'GAJALA BAMAINA P.SCH.', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(80, 71, '17-03-04-011', 'BURURUWA/TOSORO', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(81, 71, '17-03-04-012', 'BABALDU KUDU BABALDU PRY SCH', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(82, 71, '17-03-04-013', 'BABALDU AREWA/ BABALDU AREWA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(83, 71, '17-03-04-014', 'GANGARA/MALAMAWA GANGARA P.SCH.', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(84, 71, '17-03-04-015', 'GANGARA / GANGARA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(85, 71, '17-03-04-016', 'LUNKUDE / LUNKUDE', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(86, 71, '17-03-04-017', 'TUBAKO / TUBAKO', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(87, 71, '17-03-04-018', 'DUTSEN GUR/SABON GIDA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(88, 71, '17-03-04-019', 'KULUM / KULUMI', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(89, 71, '17-03-04-020', 'KIYAKO JSS II', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(90, 71, '17-03-04-021', 'KIYAKO JSS III', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(91, 71, '17-03-04-022', 'KIYAKO BAKIN KASUWA II', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(92, 71, '17-03-04-023', 'BAMAINA PRI. SCH. II', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(93, 71, '17-03-04-024', 'BAMAINA PRI. SCH. III', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(94, 71, '17-03-04-025', 'BABALDU PRI. SCH. II', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(95, 71, '17-03-04-026', 'BABALDU PRI. SCH. III', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(96, 71, '17-03-04-027', 'BABALDU AREWA PRI. SCH. II', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(97, 72, '17-03-05-001', 'KWANGWARA TSAKIYA/ KWANGWARA P.S', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(98, 72, '17-03-05-002', 'KWANGWARA ZAZZAGAWA/ KWANGWARA P.S', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(99, 72, '17-03-05-003', 'BAKIN KUJA/BAKIN KUJA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(100, 72, '17-03-05-004', 'MADAKIN SHIBA/MADAKIN SHIBA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(101, 72, '17-03-05-005', 'HIRIN P.S/HIRIN P.S', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(102, 72, '17-03-05-006', 'HIRIN GARI/ HIRIN GARI', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(103, 72, '17-03-05-007', 'MAICHEDIYA/MAICHEDIYA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(104, 72, '17-03-05-008', 'ANDAZAWA/ANDAZAWA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(105, 72, '17-03-05-009', 'AREWAWA/AREWAWA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(106, 72, '17-03-05-010', 'KADANGARE PRY SCH/ KADANGARE PRY SCH', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(107, 72, '17-03-05-011', 'KANDANGARE/TSANGAYA/KADAN GARE FADA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(108, 72, '17-03-05-012', 'ZAZIKA GARI/TSANGAYA/ZAZIKA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(109, 72, '17-03-05-013', 'ZAZIKA YAMMA FADA/ZAZIKA FADA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(110, 72, '17-03-05-014', 'NAFADA/NAFADA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(111, 72, '17-03-05-015', 'BARIKIN DAN GIWA/ BARIKIN DAN GIWA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(112, 72, '17-03-05-016', 'KWANGWARA PRI. SCH. II', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(113, 72, '17-03-05-017', 'KADANGARE GINDIN SOLAR II', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(114, 72, '17-03-05-018', 'ZAZIKA PRI. SCH. II', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(115, 73, '17-03-06-001', 'LAFIYA P.SCH.', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(116, 73, '17-03-06-002', 'JIKAINA / JIKAINA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(117, 73, '17-03-06-003', 'KUWO SABUWA/TSOHUWA KUWO SABUWA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(118, 73, '17-03-06-004', 'KURA SABUWA, KURA SABUWA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(119, 73, '17-03-06-005', 'KURA TSOHUWA, KURA TSOHUWA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(120, 73, '17-03-06-006', 'KEWAYA, KEWAYA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(121, 73, '17-03-06-007', 'LADDUGA/LARAU/KWANKIYALLADDUGA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(122, 73, '17-03-06-008', 'MASAYA P.SCH./ MASAYA PRI. SCH.', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(123, 73, '17-03-06-009', 'MASAYA KUDU/AREWA MASAYA KUDU', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(124, 73, '17-03-06-010', 'MASAYA DORAWA DORAWA MAI YADO', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(125, 73, '17-03-06-011', 'DAMUKASHI, DAMUKASHI P.SCH.', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(126, 73, '17-03-06-012', 'DAMUKASHI GARI, DAMUKASHI GARI', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(127, 73, '17-03-06-013', 'JIGAWAR NASARA , JIGAWAR NASARA P. SCH.', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(128, 73, '17-03-06-014', 'GOBIRAWA / RAKATIKAJ / NASARA P.SCH.', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(129, 73, '17-03-06-015', 'SABUWAR JIGAWA/TOKARE SABUWAR JIGAWA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(130, 73, '17-03-06-016', 'TUKUDA AREWA TUKUDA P.SCH.', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(131, 73, '17-03-06-017', 'TUKUDA KUDU TUKUDA P.SCH.', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(132, 73, '17-03-06-018', 'JINGINA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(133, 74, '17-03-07-001', 'SUNDIMINA P.SCH., SUNDIMINA P.SCH.', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(134, 74, '17-03-07-002', 'SUNDIMINA GARI SUNDIMINA P.SCH.', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(135, 74, '17-03-07-003', 'GARGADI/MASARI GARGADI', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(136, 74, '17-03-07-004', 'GAMBARA, GAMBARA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(137, 74, '17-03-07-005', 'KUMBURA, KUMBURA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(138, 74, '17-03-07-006', 'ZURKUDA, ZURKUDA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(139, 74, '17-03-07-007', 'KWARI P.SCH., KWARI P.SCH.', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(140, 74, '17-03-07-008', 'KWARI CHARKWANTI, CHARKWANTI', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(141, 74, '17-03-07-009', 'ASAYAYA/FALAI DA ZANI ASAYAYA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(142, 74, '17-03-07-010', 'KWATAI GIDAN JATAU KWATAI', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(143, 74, '17-03-07-011', 'SAFA GIDAN KADANYA FADA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(144, 74, '17-03-07-012', 'TSALLAKAWA TSALLAKAWA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(145, 74, '17-03-07-013', 'RANGWAN TSANGAYA RANGWAN', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(146, 74, '17-03-07-014', 'KADIRAWAN BELLO KADIRAWAN BELLO', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(147, 74, '17-03-07-015', 'ATIYA/MALALUWA ATIYA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(148, 74, '17-03-07-016', 'KAFATA/KATIKA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(149, 74, '17-03-07-017', 'NAFARA P.SCH.', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(150, 74, '17-03-07-018', 'NAFARA AREWA P.S', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(151, 74, '17-03-07-019', 'BARDIN DAWA/ZUMAIKIN NAFARA KUDU', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(152, 74, '17-03-07-020', 'YABAZA/CHINA\'A YABAZA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(153, 74, '17-03-07-021', 'TAWAKAL/KUNGUYIN TAWAKAL', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(154, 74, '17-03-07-022', 'DUKWANA, DUKWANA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(155, 74, '17-03-07-023', 'KADIRAWA, KADIRAWA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(156, 74, '17-03-07-024', 'GIDAN GANDI/GIDAN MUDI GONAR SANI WANZAN', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(157, 74, '17-03-07-025', 'GAURAM/KITIRI/G.ALHAJI GAURAM', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(158, 74, '17-03-07-026', 'NAFARA DUNGU PRY SCH.', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(159, 74, '17-03-07-027', 'GIDAN MUDI', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(160, 74, '17-03-07-028', 'AGARU/NASAKAR/GDSS SUNDIMINA II', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(161, 74, '17-03-07-029', 'TSANGAYAR KANYAWA', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(162, 74, '17-03-07-030', 'SUNDIMINA NURSERY PRI. SCH. II', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(163, 74, '17-03-07-031', 'SUNDIMINA VIEW CENTRE III', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(164, 74, '17-03-07-032', 'GAMBARA/TSANGAYA BAKIN RIJIYA', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(165, 74, '17-03-07-033', 'KUMBURA JUNIOR SEC. SCH. II', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(166, 74, '17-03-07-034', 'KWATAI ASIBITI II', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(167, 75, '17-03-08-001', 'SURKO DUGAJI SURKO P.S', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(168, 75, '17-03-08-002', 'SARKIN GABAS, SARKIN GABAS', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(169, 75, '17-03-08-003', 'BUDINGA MALLAWA BUDINGA P.S', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(170, 75, '17-03-08-004', 'BADINGU P.SCH., BADINGU P.SCH.', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(171, 75, '17-03-08-005', 'BADINGU FADA BADINGU FILI', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(172, 75, '17-03-08-006', 'SAKAI, SAKAI', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(173, 75, '17-03-08-007', 'SABUWAR BADINGU, SABUWAR BADINGU', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(174, 75, '17-03-08-008', 'CHAGU, CHAGU', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(175, 75, '17-03-08-009', 'SABON GARI', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(176, 75, '17-03-08-010', 'SURKO PRI. SCH. II', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(177, 75, '17-03-08-011', 'SARKIN GABAS II', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(178, 75, '17-03-08-012', 'BUDUNGA/ MALLAMA II', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(179, 75, '17-03-08-013', 'BADUNGU PRI. SCH. II', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(180, 75, '17-03-08-014', 'FADA/GIDAN RUWA', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(181, 77, '17-03-10-001', 'WURO FADA WURO ISLAMIYYA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(182, 77, '17-03-10-002', 'UNGUWAR MAGAJI WURNO PRI. SCH.', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(183, 77, '17-03-10-003', 'UNGUWAR YARI K. GIDAN IDI WURNO', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(184, 77, '17-03-10-004', 'RAHAJI, RAHAJI', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(185, 77, '17-03-10-005', 'KULLIN KOTA, KULLIN KOTA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(186, 77, '17-03-10-006', 'NAHUCE SAMBALISA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(187, 77, '17-03-10-007', 'GARGADI P.SCH.', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(188, 77, '17-03-10-008', 'GARGADI P.S', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(189, 77, '17-03-10-009', 'TOSORO/TAFARA ILUNGU', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(190, 77, '17-03-10-010', 'NASARAWA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(191, 77, '17-03-10-011', 'FI\'L FI\'L', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(192, 77, '17-03-10-012', 'NAHUCHE', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(193, 77, '17-03-10-013', 'SAMAMIYA GARI', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(194, 77, '17-03-10-014', 'SAMAMIYA GANTA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(195, 77, '17-03-10-015', 'GIDAN GALADIMA BAKACHI', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(196, 77, '17-03-10-016', 'HAMBARAWA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(197, 77, '17-03-10-017', 'TOSORO', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(198, 77, '17-03-10-018', 'DUTSE MAI DANGA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(199, 77, '17-03-10-019', 'GUNA\'AN DAMAU', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(200, 77, '17-03-10-020', 'MIGAWA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(201, 77, '17-03-10-021', 'DANTSA UNGUWAR KUKA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(202, 77, '17-03-10-022', 'SHINGURUN P.S', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(203, 77, '17-03-10-023', 'UNGUWAR MADAKI SHINGURUN P.S', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(204, 77, '17-03-10-024', 'DAKWARO/ADINAGA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(205, 77, '17-03-10-025', 'YOLA KWAYAM', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(206, 77, '17-03-10-026', 'DAKWARON BAMOWA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(207, 77, '17-03-10-027', 'HALILAWA/ADINGA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(208, 77, '17-03-10-028', 'ZARAMBA/YABAL ZARAMBA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(209, 77, '17-03-10-029', 'JANGARGARI P.S', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(210, 77, '17-03-10-030', 'JANGAR GARI KUDU', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(211, 77, '17-03-10-031', 'GIWA P.S', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(212, 77, '17-03-10-032', 'FUNTUA/YALWA FUNTUA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(213, 77, '17-03-10-033', 'NASARU/KACHOKAN NASARU', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(214, 77, '17-03-10-034', 'NUKWAI', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(215, 77, '17-03-10-035', 'WURNO FADA/ WURNO ISLAMIYYA II', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(216, 77, '17-03-10-036', 'UNGUWAR MAGAJI PRI. SCH. II', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(217, 77, '17-03-10-037', 'UNGUWAR K/GIDAN IDI WURNO II', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(218, 77, '17-03-10-038', 'SAMAMIYYA ASIBITI II', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(219, 77, '17-03-10-039', 'SHUNGURUN PRI. SCH. II', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(220, 77, '17-03-10-040', 'JANGARGARI PRI. SCH. II', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(221, 77, '17-03-10-041', 'JANGARGARI/ WRECA II', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(222, 77, '17-03-10-042', 'GIWA PRI. SCH. II', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(223, 78, '17-03-11-001', 'YALWAN DAMAI P.S I', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(224, 78, '17-03-11-002', 'YALWAN DAMAI P.S II', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(225, 78, '17-03-11-003', 'YALWAN DAMAI YAMMA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(226, 78, '17-03-11-004', 'DOKOKI/GIDAN BARDE/DOKOKI P.SCH.', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(227, 78, '17-03-11-005', 'DOKOKI BAKIN KASUWA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(228, 78, '17-03-11-006', 'KIYASAWA/JAURO IGUDA/ILIYASAWA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(229, 78, '17-03-11-007', 'GIDAN DARGE/F.GODIYA/ TSAKIYA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(230, 78, '17-03-11-008', 'GIDAN SARKIN NOMA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(231, 78, '17-03-11-009', 'GIDAN SARKIN FULANI', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(232, 78, '17-03-11-010', 'IGGI BAKIN KASUWA/IGGI P.S', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(233, 78, '17-03-11-011', 'IGGI P.S/IGGI KUDU', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(234, 78, '17-03-11-012', 'JAMBIRI/JAMBIRI', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(235, 78, '17-03-11-013', 'KAUYEN TOSHE/KAUYEN TOSHE', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(236, 78, '17-03-11-014', 'GULANDO/GIDAN GANDU /GIDAN GANDU', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(237, 78, '17-03-11-015', 'RAMIN KURA/RAMIN KURA P.S', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(238, 78, '17-03-11-016', 'BUDUSU/BUDUSU', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(239, 78, '17-03-11-017', 'AROBADE P.S', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(240, 78, '17-03-11-018', 'TSAMIYA GOMA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(241, 78, '17-03-11-019', 'GIDAN BARDE/DAGWAJI/GIDAN BARDE', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(242, 78, '17-03-11-020', 'DANGOLI P.S/DAN GOLI P.S', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(243, 78, '17-03-11-021', 'DANGOLI KUDU', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(244, 78, '17-03-11-022', 'LIKKA/RUMBU WUYA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(245, 78, '17-03-11-023', 'GIDAN SHEHU', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(246, 78, '17-03-11-024', 'KWAROSAWA', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(247, 78, '17-03-11-025', 'SOLI', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(248, 78, '17-03-11-026', 'GULANDO', 'EXISTING PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(249, 78, '17-03-11-027', 'YALWAN DAMAI JUNIOR SEC. SCH. II', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(250, 78, '17-03-11-028', 'YALWAN DAMAI SENIOR SEC. SCH. II', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(251, 78, '17-03-11-029', 'YALWAN DAMAI K/FADA II', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(252, 78, '17-03-11-030', 'IGGI ISLAMIYYA PRI. SCH. II', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(253, 78, '17-03-11-031', 'IGGI JUNIOR SEC. SCH. II', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14'),
+(254, 78, '17-03-11-032', 'SOLI PRI. SCH. II', 'NEW PU', NULL, NULL, NULL, NULL, 0, 0, 0, NULL, 1, '2026-07-31 15:39:14');
 
 -- --------------------------------------------------------
 
@@ -2559,7 +2945,38 @@ INSERT INTO `security_events` (`id`, `tenant_id`, `user_id`, `event_type`, `desc
 (387, NULL, 34, 'logout', 'User logged out from IP: 102.91.103.236', '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-27 13:38:49'),
 (388, NULL, 21, 'login', 'Successful login from IP: 102.91.103.236', '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-27 13:39:01'),
 (389, NULL, 21, 'logout', 'User logged out from IP: 102.91.103.236', '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-27 13:39:44'),
-(390, NULL, 34, 'login', 'Successful login from IP: 102.91.103.236', '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-27 13:39:57');
+(390, NULL, 34, 'login', 'Successful login from IP: 102.91.103.236', '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-27 13:39:57'),
+(391, NULL, 34, 'logout', 'User logged out from IP: 102.91.103.236', '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-27 13:56:45'),
+(392, NULL, 34, 'login', 'Successful login from IP: 102.91.103.236', '102.91.103.236', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-27 13:57:21'),
+(393, NULL, 34, 'login', 'Successful login from IP: 102.91.92.30', '102.91.92.30', 'a78b31e33002aa024cb817dbddb8d657948cdd935874c5150cf83f8d81a3426e', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-28 16:46:28'),
+(394, NULL, 34, 'login', 'Successful login from IP: 102.90.98.113', '102.90.98.113', 'bea0afb003b9e4ee6223475299df2485ec41f9ce807383e5c9521f3977a12815', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-28 19:04:13'),
+(395, NULL, 34, 'logout', 'User logged out from IP: 102.90.98.113', '102.90.98.113', 'bea0afb003b9e4ee6223475299df2485ec41f9ce807383e5c9521f3977a12815', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-28 20:14:39'),
+(396, NULL, 21, 'login', 'Successful login from IP: 197.210.71.167', '197.210.71.167', 'e3a223d93d679b8f1c9f493b61f4d64a8651da005e842f4d8f848a260fa9ad0b', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-29 17:52:48'),
+(397, NULL, 21, 'logout', 'User logged out from IP: 197.210.71.167', '197.210.71.167', 'e3a223d93d679b8f1c9f493b61f4d64a8651da005e842f4d8f848a260fa9ad0b', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-29 18:00:06'),
+(398, NULL, 33, 'login', 'Successful login from IP: 197.210.71.167', '197.210.71.167', 'e3a223d93d679b8f1c9f493b61f4d64a8651da005e842f4d8f848a260fa9ad0b', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-29 18:00:58'),
+(399, NULL, 33, 'logout', 'User logged out from IP: 197.210.71.167', '197.210.71.167', 'e3a223d93d679b8f1c9f493b61f4d64a8651da005e842f4d8f848a260fa9ad0b', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-29 18:25:36'),
+(400, NULL, 33, 'login', 'Successful login from IP: 197.210.71.167', '197.210.71.167', 'e3a223d93d679b8f1c9f493b61f4d64a8651da005e842f4d8f848a260fa9ad0b', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-29 18:26:56'),
+(401, NULL, 33, 'login', 'Successful login from IP: 154.68.230.50', '154.68.230.50', 'a649fe690d29984f09a3cefcaf0bfdd7d3f744fc6085889db4711e34ae5d481e', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-30 13:16:02'),
+(402, NULL, 7, 'login', 'Successful login from IP: 102.91.104.140', '102.91.104.140', '3efdff140a755543afeb09da15a3e9b7ebcc7e13884bf3ca1508f90a5c041c8e', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-31 10:42:03'),
+(403, NULL, 7, 'logout', 'User logged out from IP: 102.91.104.140', '102.91.104.140', '3efdff140a755543afeb09da15a3e9b7ebcc7e13884bf3ca1508f90a5c041c8e', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-31 10:46:52'),
+(404, NULL, 7, 'login', 'Successful login from IP: 102.91.104.140', '102.91.104.140', '3efdff140a755543afeb09da15a3e9b7ebcc7e13884bf3ca1508f90a5c041c8e', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-31 10:47:23'),
+(405, NULL, 7, 'logout', 'User logged out from IP: 102.91.104.140', '102.91.104.140', '3efdff140a755543afeb09da15a3e9b7ebcc7e13884bf3ca1508f90a5c041c8e', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-31 10:47:41'),
+(406, NULL, 21, 'login', 'Successful login from IP: 102.91.104.140', '102.91.104.140', '3efdff140a755543afeb09da15a3e9b7ebcc7e13884bf3ca1508f90a5c041c8e', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-31 10:47:47'),
+(407, NULL, 21, 'logout', 'User logged out from IP: 102.91.104.140', '102.91.104.140', '3efdff140a755543afeb09da15a3e9b7ebcc7e13884bf3ca1508f90a5c041c8e', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-31 11:19:52'),
+(408, NULL, 33, 'login', 'Successful login from IP: 102.91.104.140', '102.91.104.140', '3efdff140a755543afeb09da15a3e9b7ebcc7e13884bf3ca1508f90a5c041c8e', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-31 11:20:03'),
+(409, NULL, 33, 'logout', 'User logged out from IP: 102.91.104.140', '102.91.104.140', '3efdff140a755543afeb09da15a3e9b7ebcc7e13884bf3ca1508f90a5c041c8e', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-31 11:38:06'),
+(410, NULL, 21, 'login', 'Successful login from IP: 102.91.104.140', '102.91.104.140', '3efdff140a755543afeb09da15a3e9b7ebcc7e13884bf3ca1508f90a5c041c8e', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-31 11:53:41'),
+(411, NULL, 27, 'login', 'Successful login from IP: 102.91.78.187', '102.91.78.187', '0aed8e5a32ca24543d935fac739c287af801a13820d59c7bee94650db45b47a3', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-31 14:34:58'),
+(412, NULL, 21, 'login', 'Successful login from IP: 102.91.78.187', '102.91.78.187', 'db987f91b9dffc9e47ee15f0fa2ed51e352d28534c7209bd6106c9669fb259e1', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-31 14:37:09'),
+(413, NULL, 21, 'logout', 'User logged out from IP: 102.91.78.187', '102.91.78.187', 'db987f91b9dffc9e47ee15f0fa2ed51e352d28534c7209bd6106c9669fb259e1', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-31 14:37:38'),
+(414, NULL, 21, 'login', 'Successful login from IP: 102.91.104.164', '102.91.104.164', '269be98f11744b1307917406db421d9584ee65f3bf4ba16f2a9ea610d669571c', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-31 15:53:23'),
+(415, NULL, 21, 'login', 'Successful login from IP: 102.91.104.164', '102.91.104.164', '269be98f11744b1307917406db421d9584ee65f3bf4ba16f2a9ea610d669571c', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-31 16:30:44'),
+(416, NULL, 21, 'logout', 'User logged out from IP: 102.91.104.164', '102.91.104.164', '269be98f11744b1307917406db421d9584ee65f3bf4ba16f2a9ea610d669571c', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-31 16:31:15'),
+(417, NULL, 7, 'login', 'Successful login from IP: 102.91.104.164', '102.91.104.164', '269be98f11744b1307917406db421d9584ee65f3bf4ba16f2a9ea610d669571c', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-31 16:32:09'),
+(418, NULL, 7, 'logout', 'User logged out from IP: 102.91.104.164', '102.91.104.164', '269be98f11744b1307917406db421d9584ee65f3bf4ba16f2a9ea610d669571c', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-31 16:32:32'),
+(419, NULL, 7, 'login', 'Successful login from IP: 102.91.104.164', '102.91.104.164', '269be98f11744b1307917406db421d9584ee65f3bf4ba16f2a9ea610d669571c', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-31 16:33:25'),
+(420, NULL, 7, 'logout', 'User logged out from IP: 102.91.104.164', '102.91.104.164', '269be98f11744b1307917406db421d9584ee65f3bf4ba16f2a9ea610d669571c', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-31 16:33:53'),
+(421, NULL, 21, 'login', 'Successful login from IP: 102.91.104.164', '102.91.104.164', '269be98f11744b1307917406db421d9584ee65f3bf4ba16f2a9ea610d669571c', NULL, NULL, NULL, 0, NULL, NULL, '2026-07-31 16:34:14');
 
 -- --------------------------------------------------------
 
@@ -2608,7 +3025,9 @@ CREATE TABLE `states` (
 --
 
 INSERT INTO `states` (`id`, `code`, `name`, `capital`, `gps_lat`, `gps_lng`, `registered_voters`, `is_active`, `created_at`) VALUES
-(1, 'JG', 'Jigawa', 'Dutse', NULL, NULL, 0, 1, '2026-07-09 13:39:19');
+(1, 'JG', 'Jigawa', 'Dutse', NULL, NULL, 0, 1, '2026-07-09 13:39:19'),
+(2, 'BA', 'Bauchi', 'Bauchi', NULL, NULL, 0, 1, '2026-07-31 11:53:05'),
+(3, 'KN', 'Kano', 'Kano', NULL, NULL, 0, 1, '2026-07-31 11:53:05');
 
 -- --------------------------------------------------------
 
@@ -2899,21 +3318,21 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`id`, `tenant_id`, `user_code`, `role_id`, `first_name`, `last_name`, `email`, `google_id`, `avatar`, `phone`, `phone_verified_at`, `password_hash`, `remember_token`, `two_factor_secret`, `two_factor_enabled`, `two_factor_verified_at`, `gender`, `date_of_birth`, `photograph_url`, `nin`, `bvn`, `bank_name`, `account_number`, `account_name`, `emergency_contact_name`, `emergency_contact_phone`, `next_of_kin_name`, `next_of_kin_phone`, `residential_address`, `state_id`, `lga_id`, `ward_id`, `pu_id`, `senatorial_id`, `federal_constituency_id`, `jurisdiction_type`, `jurisdiction_id`, `device_id`, `device_fingerprint`, `device_bound`, `last_login_at`, `last_login_ip`, `last_login_device`, `last_login_gps_lat`, `last_login_gps_lng`, `login_attempts`, `locked_until`, `status`, `email_verified_at`, `created_by`, `created_at`, `updated_at`, `deleted_at`) VALUES
-(7, NULL, 'ADMIN001', 1, 'Super', 'Admin', 'aliyuabubakar11117@gmail.com', NULL, NULL, '+2348005555555', NULL, '$2y$10$gPZC.B3tnq9mjtLvr4SxseQzsfZzlkaSzzzktAIlSpeSd0qp1ldIO', NULL, NULL, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-27 12:26:40', '102.91.103.236', NULL, NULL, NULL, 0, NULL, 'active', '2026-07-02 17:23:24', NULL, '2026-07-02 17:23:24', '2026-07-27 12:26:40', NULL),
-(21, 14, 'USR000014', 2, 'Aliyu', 'Abubakar', 'lubunaaliyuabk@gmail.com', NULL, NULL, '+2348034897638', NULL, '$2y$10$Ji4dxGUlacL6Sy3Dk7ncUu0J8nJJ7e3.D4X5t5GImMZSLNL3gRiPC', NULL, NULL, 0, NULL, 'male', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-27 13:39:01', '102.91.103.236', NULL, NULL, NULL, 0, NULL, 'active', '2026-07-09 14:16:04', 7, '2026-07-09 14:16:04', '2026-07-27 13:39:01', NULL),
+(7, NULL, 'ADMIN001', 1, 'Super', 'Admin', 'aliyuabubakar11117@gmail.com', NULL, NULL, '+2348005555555', NULL, '$2y$10$gPZC.B3tnq9mjtLvr4SxseQzsfZzlkaSzzzktAIlSpeSd0qp1ldIO', NULL, NULL, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-31 16:33:25', '102.91.104.164', NULL, NULL, NULL, 0, NULL, 'active', '2026-07-02 17:23:24', NULL, '2026-07-02 17:23:24', '2026-07-31 16:33:25', NULL),
+(21, 14, 'USR000014', 2, 'Aliyu', 'Abubakar', 'lubunaaliyuabk@gmail.com', NULL, NULL, '+2348034897638', NULL, '$2y$10$Ji4dxGUlacL6Sy3Dk7ncUu0J8nJJ7e3.D4X5t5GImMZSLNL3gRiPC', NULL, NULL, 0, NULL, 'male', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-31 16:34:14', '102.91.104.164', NULL, NULL, NULL, 0, NULL, 'active', '2026-07-09 14:16:04', 7, '2026-07-09 14:16:04', '2026-07-31 16:34:14', NULL),
 (22, 14, 'USR000002', 3, 'Aliyu', 'Abubakar', 'aliyuabubakardh@gmail.com', NULL, NULL, '+2349027702002', NULL, '$2y$10$Gk2pc7ug2HrHsICzhnAwSuRNwtJJFJtnzXX4EwzTcUybZ/qqb6T6q', NULL, NULL, 0, NULL, 'male', '2002-02-24', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-18 15:59:39', '197.210.70.187', NULL, NULL, NULL, 0, NULL, 'active', NULL, 7, '2026-07-09 14:23:04', '2026-07-18 15:59:39', NULL),
 (23, 14, 'USR000003', 4, 'ibrahim', 'sule', 'ibrahim@gmail.com', NULL, NULL, '+2348034907634', NULL, '$2y$10$8ec1HFTe/V2ngpXvR9jc8OeY5VdY3MuqdzHE84dBUy6xcoKQwdZy.', NULL, NULL, 0, NULL, 'male', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, NULL, NULL, NULL, NULL, NULL, 'state', 1, NULL, NULL, 1, '2026-07-15 23:00:53', '102.91.77.202', NULL, NULL, NULL, 0, NULL, 'active', NULL, 21, '2026-07-09 15:25:02', '2026-07-15 23:00:53', NULL),
 (24, 14, 'AGT13713', 4, 'isah', 'Musa', 'agent@gmail.com', NULL, NULL, '80335673727', NULL, '$2y$10$XzaBC1oT6nxMUj5qgRL3COpmlhDmAPNNN3zIyXoGzw1NshtN.7tXi', NULL, NULL, 0, NULL, 'male', '2010-02-09', '/election/uploads/profiles/profile_24_1783680306.png', '79476978233', NULL, 'Sterling', '8034897634', 'Aliyu Abubakar', NULL, NULL, NULL, NULL, '', 1, NULL, NULL, NULL, NULL, NULL, 'state', 1, NULL, NULL, 1, '2026-07-10 10:50:51', '10.59.66.251', NULL, NULL, NULL, 0, NULL, 'active', NULL, 21, '2026-07-09 22:06:13', '2026-07-10 10:50:51', NULL),
 (25, 14, 'LGA000005', 7, 'Aliyu', 'Abubakar', 'aliyuabubakar1111@gmail.com', NULL, NULL, '+23484897634', NULL, '$2y$10$5H9bRatgQ00gHK3QX6Ror.zaZfi00IXR7WmjjXSeUI2eVHaa0vjMa', NULL, NULL, 0, NULL, 'male', NULL, '/election/uploads/profiles/profile_25_1783683350.jpg', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, 1, NULL, NULL, NULL, NULL, 'lga', 1, NULL, NULL, 1, '2026-07-19 11:32:11', '197.210.70.43', NULL, NULL, NULL, 0, NULL, 'active', NULL, 24, '2026-07-09 23:32:21', '2026-07-19 11:32:11', NULL),
 (26, 14, 'AGT93914', 9, 'Aliyu', 'Abubakar', 'agent1@gmail.com', NULL, NULL, '+2348034897634', NULL, '$2y$10$NV.vq2GfMqHTTBditi/5BuyYpZ7R1ysfpcMM1gXVxZZaVWP3cNNCW', NULL, NULL, 0, NULL, 'male', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Kangire, Birninkudu\r\nNigeria', 1, 1, 1, 3, NULL, NULL, 'pu', 1, NULL, NULL, 1, '2026-07-26 11:29:22', '197.210.53.133', NULL, NULL, NULL, 0, NULL, 'active', NULL, 25, '2026-07-10 13:13:42', '2026-07-26 11:29:22', NULL),
-(27, 14, 'USR801680', 8, 'Aliyu', 'Abubakar', 'abarshiaminu2005@gmail.com', NULL, NULL, '+2348034897634', NULL, '$2y$10$wzx3ez2cSkeWfmdXvA1pleLbP4cQmAWuqScAQmezx58f.7Z77mSX2', NULL, NULL, 0, NULL, 'male', NULL, '/election/uploads/profiles/profile_27_1784468674.jpg', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Kangire, Birninkudu', 1, 1, 1, NULL, NULL, NULL, 'ward', 1, NULL, NULL, 1, '2026-07-27 13:14:46', '102.91.103.236', NULL, NULL, NULL, 0, NULL, 'active', NULL, 21, '2026-07-10 13:33:57', '2026-07-27 13:14:46', NULL),
+(27, 14, 'USR801680', 8, 'Aliyu', 'Abubakar', 'abarshiaminu2005@gmail.com', NULL, NULL, '+2348034897634', NULL, '$2y$10$wzx3ez2cSkeWfmdXvA1pleLbP4cQmAWuqScAQmezx58f.7Z77mSX2', NULL, NULL, 0, NULL, 'male', NULL, '/election/uploads/profiles/profile_27_1784468674.jpg', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Kangire, Birninkudu', 1, 1, 1, NULL, NULL, NULL, 'ward', 1, NULL, NULL, 1, '2026-07-31 14:34:58', '102.91.78.187', NULL, NULL, NULL, 0, NULL, 'active', NULL, 21, '2026-07-10 13:33:57', '2026-07-31 14:34:58', NULL),
 (28, 14, 'USR000008', 1, 'Aliyu', 'Yahaya', 'kowagurutechltd@gmail.com', NULL, NULL, '09032356601', NULL, '$2y$10$3ikAaNWR/nR2roodOPzj/.4TTmb1pXSatJLXLUTYH12qH3tQSfxUK', NULL, NULL, 1, NULL, 'male', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-18 22:58:39', '102.88.112.143', NULL, NULL, NULL, 0, NULL, 'active', NULL, 7, '2026-07-10 22:22:27', '2026-07-18 22:59:49', NULL),
 (29, 14, 'USR000009', 10, 'Aliyu', 'Abubakar', 'agent2@gmail.com', NULL, NULL, '+2348034897634', NULL, '$2y$10$8LCOUoCl0G4VaSeqYW.M7uYN5BmCDCV3y5VRcI97XAYgCa5VCDOsa', NULL, NULL, 0, NULL, 'male', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, 1, 1, 28, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-26 11:06:02', '197.210.53.133', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', NULL, NULL, 0, NULL, 'active', NULL, 7, '2026-07-11 13:03:12', '2026-07-26 11:06:02', NULL),
 (30, 14, 'AGT36886', 15, 'ba sule', 'jumbe', 'agent3@gmail.com', NULL, NULL, '9765678765456', NULL, '$2y$10$p1//WAheNDiTBX39oq5MJuKtYlH6dy.A4AGJYiyrb4DXMWR8w7VcO', NULL, NULL, 0, NULL, 'male', NULL, NULL, '79476978233', NULL, 'Sterling', '1234567890', 'Aliyu Abubakar', NULL, NULL, NULL, NULL, 'Kangire, Birninkudu\r\nNigeria', 1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-19 16:57:43', '197.210.70.43', NULL, NULL, NULL, 0, NULL, 'active', NULL, 21, '2026-07-16 09:33:49', '2026-07-24 16:30:09', NULL),
 (31, 14, 'USR000011', 15, 'Aliyu', 'Abubakar', 'observer@gmail.com', NULL, NULL, '+2349027702002', NULL, '$2y$10$nQg3tg/H4FbK5haAE9mpaeoPeADaTw0r7iD6vYzwVEDEhHtAZmi82', NULL, NULL, 0, NULL, 'male', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-19 16:56:41', '197.210.70.43', NULL, NULL, NULL, 0, NULL, 'active', NULL, 28, '2026-07-16 10:02:30', '2026-07-24 15:14:39', NULL),
 (32, 14, 'USR060557', 15, 'Aliyu', 'Abubakar', 'volunteer@gmail.com', NULL, NULL, '+23480348934', NULL, '$2y$10$HaQM4jNTmcrh8cRSyYJLN.uYlqbFfVn0H4DkavJ0.buvROOuUsVjG', NULL, NULL, 0, NULL, 'male', NULL, NULL, '79476978233', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Birnin kudu 1', NULL, NULL, 1, 28, NULL, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-24 14:29:25', '102.91.104.59', NULL, NULL, NULL, 0, NULL, 'active', NULL, 21, '2026-07-24 14:29:16', '2026-07-24 16:03:54', NULL),
-(33, 14, 'USR092249', 6, 'federal', 'cons', 'federal@gmail.com', NULL, NULL, '+234902702002', NULL, '$2y$10$425U7I7MjfaFsfLDr7gnieZs/3gwMOQQOlUXBNRGOuLVGXcsUN4v2', NULL, NULL, 0, NULL, 'male', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Kangire', 1, NULL, NULL, NULL, NULL, 7, NULL, NULL, NULL, NULL, 1, '2026-07-27 12:56:16', '102.91.103.236', NULL, NULL, NULL, 0, NULL, 'active', NULL, 21, '2026-07-27 12:56:05', '2026-07-27 12:56:16', NULL),
-(34, 14, 'USR914497', 5, 'senatorial', 'cood', 'senatorial@gmail.com', NULL, NULL, '+2349027702002', NULL, '$2y$10$g8Jt81qod3HCyVnXfVO.XepykUPA5ehEwWraza2cXtnmxYgVircDa', NULL, NULL, 0, NULL, 'male', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Kangire', 1, NULL, NULL, NULL, 3, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-27 13:39:57', '102.91.103.236', NULL, NULL, NULL, 0, NULL, 'active', NULL, 21, '2026-07-27 13:06:44', '2026-07-27 13:39:57', NULL);
+(33, 14, 'USR092249', 6, 'federal', 'cons', 'federal@gmail.com', NULL, NULL, '+234902702002', NULL, '$2y$10$425U7I7MjfaFsfLDr7gnieZs/3gwMOQQOlUXBNRGOuLVGXcsUN4v2', NULL, NULL, 0, NULL, 'male', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Kangire', 1, NULL, NULL, NULL, NULL, 7, NULL, NULL, NULL, NULL, 1, '2026-07-31 11:20:03', '102.91.104.140', NULL, NULL, NULL, 0, NULL, 'active', NULL, 21, '2026-07-27 12:56:05', '2026-07-31 11:20:03', NULL),
+(34, 14, 'USR914497', 5, 'senatorial', 'cood', 'senatorial@gmail.com', NULL, NULL, '+2349027702002', NULL, '$2y$10$g8Jt81qod3HCyVnXfVO.XepykUPA5ehEwWraza2cXtnmxYgVircDa', NULL, NULL, 0, NULL, 'male', '0000-00-00', '/election/uploads/profiles/profile_34_1785267063.png', NULL, NULL, NULL, NULL, NULL, '', '', NULL, NULL, 'Kangire', 1, NULL, NULL, NULL, 3, NULL, NULL, NULL, NULL, NULL, 1, '2026-07-28 19:04:13', '102.90.98.113', NULL, NULL, NULL, 0, NULL, 'active', NULL, 21, '2026-07-27 13:06:44', '2026-07-28 19:31:25', NULL);
 
 -- --------------------------------------------------------
 
@@ -3148,7 +3567,26 @@ INSERT INTO `user_sessions` (`id`, `user_id`, `token`, `device_id`, `device_type
 (267, 21, '5bd31ad9fc1627dcf2dbfc2196e3fc0bfc6cd6e93867c041ede78c1e0fe5838c', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', 'web', NULL, '102.91.103.236', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-27 13:31:26', '2026-07-27 13:31:26', 0, '2026-07-27 13:16:37'),
 (268, 34, '662f40e6fa862f45cf75dc2ebedf063008f7a88be58211501ff75514f0f93855', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', 'web', NULL, '102.91.103.236', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-27 13:38:49', '2026-07-27 13:38:49', 0, '2026-07-27 13:31:35'),
 (269, 21, '1ab343a2b2acbbce34240621ebef28688290edc2b6f79545358f61b720613ced', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', 'web', NULL, '102.91.103.236', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-27 13:39:44', '2026-07-27 13:39:44', 0, '2026-07-27 13:39:01'),
-(270, 34, 'f15c1fc1579443781e83a9f9921a29a1184b2fd4044dc0b7512db14983b0eb45', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', 'web', NULL, '102.91.103.236', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-27 14:39:57', '2026-07-27 13:39:57', 1, '2026-07-27 13:39:57');
+(270, 34, 'f15c1fc1579443781e83a9f9921a29a1184b2fd4044dc0b7512db14983b0eb45', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', 'web', NULL, '102.91.103.236', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-27 13:56:45', '2026-07-27 13:56:45', 0, '2026-07-27 13:39:57'),
+(271, 34, '8e043a2e69010203efe156dc71ee55781c8ff2a2524b36c89dfe9fdf064a3d7f', '25ccdef86749f19e05b4303533411d451057b84333c8e56cf515de9630bd0d06', 'web', NULL, '102.91.103.236', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-28 19:31:29', '2026-07-28 19:31:29', 0, '2026-07-27 13:57:21'),
+(272, 34, 'f7d0f66b80d73aaa7e54ead825c8c18b269b5e7e3ccdbfd2368859a668628a7c', 'a78b31e33002aa024cb817dbddb8d657948cdd935874c5150cf83f8d81a3426e', 'web', NULL, '102.91.92.30', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-28 19:31:29', '2026-07-28 19:31:29', 0, '2026-07-28 16:46:28'),
+(273, 34, 'f9368547a9bed2f70746462eb9efa92eb7c39527251be94eefcc806feea1b61c', 'bea0afb003b9e4ee6223475299df2485ec41f9ce807383e5c9521f3977a12815', 'web', NULL, '102.90.98.113', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-28 19:31:29', '2026-07-28 19:31:29', 0, '2026-07-28 19:04:13'),
+(274, 21, '686c851f30579cac12d20393f0f63b36572cf3940cbe8947b48ab80346e9c282', 'e3a223d93d679b8f1c9f493b61f4d64a8651da005e842f4d8f848a260fa9ad0b', 'web', NULL, '197.210.71.167', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-29 18:00:06', '2026-07-29 18:00:06', 0, '2026-07-29 17:52:48'),
+(275, 33, 'f4fbb04fe65852b190fc0e6c51b39552611d5875fb332c5ff3e48611adbde796', 'e3a223d93d679b8f1c9f493b61f4d64a8651da005e842f4d8f848a260fa9ad0b', 'web', NULL, '197.210.71.167', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-29 18:25:36', '2026-07-29 18:25:36', 0, '2026-07-29 18:00:58'),
+(276, 33, '0bc01a5cc2db5b5aa27b4de4f6dddaa89cbd80065172ac3bca82315041236232', 'e3a223d93d679b8f1c9f493b61f4d64a8651da005e842f4d8f848a260fa9ad0b', 'web', NULL, '197.210.71.167', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-29 19:26:56', '2026-07-29 18:26:56', 1, '2026-07-29 18:26:56'),
+(277, 33, '208c93a23b9bf5b53d0d62fa3f715e0865caa926fb4c497042f09295e6cad4ae', 'a649fe690d29984f09a3cefcaf0bfdd7d3f744fc6085889db4711e34ae5d481e', 'web', NULL, '154.68.230.50', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-30 14:16:02', '2026-07-30 13:16:02', 1, '2026-07-30 13:16:02'),
+(278, 7, '3cb980e1721131cb871f930764837fa15d670e344d70ab1702c579601f3c3a46', '3efdff140a755543afeb09da15a3e9b7ebcc7e13884bf3ca1508f90a5c041c8e', 'web', NULL, '102.91.104.140', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-31 10:46:52', '2026-07-31 10:46:52', 0, '2026-07-31 10:42:03'),
+(279, 7, 'a284a515399c456a8ffb1bc6d33cf99ac5dae5c888b95e34edf3ce874183931d', '3efdff140a755543afeb09da15a3e9b7ebcc7e13884bf3ca1508f90a5c041c8e', 'web', NULL, '102.91.104.140', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-31 10:47:41', '2026-07-31 10:47:41', 0, '2026-07-31 10:47:23'),
+(280, 21, '6c4882cac19d96965c238ffebb4e1471b378a190dbf50e744e5f5838f92509a2', '3efdff140a755543afeb09da15a3e9b7ebcc7e13884bf3ca1508f90a5c041c8e', 'web', NULL, '102.91.104.140', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-31 11:19:52', '2026-07-31 11:19:52', 0, '2026-07-31 10:47:47'),
+(281, 33, '972ca7f9444199591c4d757f53da170b41a8aba1f4c766dd5e5d8584730cceac', '3efdff140a755543afeb09da15a3e9b7ebcc7e13884bf3ca1508f90a5c041c8e', 'web', NULL, '102.91.104.140', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-31 11:38:06', '2026-07-31 11:38:06', 0, '2026-07-31 11:20:03'),
+(282, 21, '34f5beb8fca8435f2890d64d7503ce5dac1a0e08b486415d892c5014eca6201f', '3efdff140a755543afeb09da15a3e9b7ebcc7e13884bf3ca1508f90a5c041c8e', 'web', NULL, '102.91.104.140', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-31 12:53:41', '2026-07-31 11:53:41', 1, '2026-07-31 11:53:41'),
+(283, 27, '28b8b42df7b62052c764aad9688971f2d973c201a60df6361280c0f3f54510d1', '0aed8e5a32ca24543d935fac739c287af801a13820d59c7bee94650db45b47a3', 'web', NULL, '102.91.78.187', NULL, NULL, 'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Mobile Safari/537.36', '2026-07-31 15:34:58', '2026-07-31 14:34:58', 1, '2026-07-31 14:34:58'),
+(284, 21, 'bdd8e529819badf39277c542c3a9cb2a9a37f1c68fd4ae8e931542f88ff879a4', 'db987f91b9dffc9e47ee15f0fa2ed51e352d28534c7209bd6106c9669fb259e1', 'web', NULL, '102.91.78.187', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-31 14:37:38', '2026-07-31 14:37:38', 0, '2026-07-31 14:37:09'),
+(285, 21, 'bcc6f383a33e95f9d128572f17743cafa8b1cc3e497204d9fdf190fb1f2ccc2f', '269be98f11744b1307917406db421d9584ee65f3bf4ba16f2a9ea610d669571c', 'web', NULL, '102.91.104.164', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-31 16:53:23', '2026-07-31 15:53:23', 1, '2026-07-31 15:53:23'),
+(286, 21, '1583df7ddf0bc0c8f61bcd6f41f2a3f83a520d2a9224ebe0a619adc6c7d6c9d0', '269be98f11744b1307917406db421d9584ee65f3bf4ba16f2a9ea610d669571c', 'web', NULL, '102.91.104.164', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-31 16:31:15', '2026-07-31 16:31:15', 0, '2026-07-31 16:30:44'),
+(287, 7, '8937487cd2e1a1104fe8f33b58817851cdd56e59a596a6619810510b3f278298', '269be98f11744b1307917406db421d9584ee65f3bf4ba16f2a9ea610d669571c', 'web', NULL, '102.91.104.164', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-31 16:32:32', '2026-07-31 16:32:32', 0, '2026-07-31 16:32:09'),
+(288, 7, 'ec82ff23109afdd59b6b9070449a4ce7b18fb291018294fe8d77277680bbd9c2', '269be98f11744b1307917406db421d9584ee65f3bf4ba16f2a9ea610d669571c', 'web', NULL, '102.91.104.164', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-31 16:33:53', '2026-07-31 16:33:53', 0, '2026-07-31 16:33:25'),
+(289, 21, '2ad3e1249c4b4d5057928299fa46a2280ead2221c1ab790b82ebff2eef160922', '269be98f11744b1307917406db421d9584ee65f3bf4ba16f2a9ea610d669571c', 'web', NULL, '102.91.104.164', NULL, NULL, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36', '2026-07-31 17:34:14', '2026-07-31 16:34:14', 1, '2026-07-31 16:34:14');
 
 -- --------------------------------------------------------
 
@@ -3220,7 +3658,84 @@ CREATE TABLE `wards` (
 --
 
 INSERT INTO `wards` (`id`, `lga_id`, `code`, `name`, `gps_lat`, `gps_lng`, `registered_voters`, `is_active`) VALUES
-(1, 1, '17-03-02', 'Kangire', NULL, NULL, 0, 1);
+(1, 1, '17-03-02', 'Kangire', NULL, NULL, 0, 1),
+(2, 2, 'ALK-01', 'Alkaleri', NULL, NULL, 0, 1),
+(3, 2, 'ALK-02', 'Birin', NULL, NULL, 0, 1),
+(4, 2, 'ALK-03', 'Duguri', NULL, NULL, 0, 1),
+(5, 2, 'ALK-04', 'Fanti', NULL, NULL, 0, 1),
+(6, 2, 'ALK-05', 'Gar', NULL, NULL, 0, 1),
+(7, 2, 'ALK-06', 'Gokaru', NULL, NULL, 0, 1),
+(8, 2, 'ALK-07', 'Gwaram', NULL, NULL, 0, 1),
+(9, 2, 'ALK-08', 'Mansur', NULL, NULL, 0, 1),
+(10, 2, 'ALK-09', 'Pali', NULL, NULL, 0, 1),
+(11, 2, 'ALK-10', 'Yalo', NULL, NULL, 0, 1),
+(12, 2, 'ALK-11', 'Yuli', NULL, NULL, 0, 1),
+(13, 3, 'BAU-01', 'Birshi', NULL, NULL, 0, 1),
+(14, 3, 'BAU-02', 'Dan Amar', NULL, NULL, 0, 1),
+(15, 3, 'BAU-03', 'Dan Iya', NULL, NULL, 0, 1),
+(16, 3, 'BAU-04', 'Dawaki', NULL, NULL, 0, 1),
+(17, 3, 'BAU-05', 'Galambi', NULL, NULL, 0, 1),
+(18, 3, 'BAU-06', 'Hardo', NULL, NULL, 0, 1),
+(19, 3, 'BAU-07', 'Kangere', NULL, NULL, 0, 1),
+(20, 3, 'BAU-08', 'Makama Sade', NULL, NULL, 0, 1),
+(21, 3, 'BAU-09', 'Miri', NULL, NULL, 0, 1),
+(22, 3, 'BAU-10', 'Tirwun', NULL, NULL, 0, 1),
+(23, 3, 'BAU-11', 'Yelwa', NULL, NULL, 0, 1),
+(24, 3, 'BAU-12', 'Zungur', NULL, NULL, 0, 1),
+(25, 4, 'BOG-01', 'Bogoro A', NULL, NULL, 0, 1),
+(26, 4, 'BOG-02', 'Bogoro B', NULL, NULL, 0, 1),
+(27, 4, 'BOG-03', 'Bogoro C', NULL, NULL, 0, 1),
+(28, 4, 'BOG-04', 'Bogoro D', NULL, NULL, 0, 1),
+(29, 4, 'BOG-05', 'Lusa', NULL, NULL, 0, 1),
+(30, 4, 'BOG-06', 'Lusa B', NULL, NULL, 0, 1),
+(31, 4, 'BOG-07', 'Sabon Birni', NULL, NULL, 0, 1),
+(32, 4, 'BOG-08', 'Tafawa Balewa', NULL, NULL, 0, 1),
+(33, 4, 'BOG-09', 'Tafawa Balewa B', NULL, NULL, 0, 1),
+(34, 4, 'BOG-10', 'Tafawa Balewa C', NULL, NULL, 0, 1),
+(35, 5, 'DAM-01', 'Dambam', NULL, NULL, 0, 1),
+(36, 5, 'DAM-02', 'Faggo', NULL, NULL, 0, 1),
+(37, 5, 'DAM-03', 'Gargawa', NULL, NULL, 0, 1),
+(38, 5, 'DAM-04', 'Garuz', NULL, NULL, 0, 1),
+(39, 5, 'DAM-05', 'Jalam', NULL, NULL, 0, 1),
+(40, 5, 'DAM-06', 'Janda', NULL, NULL, 0, 1),
+(41, 5, 'DAM-07', 'Kamo', NULL, NULL, 0, 1),
+(42, 5, 'DAM-08', 'Yame', NULL, NULL, 0, 1),
+(43, 5, 'DAM-09', 'Yanda', NULL, NULL, 0, 1),
+(44, 5, 'DAM-10', 'Zaura', NULL, NULL, 0, 1),
+(45, 6, 'DAR-01', 'Darazo', NULL, NULL, 0, 1),
+(46, 6, 'DAR-02', 'Gabarin', NULL, NULL, 0, 1),
+(47, 6, 'DAR-03', 'Gabchiyari', NULL, NULL, 0, 1),
+(48, 6, 'DAR-04', 'Konkiyel', NULL, NULL, 0, 1),
+(49, 6, 'DAR-05', 'Lago', NULL, NULL, 0, 1),
+(50, 6, 'DAR-06', 'Lanzai', NULL, NULL, 0, 1),
+(51, 6, 'DAR-07', 'Papa', NULL, NULL, 0, 1),
+(52, 6, 'DAR-08', 'Sade', NULL, NULL, 0, 1),
+(53, 6, 'DAR-09', 'Tsangaya', NULL, NULL, 0, 1),
+(54, 6, 'DAR-10', 'Wahu', NULL, NULL, 0, 1),
+(55, 6, 'DAR-11', 'Yautare', NULL, NULL, 0, 1),
+(56, 6, 'DAR-12', 'Yunbu', NULL, NULL, 0, 1),
+(57, 7, 'DAS-01', 'Bagel', NULL, NULL, 0, 1),
+(58, 7, 'DAS-02', 'Baraza', NULL, NULL, 0, 1),
+(59, 7, 'DAS-03', 'Bundot', NULL, NULL, 0, 1),
+(60, 7, 'DAS-04', 'Bununu', NULL, NULL, 0, 1),
+(61, 7, 'DAS-05', 'Dott', NULL, NULL, 0, 1),
+(62, 7, 'DAS-06', 'Durr', NULL, NULL, 0, 1),
+(63, 7, 'DAS-07', 'Lusa', NULL, NULL, 0, 1),
+(64, 7, 'DAS-08', 'Polchi', NULL, NULL, 0, 1),
+(65, 7, 'DAS-09', 'Saku', NULL, NULL, 0, 1),
+(66, 7, 'DAS-10', 'Tafawa Balewa', NULL, NULL, 0, 1),
+(67, 7, 'DAS-11', 'Wandi', NULL, NULL, 0, 1),
+(68, 7, 'DAS-12', 'Zumbul', NULL, NULL, 0, 1),
+(69, 24, '17-03-02', 'Kangire', NULL, NULL, 0, 1),
+(70, 24, '17-03-03', 'Kantoga', NULL, NULL, 0, 1),
+(71, 24, '17-03-04', 'Kiyako', NULL, NULL, 0, 1),
+(72, 24, '17-03-05', 'Kwangwara', NULL, NULL, 0, 1),
+(73, 24, '17-03-06', 'Lafiya', NULL, NULL, 0, 1),
+(74, 24, '17-03-07', 'Sundimina', NULL, NULL, 0, 1),
+(75, 24, '17-03-08', 'Surko', NULL, NULL, 0, 1),
+(76, 24, '17-03-09', 'Kantoga', NULL, NULL, 0, 1),
+(77, 24, '17-03-10', 'Wurno', NULL, NULL, 0, 1),
+(78, 24, '17-03-11', 'Yalwan Damai', NULL, NULL, 0, 1);
 
 --
 -- Indexes for dumped tables
@@ -3801,7 +4316,7 @@ ALTER TABLE `wards`
 -- AUTO_INCREMENT for table `activity_logs`
 --
 ALTER TABLE `activity_logs`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=689;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=728;
 
 --
 -- AUTO_INCREMENT for table `agent_assignments`
@@ -3939,13 +4454,13 @@ ALTER TABLE `invoices`
 -- AUTO_INCREMENT for table `lgas`
 --
 ALTER TABLE `lgas`
-  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=92;
 
 --
 -- AUTO_INCREMENT for table `login_attempts`
 --
 ALTER TABLE `login_attempts`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=247;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=266;
 
 --
 -- AUTO_INCREMENT for table `media_uploads`
@@ -3987,7 +4502,7 @@ ALTER TABLE `offline_sync_queue`
 -- AUTO_INCREMENT for table `otp_verifications`
 --
 ALTER TABLE `otp_verifications`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=57;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=60;
 
 --
 -- AUTO_INCREMENT for table `people`
@@ -4011,7 +4526,7 @@ ALTER TABLE `political_parties`
 -- AUTO_INCREMENT for table `polling_units`
 --
 ALTER TABLE `polling_units`
-  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=35;
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=255;
 
 --
 -- AUTO_INCREMENT for table `public_results`
@@ -4065,7 +4580,7 @@ ALTER TABLE `roles`
 -- AUTO_INCREMENT for table `security_events`
 --
 ALTER TABLE `security_events`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=391;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=422;
 
 --
 -- AUTO_INCREMENT for table `senatorial_districts`
@@ -4077,7 +4592,7 @@ ALTER TABLE `senatorial_districts`
 -- AUTO_INCREMENT for table `states`
 --
 ALTER TABLE `states`
-  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 
 --
 -- AUTO_INCREMENT for table `subscriptions`
@@ -4131,7 +4646,7 @@ ALTER TABLE `users`
 -- AUTO_INCREMENT for table `user_sessions`
 --
 ALTER TABLE `user_sessions`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=271;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=290;
 
 --
 -- AUTO_INCREMENT for table `volunteer_assignments`
@@ -4149,7 +4664,7 @@ ALTER TABLE `volunteer_tasks`
 -- AUTO_INCREMENT for table `wards`
 --
 ALTER TABLE `wards`
-  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `id` int UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=79;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
