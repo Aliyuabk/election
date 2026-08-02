@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// WARD COORDINATOR - CHAT WITH AGENTS (OPTIMIZED VERSION)
+// WARD COORDINATOR - CHAT WITH AGENTS (REWRITTEN)
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -21,9 +21,7 @@ if ($user_role_level !== 'ward') {
     exit();
 }
 
-// ============================================================
-// GET USER DATA
-// ============================================================
+// Get user data
 $user_id = SessionManager::get('user_id');
 $tenant_id = SessionManager::get('tenant_id');
 $ward_id = SessionManager::get('ward_id') ?: 0;
@@ -31,14 +29,10 @@ $lga_id = SessionManager::get('lga_id') ?: 0;
 $state_id = SessionManager::get('state_id') ?: 0;
 $user_name = SessionManager::get('user_name', 'Coordinator');
 
-// ============================================================
-// DATABASE CONNECTION
-// ============================================================
+// Database connection
 $db = getDB();
 
-// ============================================================
-// ENSURE WARD_ID IS SET
-// ============================================================
+// Ensure ward_id is set
 if (empty($ward_id)) {
     try {
         $stmt = $db->prepare("SELECT ward_id, lga_id, state_id FROM users WHERE id = ? AND tenant_id = ?");
@@ -57,9 +51,7 @@ if (empty($ward_id)) {
     }
 }
 
-// ============================================================
-// GET WARD NAME
-// ============================================================
+// Get ward name
 $ward_name = 'Unknown Ward';
 if ($ward_id) {
     try {
@@ -74,9 +66,7 @@ if ($ward_id) {
     }
 }
 
-// ============================================================
-// ROLE DEFINITIONS
-// ============================================================
+// Role definitions
 $role_definitions = [
     9 => ['name' => 'PU Agent', 'icon' => 'fa-user-check', 'color' => '#3B82F6', 'level' => 'pu_agent'],
     10 => ['name' => 'Party Agent', 'icon' => 'fa-flag', 'color' => '#8B5CF6', 'level' => 'party_agent'],
@@ -84,9 +74,7 @@ $role_definitions = [
     15 => ['name' => 'Volunteer', 'icon' => 'fa-hands-helping', 'color' => '#F59E0B', 'level' => 'volunteer']
 ];
 
-// ============================================================
-// GET REQUEST PARAMETERS
-// ============================================================
+// Get request parameters
 $selected_role = isset($_GET['role']) ? (int)$_GET['role'] : 9;
 $selected_contact_id = isset($_GET['contact_id']) ? (int)$_GET['contact_id'] : 0;
 $selected_contact = null;
@@ -94,7 +82,7 @@ $messages = [];
 $contacts = [];
 
 // ============================================================
-// AJAX HANDLER - OPTIMIZED
+// AJAX HANDLER
 // ============================================================
 if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
     header('Content-Type: application/json');
@@ -104,7 +92,6 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
         if ($selected_contact_id > 0) {
             $last_msg_id = isset($_GET['last_msg_id']) ? (int)$_GET['last_msg_id'] : 0;
             
-            // Optimized query with proper indexing
             $stmt = $db->prepare("
                 SELECT 
                     cm.id, cm.sender_id, cm.receiver_id, cm.message_type, 
@@ -127,7 +114,6 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
             $response['messages'] = $new_messages;
             $response['new_messages'] = count($new_messages);
             
-            // Mark messages as read
             if (!empty($new_messages)) {
                 $stmt = $db->prepare("
                     UPDATE chat_messages 
@@ -138,7 +124,6 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
             }
         }
         
-        // Optimized contacts query with subquery optimization
         $stmt = $db->prepare("
             SELECT 
                 u.id, u.full_name, u.user_code, u.email, u.phone, u.status,
@@ -195,7 +180,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
 }
 
 // ============================================================
-// FILE UPLOAD HANDLER - OPTIMIZED
+// FILE UPLOAD HANDLER
 // ============================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'upload_file') {
     header('Content-Type: application/json');
@@ -241,7 +226,129 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 }
 
 // ============================================================
-// FETCH CONTACTS - OPTIMIZED
+// SEND MESSAGE HANDLER - FIXED
+// ============================================================
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'send_message') {
+    $receiver_id = isset($_POST['receiver_id']) ? (int)$_POST['receiver_id'] : 0;
+    $message = isset($_POST['message']) ? trim($_POST['message']) : '';
+    $message_type = isset($_POST['message_type']) ? $_POST['message_type'] : 'text';
+    $media_url = isset($_POST['media_url']) ? trim($_POST['media_url']) : '';
+    $media_filename = isset($_POST['media_filename']) ? trim($_POST['media_filename']) : '';
+    $media_filesize = isset($_POST['media_filesize']) ? (int)$_POST['media_filesize'] : 0;
+    $media_filetype = isset($_POST['media_filetype']) ? trim($_POST['media_filetype']) : '';
+    $role_id = isset($_POST['role_id']) ? (int)$_POST['role_id'] : 9;
+    $is_ajax = isset($_POST['ajax']) && $_POST['ajax'] === '1';
+    
+    $csrf_token = isset($_POST['csrf_token']) ? $_POST['csrf_token'] : '';
+    $session_token = SessionManager::get('csrf_token');
+    
+    $response = ['success' => false, 'message' => 'An error occurred'];
+    
+    if (empty($csrf_token) || $csrf_token !== $session_token) {
+        $response['message'] = 'Security validation failed. Please try again.';
+    } elseif ($receiver_id <= 0) {
+        $response['message'] = 'Invalid recipient.';
+    } elseif (empty($message) && empty($media_url)) {
+        $response['message'] = 'Please enter a message or attach a file.';
+    } else {
+        try {
+            $db->beginTransaction();
+            
+            $stmt = $db->prepare("
+                SELECT id, full_name, role_id FROM users 
+                WHERE id = ? AND tenant_id = ? AND ward_id = ? AND role_id = ? AND status = 'active'
+            ");
+            $stmt->execute([$receiver_id, $tenant_id, $ward_id, $role_id]);
+            $receiver = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$receiver) {
+                throw new Exception('Recipient not found or not in your ward.');
+            }
+            
+            $stmt = $db->prepare("
+                SELECT cr.id FROM chat_rooms cr
+                JOIN chat_room_members crm1 ON cr.id = crm1.room_id
+                JOIN chat_room_members crm2 ON cr.id = crm2.room_id
+                WHERE cr.tenant_id = ? AND cr.type = 'direct'
+                AND crm1.user_id = ? AND crm2.user_id = ?
+            ");
+            $stmt->execute([$tenant_id, $user_id, $receiver_id]);
+            $room = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($room) {
+                $room_id = $room['id'];
+            } else {
+                $stmt = $db->prepare("
+                    INSERT INTO chat_rooms (tenant_id, name, type, created_by, created_at) 
+                    VALUES (?, ?, 'direct', ?, NOW())
+                ");
+                $room_name = "Chat between " . $user_name . " and " . $receiver['full_name'];
+                $stmt->execute([$tenant_id, $room_name, $user_id]);
+                $room_id = $db->lastInsertId();
+                
+                $stmt = $db->prepare("INSERT INTO chat_room_members (room_id, user_id, role, joined_at) VALUES (?, ?, 'member', NOW())");
+                $stmt->execute([$room_id, $user_id]);
+                $stmt->execute([$room_id, $receiver_id]);
+            }
+            
+            $content = $message;
+            if ($media_url && $message_type === 'file') {
+                $file_info = json_encode([
+                    'url' => $media_url,
+                    'filename' => $media_filename,
+                    'filesize' => $media_filesize,
+                    'filetype' => $media_filetype
+                ]);
+                $content = $file_info;
+            }
+            
+            $stmt = $db->prepare("
+                INSERT INTO chat_messages (
+                    room_id, sender_id, receiver_id, message_type, content, 
+                    media_url, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, NOW())
+            ");
+            $stmt->execute([$room_id, $user_id, $receiver_id, $message_type, $content, $media_url]);
+            $msg_id = $db->lastInsertId();
+            
+            logActivity($user_id, 'chat_message', "Sent message to {$receiver['full_name']} (ID: $receiver_id)", 'chat', $room_id);
+            
+            $db->commit();
+            
+            $response = [
+                'success' => true,
+                'message' => 'Message sent successfully',
+                'msg_id' => $msg_id
+            ];
+            
+        } catch (Exception $e) {
+            $db->rollBack();
+            $response['message'] = "Error sending message: " . $e->getMessage();
+            error_log("Chat send error: " . $e->getMessage());
+        }
+    }
+    
+    // Handle response
+    if ($is_ajax) {
+        // Clear output buffers
+        while (ob_get_level()) {
+            ob_end_clean();
+        }
+        header('Content-Type: application/json');
+        echo json_encode($response);
+        exit();
+    } else {
+        if ($response['success']) {
+            header('Location: chat-agents.php?role=' . $role_id . '&contact_id=' . $receiver_id . '&sent=1');
+            exit();
+        } else {
+            $error_message = $response['message'];
+        }
+    }
+}
+
+// ============================================================
+// FETCH CONTACTS
 // ============================================================
 try {
     $stmt = $db->prepare("
@@ -285,7 +392,6 @@ try {
     $stmt->execute([$user_id, $user_id, $user_id, $user_id, $user_id, $tenant_id, $ward_id, $user_id, $selected_role]);
     $contacts = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
-    // Get selected contact data
     if ($selected_contact_id > 0) {
         foreach ($contacts as $contact) {
             if ($contact['id'] == $selected_contact_id) {
@@ -294,7 +400,6 @@ try {
             }
         }
         
-        // Fetch messages for selected contact
         if ($selected_contact) {
             $stmt = $db->prepare("
                 SELECT 
@@ -313,7 +418,6 @@ try {
             $stmt->execute([$user_id, $selected_contact_id, $selected_contact_id, $user_id]);
             $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
-            // Mark messages as read
             $stmt = $db->prepare("
                 UPDATE chat_messages 
                 SET is_read = 1, read_at = NOW() 
@@ -327,139 +431,11 @@ try {
     error_log("Error fetching contacts: " . $e->getMessage());
 }
 
-// ============================================================
-// HANDLE SEND MESSAGE - OPTIMIZED
-// ============================================================
-$success_message = '';
-$error_message = '';
-$show_success = false;
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'send_message') {
-    $receiver_id = isset($_POST['receiver_id']) ? (int)$_POST['receiver_id'] : 0;
-    $message = isset($_POST['message']) ? trim($_POST['message']) : '';
-    $message_type = isset($_POST['message_type']) ? $_POST['message_type'] : 'text';
-    $media_url = isset($_POST['media_url']) ? trim($_POST['media_url']) : '';
-    $media_filename = isset($_POST['media_filename']) ? trim($_POST['media_filename']) : '';
-    $media_filesize = isset($_POST['media_filesize']) ? (int)$_POST['media_filesize'] : 0;
-    $media_filetype = isset($_POST['media_filetype']) ? trim($_POST['media_filetype']) : '';
-    $role_id = isset($_POST['role_id']) ? (int)$_POST['role_id'] : 9;
-    
-    $csrf_token = isset($_POST['csrf_token']) ? $_POST['csrf_token'] : '';
-    $session_token = SessionManager::get('csrf_token');
-    
-    if (empty($csrf_token) || $csrf_token !== $session_token) {
-        $error_message = 'Security validation failed. Please try again.';
-    } elseif ($receiver_id <= 0) {
-        $error_message = 'Invalid recipient.';
-    } elseif (empty($message) && empty($media_url)) {
-        $error_message = 'Please enter a message or attach a file.';
-    } else {
-        try {
-            $db->beginTransaction();
-            
-            // Verify recipient
-            $stmt = $db->prepare("
-                SELECT id, full_name, role_id FROM users 
-                WHERE id = ? AND tenant_id = ? AND ward_id = ? AND role_id = ? AND status = 'active'
-            ");
-            $stmt->execute([$receiver_id, $tenant_id, $ward_id, $role_id]);
-            $receiver = $stmt->fetch(PDO::FETCH_ASSOC);
-            
-            if (!$receiver) {
-                throw new Exception('Recipient not found or not in your ward.');
-            }
-            
-            // Get or create chat room
-            $stmt = $db->prepare("
-                SELECT cr.id FROM chat_rooms cr
-                JOIN chat_room_members crm1 ON cr.id = crm1.room_id
-                JOIN chat_room_members crm2 ON cr.id = crm2.room_id
-                WHERE cr.tenant_id = ? AND cr.type = 'direct'
-                AND crm1.user_id = ? AND crm2.user_id = ?
-            ");
-            $stmt->execute([$tenant_id, $user_id, $receiver_id]);
-            $room = $stmt->fetch(PDO::FETCH_ASSOC);
-            
-            if ($room) {
-                $room_id = $room['id'];
-            } else {
-                $stmt = $db->prepare("
-                    INSERT INTO chat_rooms (tenant_id, name, type, created_by, created_at) 
-                    VALUES (?, ?, 'direct', ?, NOW())
-                ");
-                $room_name = "Chat between " . $user_name . " and " . $receiver['full_name'];
-                $stmt->execute([$tenant_id, $room_name, $user_id]);
-                $room_id = $db->lastInsertId();
-                
-                $stmt = $db->prepare("INSERT INTO chat_room_members (room_id, user_id, role, joined_at) VALUES (?, ?, 'member', NOW())");
-                $stmt->execute([$room_id, $user_id]);
-                $stmt->execute([$room_id, $receiver_id]);
-            }
-            
-            // Prepare content
-            $content = $message;
-            if ($media_url && $message_type === 'file') {
-                $file_info = json_encode([
-                    'url' => $media_url,
-                    'filename' => $media_filename,
-                    'filesize' => $media_filesize,
-                    'filetype' => $media_filetype
-                ]);
-                $content = $file_info;
-            }
-            
-            // Insert message
-            $stmt = $db->prepare("
-                INSERT INTO chat_messages (
-                    room_id, sender_id, receiver_id, message_type, content, 
-                    media_url, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, NOW())
-            ");
-            $stmt->execute([$room_id, $user_id, $receiver_id, $message_type, $content, $media_url]);
-            $msg_id = $db->lastInsertId();
-            
-            logActivity($user_id, 'chat_message', "Sent message to {$receiver['full_name']} (ID: $receiver_id)", 'chat', $room_id);
-            
-            $db->commit();
-            $success_message = 'Message sent successfully!';
-            $show_success = true;
-            
-            // Handle AJAX response
-            if (isset($_POST['ajax']) && $_POST['ajax'] === '1') {
-                if (ob_get_level()) ob_clean();
-                header('Content-Type: application/json');
-                echo json_encode(['success' => true, 'message' => 'Message sent successfully', 'msg_id' => $msg_id]);
-                exit();
-            }
-            
-            if (!isset($_POST['ajax']) || $_POST['ajax'] !== '1') {
-                header('Location: chat-agents.php?role=' . $role_id . '&contact_id=' . $receiver_id . '&sent=1');
-                exit();
-            }
-            
-        } catch (Exception $e) {
-            $db->rollBack();
-            $error_message = "Error sending message: " . $e->getMessage();
-            error_log("Chat send error: " . $e->getMessage());
-            
-            if (isset($_POST['ajax']) && $_POST['ajax'] === '1') {
-                header('Content-Type: application/json');
-                echo json_encode(['success' => false, 'message' => $error_message]);
-                exit();
-            }
-        }
-    }
-}
-
-// ============================================================
-// GENERATE CSRF TOKEN
-// ============================================================
+// Generate CSRF token
 $csrf_token = bin2hex(random_bytes(32));
 SessionManager::set('csrf_token', $csrf_token);
 
-// ============================================================
-// COUNT CONTACTS PER ROLE - OPTIMIZED WITH SINGLE QUERY
-// ============================================================
+// Count contacts per role
 $role_counts = array_fill_keys(array_keys($role_definitions), 0);
 try {
     $stmt = $db->prepare("
@@ -476,9 +452,7 @@ try {
     error_log("Error counting contacts: " . $e->getMessage());
 }
 
-// ============================================================
-// PAGE SETUP
-// ============================================================
+// Page setup
 $page_title = 'Chat with Agents';
 include '../includes/base.php';
 include '../includes/sidebar.php';
@@ -486,7 +460,7 @@ include '../includes/sidebar.php';
 
 <style>
 /* ============================================================
-   CHAT INTERFACE - COMPLETE STYLES
+   CHAT INTERFACE STYLES
    ============================================================ */
 :root {
     --chat-primary: #0F4C81;
@@ -515,7 +489,6 @@ include '../includes/sidebar.php';
     --gray-800: #1f2937;
 }
 
-/* Main Container */
 .chat-container {
     display: flex;
     height: calc(100vh - 200px);
@@ -529,9 +502,7 @@ include '../includes/sidebar.php';
     position: relative;
 }
 
-/* ============================================================
-   LEFT SIDEBAR - CONTACT LIST
-   ============================================================ */
+/* Sidebar */
 .chat-sidebar {
     width: 340px;
     min-width: 280px;
@@ -552,6 +523,7 @@ include '../includes/sidebar.php';
     flex-wrap: wrap;
     flex-shrink: 0;
 }
+
 .role-tab {
     flex: 1;
     min-width: 55px;
@@ -571,9 +543,8 @@ include '../includes/sidebar.php';
     position: relative;
     text-decoration: none;
 }
-.role-tab i {
-    font-size: 0.8rem;
-}
+
+.role-tab i { font-size: 0.8rem; }
 .role-tab .role-count {
     font-size: 0.45rem;
     background: var(--gray-200);
@@ -582,18 +553,9 @@ include '../includes/sidebar.php';
     border-radius: 8px;
     font-weight: 600;
 }
-.role-tab:hover {
-    background: var(--gray-100);
-    color: var(--gray-700);
-}
-.role-tab.active {
-    background: var(--chat-primary);
-    color: white;
-}
-.role-tab.active .role-count {
-    background: rgba(255,255,255,0.3);
-    color: white;
-}
+.role-tab:hover { background: var(--gray-100); color: var(--gray-700); }
+.role-tab.active { background: var(--chat-primary); color: white; }
+.role-tab.active .role-count { background: rgba(255,255,255,0.3); color: white; }
 
 .chat-sidebar-header {
     padding: 10px 14px;
@@ -604,15 +566,14 @@ include '../includes/sidebar.php';
     align-items: center;
     flex-shrink: 0;
 }
+
 .chat-sidebar-header h3 {
     font-size: 0.85rem;
     font-weight: 700;
     margin: 0;
     color: var(--gray-800);
 }
-.chat-sidebar-header h3 i {
-    color: var(--chat-primary);
-}
+.chat-sidebar-header h3 i { color: var(--chat-primary); }
 .chat-sidebar-header .badge {
     background: var(--chat-primary);
     color: white;
@@ -628,9 +589,7 @@ include '../includes/sidebar.php';
     border-bottom: 1px solid var(--chat-border);
     flex-shrink: 0;
 }
-.chat-sidebar-search .search-wrapper {
-    position: relative;
-}
+.chat-sidebar-search .search-wrapper { position: relative; }
 .chat-sidebar-search .search-wrapper i {
     position: absolute;
     left: 10px;
@@ -661,16 +620,9 @@ include '../includes/sidebar.php';
     padding: 2px 0;
     min-height: 0;
 }
-.chat-contact-list::-webkit-scrollbar {
-    width: 3px;
-}
-.chat-contact-list::-webkit-scrollbar-track {
-    background: transparent;
-}
-.chat-contact-list::-webkit-scrollbar-thumb {
-    background: var(--gray-300);
-    border-radius: 3px;
-}
+.chat-contact-list::-webkit-scrollbar { width: 3px; }
+.chat-contact-list::-webkit-scrollbar-track { background: transparent; }
+.chat-contact-list::-webkit-scrollbar-thumb { background: var(--gray-300); border-radius: 3px; }
 
 .chat-contact-item {
     display: flex;
@@ -684,9 +636,7 @@ include '../includes/sidebar.php';
     text-decoration: none;
     color: inherit;
 }
-.chat-contact-item:hover {
-    background: var(--gray-100);
-}
+.chat-contact-item:hover { background: var(--gray-100); }
 .chat-contact-item.active {
     background: var(--chat-primary-light);
     border-left-color: var(--chat-primary);
@@ -721,17 +671,10 @@ include '../includes/sidebar.php';
     border-radius: 50%;
     border: 2px solid white;
 }
-.chat-contact-item .avatar .online-dot.online {
-    background: var(--chat-online);
-}
-.chat-contact-item .avatar .online-dot.offline {
-    background: var(--chat-offline);
-}
+.chat-contact-item .avatar .online-dot.online { background: var(--chat-online); }
+.chat-contact-item .avatar .online-dot.offline { background: var(--chat-offline); }
 
-.chat-contact-item .contact-info {
-    flex: 1;
-    min-width: 0;
-}
+.chat-contact-item .contact-info { flex: 1; min-width: 0; }
 .chat-contact-item .contact-info .name {
     font-weight: 600;
     font-size: 0.8rem;
@@ -756,10 +699,7 @@ include '../includes/sidebar.php';
     margin-top: 1px;
 }
 
-.chat-contact-item .contact-meta {
-    text-align: right;
-    flex-shrink: 0;
-}
+.chat-contact-item .contact-meta { text-align: right; flex-shrink: 0; }
 .chat-contact-item .contact-meta .time {
     font-size: 0.5rem;
     color: var(--gray-400);
@@ -780,9 +720,7 @@ include '../includes/sidebar.php';
     font-weight: 500;
 }
 
-/* ============================================================
-   RIGHT CONTENT - CHAT AREA
-   ============================================================ */
+/* Chat Content */
 .chat-content {
     flex: 1;
     display: flex;
@@ -826,10 +764,7 @@ include '../includes/sidebar.php';
     border-radius: 50%;
     object-fit: cover;
 }
-.chat-content-header .header-info {
-    flex: 1;
-    min-width: 0;
-}
+.chat-content-header .header-info { flex: 1; min-width: 0; }
 .chat-content-header .header-info .name {
     font-weight: 600;
     font-size: 0.85rem;
@@ -839,14 +774,8 @@ include '../includes/sidebar.php';
     font-size: 0.6rem;
     color: var(--gray-500);
 }
-.chat-content-header .header-info .status.online {
-    color: var(--chat-online);
-}
-.chat-content-header .header-actions {
-    display: flex;
-    gap: 2px;
-    flex-shrink: 0;
-}
+.chat-content-header .header-info .status.online { color: var(--chat-online); }
+.chat-content-header .header-actions { display: flex; gap: 2px; flex-shrink: 0; }
 .chat-content-header .header-actions button {
     padding: 3px 6px;
     border: none;
@@ -860,11 +789,9 @@ include '../includes/sidebar.php';
     background: var(--gray-100);
     color: var(--gray-700);
 }
-.chat-content-header .header-actions button i {
-    font-size: 0.8rem;
-}
+.chat-content-header .header-actions button i { font-size: 0.8rem; }
 
-/* Chat Messages */
+/* Messages */
 .chat-messages {
     flex: 1;
     overflow-y: auto;
@@ -879,16 +806,9 @@ include '../includes/sidebar.php';
     position: relative;
     scroll-behavior: smooth;
 }
-.chat-messages::-webkit-scrollbar {
-    width: 4px;
-}
-.chat-messages::-webkit-scrollbar-track {
-    background: transparent;
-}
-.chat-messages::-webkit-scrollbar-thumb {
-    background: var(--gray-300);
-    border-radius: 4px;
-}
+.chat-messages::-webkit-scrollbar { width: 4px; }
+.chat-messages::-webkit-scrollbar-track { background: transparent; }
+.chat-messages::-webkit-scrollbar-thumb { background: var(--gray-300); border-radius: 4px; }
 
 .message-row {
     display: flex;
@@ -896,12 +816,8 @@ include '../includes/sidebar.php';
     animation: messageIn 0.3s ease;
     flex-shrink: 0;
 }
-.message-row.sent {
-    justify-content: flex-end;
-}
-.message-row.received {
-    justify-content: flex-start;
-}
+.message-row.sent { justify-content: flex-end; }
+.message-row.received { justify-content: flex-start; }
 
 @keyframes messageIn {
     from { opacity: 0; transform: translateY(8px); }
@@ -937,13 +853,8 @@ include '../includes/sidebar.php';
     display: block;
     text-align: right;
 }
-.message-row.sent .message-bubble .message-time {
-    color: rgba(255,255,255,0.7);
-}
-.message-row.received .message-bubble .message-time {
-    color: var(--gray-400);
-}
-
+.message-row.sent .message-bubble .message-time { color: rgba(255,255,255,0.7); }
+.message-row.received .message-bubble .message-time { color: var(--gray-400); }
 .message-bubble .message-sender {
     font-size: 0.6rem;
     font-weight: 600;
@@ -985,21 +896,14 @@ include '../includes/sidebar.php';
 .file-message .file-icon.rar { background: #F3E8FF; color: #7C3AED; }
 .file-message .file-icon.image { background: #FCE7F3; color: #DB2777; }
 .file-message .file-icon.default { background: #E5E7EB; color: #6B7280; }
-
-.file-message .file-info {
-    flex: 1;
-    min-width: 0;
-}
+.file-message .file-info { flex: 1; min-width: 0; }
 .file-message .file-info .file-name {
     font-weight: 500;
     font-size: 0.8rem;
     color: var(--gray-800);
     word-break: break-all;
 }
-.file-message .file-info .file-size {
-    font-size: 0.6rem;
-    color: var(--gray-500);
-}
+.file-message .file-info .file-size { font-size: 0.6rem; color: var(--gray-500); }
 .file-message .file-info .file-type {
     font-size: 0.5rem;
     color: var(--gray-400);
@@ -1009,12 +913,7 @@ include '../includes/sidebar.php';
     border-radius: 4px;
     margin-left: 4px;
 }
-
-.file-message .file-actions {
-    display: flex;
-    gap: 4px;
-    margin-top: 4px;
-}
+.file-message .file-actions { display: flex; gap: 4px; margin-top: 4px; }
 .file-message .file-actions a {
     padding: 2px 8px;
     border-radius: 4px;
@@ -1030,27 +929,19 @@ include '../includes/sidebar.php';
     background: var(--chat-primary);
     color: white;
 }
-.file-message .file-actions .download:hover {
-    background: var(--chat-primary-dark);
-}
+.file-message .file-actions .download:hover { background: var(--chat-primary-dark); }
 .file-message .file-actions .view {
     background: var(--gray-100);
     color: var(--gray-600);
 }
-.file-message .file-actions .view:hover {
-    background: var(--gray-200);
-}
+.file-message .file-actions .view:hover { background: var(--gray-200); }
 
 .message-row.sent .file-message {
     background: rgba(255, 255, 255, 0.1);
     border-color: rgba(255, 255, 255, 0.2);
 }
-.message-row.sent .file-message .file-info .file-name {
-    color: white;
-}
-.message-row.sent .file-message .file-info .file-size {
-    color: rgba(255,255,255,0.6);
-}
+.message-row.sent .file-message .file-info .file-name { color: white; }
+.message-row.sent .file-message .file-info .file-size { color: rgba(255,255,255,0.6); }
 .message-row.sent .file-message .file-info .file-type {
     background: rgba(255,255,255,0.2);
     color: rgba(255,255,255,0.7);
@@ -1059,16 +950,12 @@ include '../includes/sidebar.php';
     background: rgba(255,255,255,0.2);
     color: rgba(255,255,255,0.8);
 }
-.message-row.sent .file-message .file-actions .view:hover {
-    background: rgba(255,255,255,0.3);
-}
+.message-row.sent .file-message .file-actions .view:hover { background: rgba(255,255,255,0.3); }
 .message-row.sent .file-message .file-actions .download {
     background: rgba(255,255,255,0.2);
     color: white;
 }
-.message-row.sent .file-message .file-actions .download:hover {
-    background: rgba(255,255,255,0.3);
-}
+.message-row.sent .file-message .file-actions .download:hover { background: rgba(255,255,255,0.3); }
 
 /* Location Message */
 .location-message {
@@ -1086,9 +973,7 @@ include '../includes/sidebar.php';
     font-size: 0.8rem;
     color: #1E40AF;
 }
-.location-message .location-header i {
-    font-size: 0.9rem;
-}
+.location-message .location-header i { font-size: 0.9rem; }
 .location-message .location-details {
     margin-top: 3px;
     font-size: 0.75rem;
@@ -1123,7 +1008,6 @@ include '../includes/sidebar.php';
     font-size: 0.8rem;
 }
 
-/* Date Divider */
 .date-divider {
     text-align: center;
     padding: 4px 0;
@@ -1151,10 +1035,7 @@ include '../includes/sidebar.php';
     gap: 4px;
     align-items: end;
 }
-.chat-input-area .input-row .input-tools {
-    display: flex;
-    gap: 2px;
-}
+.chat-input-area .input-row .input-tools { display: flex; gap: 2px; }
 .chat-input-area .input-row .input-tools button {
     padding: 3px 6px;
     border: none;
@@ -1214,7 +1095,6 @@ include '../includes/sidebar.php';
     box-shadow: none;
 }
 
-/* Typing Indicator */
 .typing-indicator {
     padding: 3px 12px;
     font-size: 0.65rem;
@@ -1225,9 +1105,7 @@ include '../includes/sidebar.php';
     margin: 0 16px 2px 16px;
     flex-shrink: 0;
 }
-.typing-indicator .dots {
-    display: inline-block;
-}
+.typing-indicator .dots { display: inline-block; }
 .typing-indicator .dots span {
     display: inline-block;
     width: 3px;
@@ -1244,7 +1122,6 @@ include '../includes/sidebar.php';
     30% { opacity: 1; transform: scale(1.3); }
 }
 
-/* Empty State */
 .empty-chat {
     display: flex;
     flex-direction: column;
@@ -1271,7 +1148,6 @@ include '../includes/sidebar.php';
     max-width: 280px;
 }
 
-/* Alerts */
 .alert {
     padding: 8px 12px;
     border-radius: var(--radius);
@@ -1292,9 +1168,7 @@ include '../includes/sidebar.php';
     border-color: #FEE2E2;
     color: #991B1B;
 }
-.alert i {
-    font-size: 0.9rem;
-}
+.alert i { font-size: 0.9rem; }
 .alert .alert-close {
     margin-left: auto;
     background: none;
@@ -1304,11 +1178,8 @@ include '../includes/sidebar.php';
     opacity: 0.7;
     color: inherit;
 }
-.alert .alert-close:hover {
-    opacity: 1;
-}
+.alert .alert-close:hover { opacity: 1; }
 
-/* Mobile Toggle */
 .mobile-toggle {
     display: none;
     padding: 3px 10px;
@@ -1320,38 +1191,11 @@ include '../includes/sidebar.php';
     color: var(--gray-600);
     transition: all 0.2s ease;
 }
-.mobile-toggle:hover {
-    background: var(--gray-50);
-}
-
-.connection-status {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    padding: 6px 14px;
-    border-radius: 16px;
-    font-size: 0.65rem;
-    font-weight: 500;
-    z-index: 999;
-    display: none;
-}
-.connection-status.online {
-    background: #D1FAE5;
-    color: #065F46;
-    display: block;
-}
-.connection-status.offline {
-    background: #FEE2E2;
-    color: #991B1B;
-    display: block;
-}
+.mobile-toggle:hover { background: var(--gray-50); }
 
 /* Responsive */
 @media (max-width: 1024px) {
-    .chat-sidebar {
-        width: 280px;
-        min-width: 220px;
-    }
+    .chat-sidebar { width: 280px; min-width: 220px; }
 }
 
 @media (max-width: 768px) {
@@ -1373,22 +1217,14 @@ include '../includes/sidebar.php';
         overflow: hidden;
         border-bottom: none;
     }
-    .chat-content {
-        height: calc(100% - 200px);
-    }
-    .mobile-toggle {
-        display: inline-flex;
-        align-items: center;
-        gap: 3px;
-    }
+    .chat-content { height: calc(100% - 200px); }
+    .mobile-toggle { display: inline-flex; align-items: center; gap: 3px; }
     .role-tab {
         padding: 3px 4px;
         font-size: 0.5rem;
         min-width: 40px;
     }
-    .role-tab i {
-        font-size: 0.65rem;
-    }
+    .role-tab i { font-size: 0.65rem; }
     .chat-contact-item .avatar {
         width: 28px;
         height: 28px;
@@ -1426,29 +1262,19 @@ include '../includes/sidebar.php';
         height: 28px;
         font-size: 0.6rem;
     }
-    .chat-messages {
-        padding: 8px 10px;
-    }
+    .chat-messages { padding: 8px 10px; }
 }
 
 @media (max-width: 480px) {
-    .chat-container {
-        height: calc(100vh - 140px);
-    }
-    .chat-sidebar {
-        max-height: 160px;
-    }
-    .chat-content {
-        height: calc(100% - 160px);
-    }
+    .chat-container { height: calc(100vh - 140px); }
+    .chat-sidebar { max-height: 160px; }
+    .chat-content { height: calc(100% - 160px); }
     .role-tab {
         padding: 2px 3px;
         font-size: 0.45rem;
         min-width: 35px;
     }
-    .role-tab i {
-        font-size: 0.55rem;
-    }
+    .role-tab i { font-size: 0.55rem; }
     .role-tab .role-count {
         font-size: 0.4rem;
         padding: 0 3px;
@@ -1686,7 +1512,6 @@ include '../includes/sidebar.php';
                                         <?php endif; ?>
                                         
                                         <?php
-                                        // Parse file message
                                         $file_data = null;
                                         if ($msg['message_type'] === 'file' && !empty($msg['content'])) {
                                             $file_data = json_decode($msg['content'], true);
@@ -1884,7 +1709,6 @@ include '../includes/sidebar.php';
 </main>
 
 <?php
-// Helper function to format file size
 function formatFileSize($bytes) {
     if ($bytes >= 1073741824) {
         return number_format($bytes / 1073741824, 2) . ' GB';
@@ -1900,18 +1724,17 @@ function formatFileSize($bytes) {
 
 <script>
 // ============================================================
-// CHAT FUNCTIONS - OPTIMIZED
+// CHAT FUNCTIONS - COMPLETE REWRITE
 // ============================================================
 
 // Configuration
 const CONFIG = {
     POLL_INTERVAL: 3000,
-    TYPING_TIMEOUT: 5000,
-    MAX_MESSAGE_LENGTH: 5000
+    TYPING_TIMEOUT: 5000
 };
 
 // State
-let state = {
+const state = {
     currentContactId: <?php echo $selected_contact_id ?: 0; ?>,
     lastMsgId: parseInt(document.getElementById('lastMsgId')?.value || 0),
     isPolling: false,
@@ -1919,9 +1742,7 @@ let state = {
     typingTimeout: null
 };
 
-// ============================================================
-// DOM REFERENCES - CACHED FOR PERFORMANCE
-// ============================================================
+// DOM Cache
 const DOM = {
     chatMessages: document.getElementById('chatMessages'),
     messageInput: document.getElementById('messageInput'),
@@ -1931,7 +1752,12 @@ const DOM = {
     connectionStatus: document.getElementById('connectionStatus'),
     contactSearch: document.getElementById('contactSearch'),
     contactBadge: document.getElementById('contactBadge'),
-    lastMsgId: document.getElementById('lastMsgId')
+    lastMsgId: document.getElementById('lastMsgId'),
+    mediaUrl: document.getElementById('mediaUrl'),
+    mediaFilename: document.getElementById('mediaFilename'),
+    mediaFilesize: document.getElementById('mediaFilesize'),
+    mediaFiletype: document.getElementById('mediaFiletype'),
+    messageType: document.getElementById('messageType')
 };
 
 // ============================================================
@@ -1946,13 +1772,13 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Start polling and scroll to bottom
+    // Start polling
     if (state.currentContactId > 0) {
         startPolling();
         setTimeout(scrollToBottom, 300);
     }
     
-    // Hide typing indicator initially
+    // Hide typing indicator
     if (DOM.typingIndicator) {
         DOM.typingIndicator.style.display = 'none';
     }
@@ -1962,13 +1788,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if (preloader) {
         preloader.classList.add('hidden');
         setTimeout(function() { preloader.style.display = 'none'; }, 600);
-    }
-    
-    // Cache last message ID from server
-    const lastMsgElement = document.querySelector('.message-bubble:last-child');
-    if (lastMsgElement) {
-        const id = lastMsgElement.dataset.msgId;
-        if (id) state.lastMsgId = Math.max(state.lastMsgId, parseInt(id));
     }
 });
 
@@ -1993,7 +1812,7 @@ function sendMessage() {
     }
 }
 
-function updateSendButtonState(disabled, text) {
+function updateSendButton(disabled, text) {
     if (DOM.sendBtn) {
         DOM.sendBtn.disabled = disabled;
         DOM.sendBtn.innerHTML = text;
@@ -2028,7 +1847,7 @@ function shareLocation() {
         return;
     }
     
-    updateSendButtonState(true, '<i class="fas fa-spinner fa-spin"></i> Getting location...');
+    updateSendButton(true, '<i class="fas fa-spinner fa-spin"></i> Getting location...');
     
     navigator.geolocation.getCurrentPosition(
         function(position) {
@@ -2039,13 +1858,13 @@ function shareLocation() {
                 if (DOM.messageInput) {
                     DOM.messageInput.value = `📍 ${locationName || 'Location'}: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
                 }
-                document.getElementById('messageType').value = 'location';
-                updateSendButtonState(false, '<i class="fas fa-paper-plane"></i> Send');
+                if (DOM.messageType) DOM.messageType.value = 'location';
+                updateSendButton(false, '<i class="fas fa-paper-plane"></i> Send');
                 DOM.chatForm?.submit();
             });
         },
         function(error) {
-            updateSendButtonState(false, '<i class="fas fa-paper-plane"></i> Send');
+            updateSendButton(false, '<i class="fas fa-paper-plane"></i> Send');
             alert('Unable to get your location. Please try again.');
         },
         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
@@ -2100,22 +1919,22 @@ function uploadFile(input) {
     formData.append('action', 'upload_file');
     formData.append('csrf_token', document.querySelector('input[name="csrf_token"]')?.value || '');
     
-    updateSendButtonState(true, '<i class="fas fa-spinner fa-spin"></i> Uploading...');
+    updateSendButton(true, '<i class="fas fa-spinner fa-spin"></i> Uploading...');
     
     const xhr = new XMLHttpRequest();
     xhr.open('POST', 'chat-agents.php', true);
     xhr.onload = function() {
-        updateSendButtonState(false, '<i class="fas fa-paper-plane"></i> Send');
+        updateSendButton(false, '<i class="fas fa-paper-plane"></i> Send');
         
         if (xhr.status === 200) {
             try {
                 const response = JSON.parse(xhr.responseText);
                 if (response.success) {
-                    document.getElementById('mediaUrl').value = response.url;
-                    document.getElementById('mediaFilename').value = response.filename;
-                    document.getElementById('mediaFilesize').value = response.filesize;
-                    document.getElementById('mediaFiletype').value = response.filetype;
-                    document.getElementById('messageType').value = 'file';
+                    if (DOM.mediaUrl) DOM.mediaUrl.value = response.url;
+                    if (DOM.mediaFilename) DOM.mediaFilename.value = response.filename;
+                    if (DOM.mediaFilesize) DOM.mediaFilesize.value = response.filesize;
+                    if (DOM.mediaFiletype) DOM.mediaFiletype.value = response.filetype;
+                    if (DOM.messageType) DOM.messageType.value = 'file';
                     DOM.chatForm?.submit();
                 } else {
                     alert('Upload failed: ' + (response.message || 'Unknown error'));
@@ -2128,7 +1947,7 @@ function uploadFile(input) {
         }
     };
     xhr.onerror = function() {
-        updateSendButtonState(false, '<i class="fas fa-paper-plane"></i> Send');
+        updateSendButton(false, '<i class="fas fa-paper-plane"></i> Send');
         alert('Upload failed. Please check your connection.');
     };
     xhr.send(formData);
@@ -2173,7 +1992,7 @@ function refreshChat() {
 }
 
 // ============================================================
-// REAL-TIME POLLING - OPTIMIZED
+// REAL-TIME POLLING
 // ============================================================
 function startPolling() {
     if (state.pollInterval) {
@@ -2224,21 +2043,19 @@ function updateConnectionStatus(online) {
 }
 
 // ============================================================
-// DISPLAY NEW MESSAGES - OPTIMIZED
+// DISPLAY NEW MESSAGES
 // ============================================================
 function displayNewMessages(messages) {
     const container = DOM.chatMessages;
     if (!container) return;
     
-    // Remove empty state if present
     const emptyState = container.querySelector('.empty-chat');
     if (emptyState) {
         emptyState.remove();
     }
     
-    let lastDate = '';
-    let lastMsgId = state.lastMsgId;
     const fragment = document.createDocumentFragment();
+    let lastMsgId = state.lastMsgId;
     
     messages.forEach(function(msg) {
         const msgDate = new Date(msg.created_at);
@@ -2249,7 +2066,7 @@ function displayNewMessages(messages) {
         const isSent = msg.sender_id == <?php echo $user_id; ?>;
         const time = msgDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
         
-        // Add date divider if needed
+        // Date divider
         const lastDivider = container.querySelector('.date-divider:last-child');
         const lastDividerDate = lastDivider ? lastDivider.dataset.date : '';
         
@@ -2268,7 +2085,6 @@ function displayNewMessages(messages) {
         bubble.className = 'message-bubble';
         bubble.dataset.msgId = msg.id;
         
-        // Add sender name for received messages
         if (!isSent) {
             const sender = document.createElement('span');
             sender.className = 'message-sender';
@@ -2276,13 +2092,11 @@ function displayNewMessages(messages) {
             bubble.appendChild(sender);
         }
         
-        // Parse and render message content
-        const content = renderMessageContent(msg, isSent);
+        const content = renderMessageContent(msg);
         if (content) {
             bubble.appendChild(content);
         }
         
-        // Add timestamp
         const timeSpan = document.createElement('span');
         timeSpan.className = 'message-time';
         timeSpan.textContent = time;
@@ -2310,14 +2124,14 @@ function displayNewMessages(messages) {
     scrollToBottom();
 }
 
-function renderMessageContent(msg, isSent) {
-    // Parse file message
-    let file_data = null;
-    if (msg.message_type === 'file' && msg.content) {
+function renderMessageContent(msg) {
+    // File message
+    if (msg.message_type === 'file') {
+        let fileData = null;
         try {
-            file_data = JSON.parse(msg.content);
-            if (!file_data.filename && msg.media_url) {
-                file_data = {
+            fileData = JSON.parse(msg.content);
+            if (!fileData.filename && msg.media_url) {
+                fileData = {
                     url: msg.media_url,
                     filename: basename(msg.media_url),
                     filesize: 0,
@@ -2326,7 +2140,7 @@ function renderMessageContent(msg, isSent) {
             }
         } catch(e) {
             if (msg.media_url) {
-                file_data = {
+                fileData = {
                     url: msg.media_url,
                     filename: basename(msg.media_url),
                     filesize: 0,
@@ -2334,96 +2148,15 @@ function renderMessageContent(msg, isSent) {
                 };
             }
         }
-    }
-    
-    // File message
-    if (msg.message_type === 'file' && file_data) {
-        const ext = (file_data.filetype || '').toLowerCase();
-        let iconClass = 'default', iconIcon = 'fa-file';
-        if (['pdf'].includes(ext)) { iconClass = 'pdf'; iconIcon = 'fa-file-pdf'; }
-        else if (['doc', 'docx'].includes(ext)) { iconClass = 'doc'; iconIcon = 'fa-file-word'; }
-        else if (['xls', 'xlsx'].includes(ext)) { iconClass = 'xls'; iconIcon = 'fa-file-excel'; }
-        else if (['ppt', 'pptx'].includes(ext)) { iconClass = 'ppt'; iconIcon = 'fa-file-powerpoint'; }
-        else if (['txt'].includes(ext)) { iconClass = 'txt'; iconIcon = 'fa-file-alt'; }
-        else if (['zip', 'rar'].includes(ext)) { iconClass = 'zip'; iconIcon = 'fa-file-archive'; }
-        else if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) { iconClass = 'image'; iconIcon = 'fa-file-image'; }
         
-        const fileSizeText = file_data.filesize ? formatFileSizeJS(file_data.filesize) : 'Unknown size';
-        
-        const fileDiv = document.createElement('div');
-        fileDiv.className = 'file-message';
-        fileDiv.innerHTML = `
-            <div style="display:flex;align-items:center;">
-                <div class="file-icon ${iconClass}">
-                    <i class="fas ${iconIcon}"></i>
-                </div>
-                <div class="file-info">
-                    <div class="file-name">${escapeHtml(file_data.filename || 'File')}</div>
-                    <div>
-                        <span class="file-size">${fileSizeText}</span>
-                        <span class="file-type">${(ext || 'FILE').toUpperCase()}</span>
-                    </div>
-                </div>
-            </div>
-            <div class="file-actions">
-                <a href="${escapeHtml(file_data.url || msg.media_url)}" download class="download">
-                    <i class="fas fa-download"></i> Download
-                </a>
-                ${['pdf', 'jpg', 'jpeg', 'png', 'gif'].includes(ext) ? `
-                    <a href="${escapeHtml(file_data.url || msg.media_url)}" target="_blank" class="view">
-                        <i class="fas fa-eye"></i> View
-                    </a>
-                ` : ''}
-            </div>
-        `;
-        return fileDiv;
+        if (fileData) {
+            return createFileMessageElement(fileData);
+        }
     }
     
     // Location message
     if (msg.message_type === 'location' && msg.content) {
-        let lat = '', lng = '', locationName = '';
-        const match1 = msg.content.match(/📍 (.*?): ([\d.-]+), ([\d.-]+)/);
-        const match2 = msg.content.match(/📍 Location: ([\d.-]+), ([\d.-]+)/);
-        
-        if (match1) {
-            locationName = match1[1];
-            lat = match1[2];
-            lng = match1[3];
-        } else if (match2) {
-            lat = match2[1];
-            lng = match2[2];
-        }
-        
-        const locationDiv = document.createElement('div');
-        locationDiv.className = 'location-message';
-        locationDiv.innerHTML = `
-            <div class="location-header">
-                <i class="fas fa-map-marker-alt" style="color:#3B82F6;"></i>
-                <span>📍 Location Shared</span>
-            </div>
-            ${locationName && locationName !== 'Location' ? `
-                <div class="location-name">
-                    <i class="fas fa-building" style="font-size:0.65rem;"></i> ${escapeHtml(locationName)}
-                </div>
-            ` : ''}
-            <div class="location-details">
-                ${lat && lng ? `
-                    <span class="coord">Lat: ${lat}</span>
-                    <span class="coord" style="margin-left:6px;">Lng: ${lng}</span>
-                    <br>
-                    <a href="https://www.google.com/maps?q=${encodeURIComponent(lat + ',' + lng)}" 
-                       target="_blank" class="location-map-link">
-                        <i class="fas fa-map"></i> View on Google Maps
-                    </a>
-                    <a href="https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}&zoom=15" 
-                       target="_blank" class="location-map-link" 
-                       style="background:#10B981;margin-left:4px;">
-                        <i class="fas fa-globe"></i> OpenStreetMap
-                    </a>
-                ` : nl2br(escapeHtml(msg.content))}
-            </div>
-        `;
-        return locationDiv;
+        return createLocationMessageElement(msg.content);
     }
     
     // Image message
@@ -2439,7 +2172,7 @@ function renderMessageContent(msg, isSent) {
         return container;
     }
     
-    // Plain text message
+    // Text message
     if (msg.content && !['location', 'file'].includes(msg.message_type)) {
         const span = document.createElement('span');
         span.innerHTML = nl2br(escapeHtml(msg.content));
@@ -2449,19 +2182,106 @@ function renderMessageContent(msg, isSent) {
     return null;
 }
 
+function createFileMessageElement(fileData) {
+    const ext = (fileData.filetype || '').toLowerCase();
+    let iconClass = 'default', iconIcon = 'fa-file';
+    
+    if (['pdf'].includes(ext)) { iconClass = 'pdf'; iconIcon = 'fa-file-pdf'; }
+    else if (['doc', 'docx'].includes(ext)) { iconClass = 'doc'; iconIcon = 'fa-file-word'; }
+    else if (['xls', 'xlsx'].includes(ext)) { iconClass = 'xls'; iconIcon = 'fa-file-excel'; }
+    else if (['ppt', 'pptx'].includes(ext)) { iconClass = 'ppt'; iconIcon = 'fa-file-powerpoint'; }
+    else if (['txt'].includes(ext)) { iconClass = 'txt'; iconIcon = 'fa-file-alt'; }
+    else if (['zip', 'rar'].includes(ext)) { iconClass = 'zip'; iconIcon = 'fa-file-archive'; }
+    else if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) { iconClass = 'image'; iconIcon = 'fa-file-image'; }
+    
+    const fileSizeText = fileData.filesize ? formatFileSizeJS(fileData.filesize) : 'Unknown size';
+    
+    const div = document.createElement('div');
+    div.className = 'file-message';
+    div.innerHTML = `
+        <div style="display:flex;align-items:center;">
+            <div class="file-icon ${iconClass}">
+                <i class="fas ${iconIcon}"></i>
+            </div>
+            <div class="file-info">
+                <div class="file-name">${escapeHtml(fileData.filename || 'File')}</div>
+                <div>
+                    <span class="file-size">${fileSizeText}</span>
+                    <span class="file-type">${(ext || 'FILE').toUpperCase()}</span>
+                </div>
+            </div>
+        </div>
+        <div class="file-actions">
+            <a href="${escapeHtml(fileData.url)}" download class="download">
+                <i class="fas fa-download"></i> Download
+            </a>
+            ${['pdf', 'jpg', 'jpeg', 'png', 'gif'].includes(ext) ? `
+                <a href="${escapeHtml(fileData.url)}" target="_blank" class="view">
+                    <i class="fas fa-eye"></i> View
+                </a>
+            ` : ''}
+        </div>
+    `;
+    return div;
+}
+
+function createLocationMessageElement(content) {
+    let lat = '', lng = '', locationName = '';
+    const match1 = content.match(/📍 (.*?): ([\d.-]+), ([\d.-]+)/);
+    const match2 = content.match(/📍 Location: ([\d.-]+), ([\d.-]+)/);
+    
+    if (match1) {
+        locationName = match1[1];
+        lat = match1[2];
+        lng = match1[3];
+    } else if (match2) {
+        lat = match2[1];
+        lng = match2[2];
+    }
+    
+    const div = document.createElement('div');
+    div.className = 'location-message';
+    div.innerHTML = `
+        <div class="location-header">
+            <i class="fas fa-map-marker-alt" style="color:#3B82F6;"></i>
+            <span>📍 Location Shared</span>
+        </div>
+        ${locationName && locationName !== 'Location' ? `
+            <div class="location-name">
+                <i class="fas fa-building" style="font-size:0.65rem;"></i> ${escapeHtml(locationName)}
+            </div>
+        ` : ''}
+        <div class="location-details">
+            ${lat && lng ? `
+                <span class="coord">Lat: ${lat}</span>
+                <span class="coord" style="margin-left:6px;">Lng: ${lng}</span>
+                <br>
+                <a href="https://www.google.com/maps?q=${encodeURIComponent(lat + ',' + lng)}" 
+                   target="_blank" class="location-map-link">
+                    <i class="fas fa-map"></i> View on Google Maps
+                </a>
+                <a href="https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}&zoom=15" 
+                   target="_blank" class="location-map-link" 
+                   style="background:#10B981;margin-left:4px;">
+                    <i class="fas fa-globe"></i> OpenStreetMap
+                </a>
+            ` : nl2br(escapeHtml(content))}
+        </div>
+    `;
+    return div;
+}
+
 // ============================================================
 // UPDATE CONTACTS
 // ============================================================
 function updateContacts(contacts) {
     contacts.forEach(function(contact) {
-        // Update last message
         const lastMsgEl = document.getElementById('lastMsg_' + contact.id);
         if (lastMsgEl && contact.last_message) {
             const msg = contact.last_message.substring(0, 50) + (contact.last_message.length > 50 ? '...' : '');
             lastMsgEl.textContent = msg;
         }
         
-        // Update unread badge
         const unreadBadge = document.getElementById('unreadBadge_' + contact.id);
         if (contact.unread_count > 0) {
             if (unreadBadge) {
@@ -2499,26 +2319,34 @@ function nl2br(text) {
 }
 
 // ============================================================
-// FORM SUBMISSION HANDLER - OPTIMIZED
+// FORM SUBMISSION - FIXED AJAX HANDLING
 // ============================================================
 DOM.chatForm?.addEventListener('submit', function(e) {
     e.preventDefault();
     
     const message = DOM.messageInput?.value.trim() || '';
-    const mediaUrl = document.getElementById('mediaUrl')?.value || '';
+    const mediaUrl = DOM.mediaUrl?.value || '';
     
     if (!message && !mediaUrl) return;
     
     const formData = new FormData(this);
-    updateSendButtonState(true, '<i class="fas fa-spinner fa-spin"></i> Sending...');
+    // Ensure ajax is set
+    if (!formData.has('ajax')) {
+        formData.append('ajax', '1');
+    }
+    
+    updateSendButton(true, '<i class="fas fa-spinner fa-spin"></i> Sending...');
     
     fetch('chat-agents.php', {
         method: 'POST',
-        body: formData
+        body: formData,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
     })
     .then(response => response.text())
     .then(text => {
-        updateSendButtonState(false, '<i class="fas fa-paper-plane"></i> Send');
+        updateSendButton(false, '<i class="fas fa-paper-plane"></i> Send');
         
         try {
             const data = JSON.parse(text);
@@ -2528,6 +2356,7 @@ DOM.chatForm?.addEventListener('submit', function(e) {
                 alert('Failed to send message: ' + (data.message || 'Unknown error'));
             }
         } catch (e) {
+            // If response is not JSON, check if it contains success message
             if (text.includes('Message sent successfully')) {
                 handleMessageSuccess({ success: true });
             } else {
@@ -2537,7 +2366,7 @@ DOM.chatForm?.addEventListener('submit', function(e) {
         }
     })
     .catch(err => {
-        updateSendButtonState(false, '<i class="fas fa-paper-plane"></i> Send');
+        updateSendButton(false, '<i class="fas fa-paper-plane"></i> Send');
         alert('Failed to send message. Please check your connection.');
         console.error('Send error:', err);
     });
@@ -2549,13 +2378,13 @@ function handleMessageSuccess(data) {
         DOM.messageInput.value = '';
         DOM.messageInput.style.height = 'auto';
     }
-    document.getElementById('mediaUrl').value = '';
-    document.getElementById('mediaFilename').value = '';
-    document.getElementById('mediaFilesize').value = '0';
-    document.getElementById('mediaFiletype').value = '';
-    document.getElementById('messageType').value = 'text';
+    if (DOM.mediaUrl) DOM.mediaUrl.value = '';
+    if (DOM.mediaFilename) DOM.mediaFilename.value = '';
+    if (DOM.mediaFilesize) DOM.mediaFilesize.value = '0';
+    if (DOM.mediaFiletype) DOM.mediaFiletype.value = '';
+    if (DOM.messageType) DOM.messageType.value = 'text';
     
-    // Update UI with sent message
+    // Update UI
     const container = DOM.chatMessages;
     if (container) {
         const emptyState = container.querySelector('.empty-chat');
@@ -2566,14 +2395,13 @@ function handleMessageSuccess(data) {
         row.className = 'message-row sent';
         
         let bubbleContent = '';
-        const mediaUrl = document.getElementById('mediaUrl')?.value || '';
         const message = DOM.messageInput?.value || '';
+        const mediaUrl = DOM.mediaUrl?.value || '';
         
-        // Build message content
         if (mediaUrl) {
-            const ext = (document.getElementById('mediaFiletype')?.value || '').toLowerCase();
-            const filename = document.getElementById('mediaFilename')?.value || 'File';
-            const filesize = parseInt(document.getElementById('mediaFilesize')?.value || 0);
+            const ext = (DOM.mediaFiletype?.value || '').toLowerCase();
+            const filename = DOM.mediaFilename?.value || 'File';
+            const filesize = parseInt(DOM.mediaFilesize?.value || 0);
             
             if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) {
                 bubbleContent += `<div style="margin:3px 0;"><img src="${mediaUrl}" alt="Image" style="max-width:180px;border-radius:6px;cursor:pointer;" onclick="window.open(this.src)"></div>`;
@@ -2602,11 +2430,11 @@ function handleMessageSuccess(data) {
                             </div>
                         </div>
                         <div class="file-actions">
-                            <a href="${mediaUrl}" download class="download">
+                            <a href="${escapeHtml(mediaUrl)}" download class="download">
                                 <i class="fas fa-download"></i> Download
                             </a>
                             ${['pdf', 'jpg', 'jpeg', 'png', 'gif'].includes(ext) ? `
-                                <a href="${mediaUrl}" target="_blank" class="view">
+                                <a href="${escapeHtml(mediaUrl)}" target="_blank" class="view">
                                     <i class="fas fa-eye"></i> View
                                 </a>
                             ` : ''}
@@ -2637,7 +2465,7 @@ function handleMessageSuccess(data) {
 }
 
 // ============================================================
-// WINDOW CLEANUP
+// CLEANUP
 // ============================================================
 window.addEventListener('beforeunload', function() {
     if (state.pollInterval) {
@@ -2646,7 +2474,7 @@ window.addEventListener('beforeunload', function() {
 });
 
 // ============================================================
-// SIDEBAR TOGGLE INTEGRATION
+// SIDEBAR INTEGRATION
 // ============================================================
 var sidebar = document.getElementById('sidebar');
 var sidebarToggle = document.getElementById('sidebarToggle');
@@ -2698,7 +2526,6 @@ window.addEventListener('resize', function() {
     }
 });
 
-// Dropdown toggles
 document.querySelectorAll('.dropdown-toggle').forEach(function(toggle) {
     toggle.addEventListener('click', function(e) {
         e.preventDefault();
@@ -2712,7 +2539,6 @@ document.querySelectorAll('.dropdown-toggle').forEach(function(toggle) {
     });
 });
 
-// Profile menu
 var profileBtn = document.getElementById('profileBtn');
 var profileMenu = document.getElementById('profileMenu');
 
