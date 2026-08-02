@@ -477,7 +477,6 @@ include '../includes/sidebar.php';
     --wa-secondary: #25D366;
     --wa-bg: #ECE5DD;
     --wa-chat-bg: #DCF8C6;
-    --wa-header-bg: #075E54;
     --wa-sidebar-bg: #FFFFFF;
     --wa-text-primary: #1a1a2e;
     --wa-text-secondary: #667781;
@@ -500,9 +499,6 @@ include '../includes/sidebar.php';
     position: relative;
 }
 
-/* ============================================================
-   LEFT SIDEBAR
-   ============================================================ */
 .chat-sidebar {
     width: 380px;
     min-width: 300px;
@@ -748,9 +744,6 @@ include '../includes/sidebar.php';
     text-align: center;
 }
 
-/* ============================================================
-   RIGHT CONTENT - CHAT AREA
-   ============================================================ */
 .chat-content {
     flex: 1;
     display: flex;
@@ -904,7 +897,6 @@ include '../includes/sidebar.php';
     color: var(--wa-primary-light);
 }
 
-/* File Message */
 .file-message {
     background: rgba(37, 211, 102, 0.08);
     border-radius: 6px;
@@ -977,7 +969,6 @@ include '../includes/sidebar.php';
     background: rgba(37, 211, 102, 0.15);
 }
 
-/* Location Message */
 .location-message {
     background: rgba(37, 211, 102, 0.08);
     border-radius: 6px;
@@ -1218,7 +1209,6 @@ include '../includes/sidebar.php';
 }
 .mobile-toggle:hover { background: #F0F2F5; }
 
-/* Responsive */
 @media (max-width: 1024px) {
     .chat-sidebar { width: 320px; min-width: 240px; }
 }
@@ -1229,7 +1219,6 @@ include '../includes/sidebar.php';
         flex-direction: column;
         border-radius: 0;
     }
-    
     .chat-sidebar {
         width: 100%;
         min-width: unset;
@@ -1238,23 +1227,19 @@ include '../includes/sidebar.php';
         border-bottom: 1px solid var(--wa-border);
         transition: max-height 0.3s ease;
     }
-    
     .chat-sidebar.mobile-collapsed {
         max-height: 0;
         overflow: hidden;
         border-bottom: none;
     }
-    
     .chat-content { height: calc(100% - 200px); }
     .mobile-toggle { display: inline-flex; align-items: center; gap: 4px; }
-    
     .role-tab {
         padding: 4px 3px;
         font-size: 0.5rem;
         min-width: 35px;
     }
     .role-tab i { font-size: 0.6rem; }
-    
     .chat-contact-item .avatar {
         width: 32px;
         height: 32px;
@@ -1264,13 +1249,11 @@ include '../includes/sidebar.php';
         width: 8px;
         height: 8px;
     }
-    
     .message-bubble {
         max-width: 85%;
         font-size: 0.75rem;
         padding: 5px 10px;
     }
-    
     .file-message {
         min-width: 120px;
         max-width: 180px;
@@ -1281,7 +1264,6 @@ include '../includes/sidebar.php';
         height: 28px;
         font-size: 0.7rem;
     }
-    
     .chat-content-header {
         padding: 6px 12px;
         min-height: 44px;
@@ -1298,7 +1280,6 @@ include '../includes/sidebar.php';
     .chat-container { height: calc(100vh - 140px); }
     .chat-sidebar { max-height: 160px; }
     .chat-content { height: calc(100% - 160px); }
-    
     .role-tab {
         padding: 2px 2px;
         font-size: 0.4rem;
@@ -1306,15 +1287,12 @@ include '../includes/sidebar.php';
     }
     .role-tab i { font-size: 0.5rem; }
     .role-tab .role-count { font-size: 0.35rem; padding: 0 3px; }
-    
     .chat-contact-item { padding: 6px 10px; gap: 6px; }
     .chat-contact-item .contact-info .name { font-size: 0.75rem; }
     .chat-contact-item .contact-info .last-msg { font-size: 0.6rem; }
-    
     .message-bubble { font-size: 0.7rem; padding: 4px 8px; max-width: 90%; }
     .file-message { min-width: 90px; max-width: 140px; padding: 3px 6px; }
     .file-message .file-actions a { font-size: 0.45rem; padding: 1px 4px; }
-    
     .chat-input-area .input-row textarea {
         font-size: 0.7rem;
         min-height: 28px;
@@ -1656,7 +1634,7 @@ include '../includes/sidebar.php';
                     </div>
 
                     <div class="chat-input-area">
-                        <form method="POST" action="" id="chatForm" enctype="multipart/form-data">
+                        <form method="POST" action="" id="chatForm" enctype="multipart/form-data" onsubmit="return false;">
                             <input type="hidden" name="action" value="send_message">
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrf_token); ?>">
                             <input type="hidden" name="receiver_id" value="<?php echo $selected_contact['id']; ?>">
@@ -1680,8 +1658,8 @@ include '../includes/sidebar.php';
                                     </button>
                                 </div>
                                 <textarea name="message" id="messageInput" placeholder="Type a message..." rows="1" 
-                                          onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();sendMessage();}"></textarea>
-                                <button type="submit" class="send-btn" id="sendBtn">
+                                          onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();handleSendMessage();}"></textarea>
+                                <button type="button" class="send-btn" id="sendBtn" onclick="handleSendMessage()">
                                     <i class="fas fa-paper-plane"></i>
                                 </button>
                             </div>
@@ -1726,7 +1704,7 @@ function formatFileSize($bytes) {
 
 <script>
 // ============================================================
-// WHATSAPP STYLE CHAT - NO REDIRECT, REAL-TIME
+// FIXED: NO REDIRECT - WHATSAPP STYLE CHAT
 // ============================================================
 
 const CONFIG = {
@@ -1747,7 +1725,6 @@ const DOM = {
     chatMessages: document.getElementById('chatMessages'),
     messageInput: document.getElementById('messageInput'),
     sendBtn: document.getElementById('sendBtn'),
-    chatForm: document.getElementById('chatForm'),
     typingIndicator: document.getElementById('typingIndicator'),
     connectionStatus: document.getElementById('connectionStatus'),
     contactSearch: document.getElementById('contactSearch'),
@@ -1757,7 +1734,8 @@ const DOM = {
     mediaFilename: document.getElementById('mediaFilename'),
     mediaFilesize: document.getElementById('mediaFilesize'),
     mediaFiletype: document.getElementById('mediaFiletype'),
-    messageType: document.getElementById('messageType')
+    messageType: document.getElementById('messageType'),
+    chatForm: document.getElementById('chatForm')
 };
 
 // ============================================================
@@ -1795,13 +1773,6 @@ function scrollToBottom() {
     }
 }
 
-function sendMessage() {
-    const message = DOM.messageInput?.value.trim();
-    if (message && !state.isSending) {
-        DOM.chatForm?.submit();
-    }
-}
-
 function updateSendButton(disabled, icon) {
     if (DOM.sendBtn) {
         DOM.sendBtn.disabled = disabled;
@@ -1827,6 +1798,144 @@ function hideTyping() {
 }
 
 // ============================================================
+// HANDLE SEND MESSAGE - FIXED NO REDIRECT
+// ============================================================
+function handleSendMessage() {
+    const message = DOM.messageInput?.value.trim() || '';
+    const mediaUrl = DOM.mediaUrl?.value || '';
+    
+    if (!message && !mediaUrl) return;
+    if (state.isSending) return;
+    
+    // Get form data
+    const formData = new FormData();
+    formData.append('action', 'send_message');
+    formData.append('csrf_token', document.querySelector('input[name="csrf_token"]')?.value || '');
+    formData.append('receiver_id', document.querySelector('input[name="receiver_id"]')?.value || '');
+    formData.append('role_id', document.querySelector('input[name="role_id"]')?.value || '');
+    formData.append('message_type', DOM.messageType?.value || 'text');
+    formData.append('message', message);
+    formData.append('media_url', DOM.mediaUrl?.value || '');
+    formData.append('media_filename', DOM.mediaFilename?.value || '');
+    formData.append('media_filesize', DOM.mediaFilesize?.value || '0');
+    formData.append('media_filetype', DOM.mediaFiletype?.value || '');
+    
+    updateSendButton(true, '<i class="fas fa-spinner fa-spin"></i>');
+    
+    fetch(window.location.href, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        updateSendButton(false, '<i class="fas fa-paper-plane"></i>');
+        
+        if (data.success) {
+            handleMessageSuccess(data, message);
+        } else {
+            alert('Failed to send message: ' + (data.message || 'Unknown error'));
+        }
+    })
+    .catch(err => {
+        updateSendButton(false, '<i class="fas fa-paper-plane"></i>');
+        alert('Failed to send message. Please check your connection.');
+        console.error('Send error:', err);
+    });
+}
+
+function handleMessageSuccess(data, message) {
+    // Reset form
+    if (DOM.messageInput) {
+        DOM.messageInput.value = '';
+        DOM.messageInput.style.height = 'auto';
+    }
+    if (DOM.mediaUrl) DOM.mediaUrl.value = '';
+    if (DOM.mediaFilename) DOM.mediaFilename.value = '';
+    if (DOM.mediaFilesize) DOM.mediaFilesize.value = '0';
+    if (DOM.mediaFiletype) DOM.mediaFiletype.value = '';
+    if (DOM.messageType) DOM.messageType.value = 'text';
+    
+    // Add sent message to chat
+    const container = DOM.chatMessages;
+    if (container) {
+        const emptyState = container.querySelector('.empty-chat');
+        if (emptyState) emptyState.remove();
+        
+        const time = new Date();
+        const timeStr = time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        
+        const row = document.createElement('div');
+        row.className = 'message-row sent';
+        
+        let bubbleContent = '';
+        const mediaUrl = DOM.mediaUrl?.value || '';
+        const msgText = message || DOM.messageInput?.value || '';
+        
+        if (mediaUrl) {
+            const ext = (DOM.mediaFiletype?.value || '').toLowerCase();
+            const filename = DOM.mediaFilename?.value || 'File';
+            const filesize = parseInt(DOM.mediaFilesize?.value || 0);
+            
+            if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) {
+                bubbleContent += `<div style="margin:3px 0;"><img src="${mediaUrl}" alt="Image" style="max-width:200px;border-radius:6px;cursor:pointer;" onclick="window.open(this.src)"></div>`;
+            } else {
+                let iconClass = 'default', iconIcon = 'fa-file';
+                if (['pdf'].includes(ext)) { iconClass = 'pdf'; iconIcon = 'fa-file-pdf'; }
+                else if (['doc', 'docx'].includes(ext)) { iconClass = 'doc'; iconIcon = 'fa-file-word'; }
+                else if (['xls', 'xlsx'].includes(ext)) { iconClass = 'xls'; iconIcon = 'fa-file-excel'; }
+                else if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) { iconClass = 'image'; iconIcon = 'fa-file-image'; }
+                
+                const fileSizeText = filesize ? formatFileSizeJS(filesize) : 'Unknown size';
+                bubbleContent += `
+                    <div class="file-message">
+                        <div style="display:flex;align-items:center;">
+                            <div class="file-icon ${iconClass}">
+                                <i class="fas ${iconIcon}"></i>
+                            </div>
+                            <div class="file-info">
+                                <div class="file-name">${escapeHtml(filename)}</div>
+                                <div class="file-size">${fileSizeText}</div>
+                            </div>
+                        </div>
+                        <div class="file-actions">
+                            <a href="${escapeHtml(mediaUrl)}" download class="download">
+                                <i class="fas fa-download"></i> Download
+                            </a>
+                            ${['pdf', 'jpg', 'jpeg', 'png', 'gif'].includes(ext) ? `
+                                <a href="${escapeHtml(mediaUrl)}" target="_blank" class="view">
+                                    <i class="fas fa-eye"></i> View
+                                </a>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+        }
+        
+        if (msgText) {
+            bubbleContent += nl2br(escapeHtml(msgText));
+        }
+        
+        row.innerHTML = `
+            <div class="message-bubble">
+                ${bubbleContent}
+                <span class="message-time">${timeStr} <i class="fas fa-check" style="margin-left:2px;opacity:0.5;"></i></span>
+            </div>
+        `;
+        container.appendChild(row);
+        scrollToBottom();
+        
+        if (data.msg_id) {
+            state.lastMsgId = Math.max(state.lastMsgId, data.msg_id);
+            if (DOM.lastMsgId) DOM.lastMsgId.value = state.lastMsgId;
+        }
+    }
+}
+
+// ============================================================
 // LOCATION SHARING
 // ============================================================
 function shareLocation() {
@@ -1848,7 +1957,7 @@ function shareLocation() {
                 }
                 if (DOM.messageType) DOM.messageType.value = 'location';
                 updateSendButton(false, '<i class="fas fa-paper-plane"></i>');
-                DOM.chatForm?.submit();
+                handleSendMessage();
             });
         },
         function(error) {
@@ -1910,7 +2019,7 @@ function uploadFile(input) {
     updateSendButton(true, '<i class="fas fa-spinner fa-spin"></i>');
     
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', 'chat-agents.php', true);
+    xhr.open('POST', window.location.href, true);
     xhr.onload = function() {
         updateSendButton(false, '<i class="fas fa-paper-plane"></i>');
         
@@ -1923,7 +2032,7 @@ function uploadFile(input) {
                     if (DOM.mediaFilesize) DOM.mediaFilesize.value = response.filesize;
                     if (DOM.mediaFiletype) DOM.mediaFiletype.value = response.filetype;
                     if (DOM.messageType) DOM.messageType.value = 'file';
-                    DOM.chatForm?.submit();
+                    handleSendMessage();
                 } else {
                     alert('Upload failed: ' + (response.message || 'Unknown error'));
                 }
@@ -1994,7 +2103,7 @@ function checkForNewMessages() {
     state.isPolling = true;
     
     const roleId = document.querySelector('input[name="role_id"]')?.value || <?php echo $selected_role; ?>;
-    const url = `chat-agents.php?ajax=1&contact_id=${state.currentContactId}&last_msg_id=${state.lastMsgId}&role=${roleId}`;
+    const url = window.location.href.split('?')[0] + '?ajax=1&contact_id=' + state.currentContactId + '&last_msg_id=' + state.lastMsgId + '&role=' + roleId;
     
     fetch(url)
         .then(response => response.json())
@@ -2303,135 +2412,6 @@ function escapeHtml(text) {
 
 function nl2br(text) {
     return text.replace(/\n/g, '<br>');
-}
-
-// ============================================================
-// FORM SUBMISSION - NO REDIRECT, JUST AJAX
-// ============================================================
-DOM.chatForm?.addEventListener('submit', function(e) {
-    e.preventDefault();
-    
-    const message = DOM.messageInput?.value.trim() || '';
-    const mediaUrl = DOM.mediaUrl?.value || '';
-    
-    if (!message && !mediaUrl) return;
-    if (state.isSending) return;
-    
-    const formData = new FormData(this);
-    
-    updateSendButton(true, '<i class="fas fa-spinner fa-spin"></i>');
-    
-    fetch('chat-agents.php', {
-        method: 'POST',
-        body: formData,
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest'
-        }
-    })
-    .then(response => response.json())
-    .then(data => {
-        updateSendButton(false, '<i class="fas fa-paper-plane"></i>');
-        
-        if (data.success) {
-            handleMessageSuccess(data);
-        } else {
-            alert('Failed to send message: ' + (data.message || 'Unknown error'));
-        }
-    })
-    .catch(err => {
-        updateSendButton(false, '<i class="fas fa-paper-plane"></i>');
-        alert('Failed to send message. Please check your connection.');
-        console.error('Send error:', err);
-    });
-});
-
-function handleMessageSuccess(data) {
-    // Reset form
-    if (DOM.messageInput) {
-        DOM.messageInput.value = '';
-        DOM.messageInput.style.height = 'auto';
-    }
-    if (DOM.mediaUrl) DOM.mediaUrl.value = '';
-    if (DOM.mediaFilename) DOM.mediaFilename.value = '';
-    if (DOM.mediaFilesize) DOM.mediaFilesize.value = '0';
-    if (DOM.mediaFiletype) DOM.mediaFiletype.value = '';
-    if (DOM.messageType) DOM.messageType.value = 'text';
-    
-    // Add sent message to chat
-    const container = DOM.chatMessages;
-    if (container) {
-        const emptyState = container.querySelector('.empty-chat');
-        if (emptyState) emptyState.remove();
-        
-        const time = new Date();
-        const timeStr = time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-        
-        const row = document.createElement('div');
-        row.className = 'message-row sent';
-        
-        let bubbleContent = '';
-        const message = DOM.messageInput?.value || '';
-        const mediaUrl = DOM.mediaUrl?.value || '';
-        
-        if (mediaUrl) {
-            const ext = (DOM.mediaFiletype?.value || '').toLowerCase();
-            const filename = DOM.mediaFilename?.value || 'File';
-            const filesize = parseInt(DOM.mediaFilesize?.value || 0);
-            
-            if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) {
-                bubbleContent += `<div style="margin:3px 0;"><img src="${mediaUrl}" alt="Image" style="max-width:200px;border-radius:6px;cursor:pointer;" onclick="window.open(this.src)"></div>`;
-            } else {
-                let iconClass = 'default', iconIcon = 'fa-file';
-                if (['pdf'].includes(ext)) { iconClass = 'pdf'; iconIcon = 'fa-file-pdf'; }
-                else if (['doc', 'docx'].includes(ext)) { iconClass = 'doc'; iconIcon = 'fa-file-word'; }
-                else if (['xls', 'xlsx'].includes(ext)) { iconClass = 'xls'; iconIcon = 'fa-file-excel'; }
-                else if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) { iconClass = 'image'; iconIcon = 'fa-file-image'; }
-                
-                const fileSizeText = filesize ? formatFileSizeJS(filesize) : 'Unknown size';
-                bubbleContent += `
-                    <div class="file-message">
-                        <div style="display:flex;align-items:center;">
-                            <div class="file-icon ${iconClass}">
-                                <i class="fas ${iconIcon}"></i>
-                            </div>
-                            <div class="file-info">
-                                <div class="file-name">${escapeHtml(filename)}</div>
-                                <div class="file-size">${fileSizeText}</div>
-                            </div>
-                        </div>
-                        <div class="file-actions">
-                            <a href="${escapeHtml(mediaUrl)}" download class="download">
-                                <i class="fas fa-download"></i> Download
-                            </a>
-                            ${['pdf', 'jpg', 'jpeg', 'png', 'gif'].includes(ext) ? `
-                                <a href="${escapeHtml(mediaUrl)}" target="_blank" class="view">
-                                    <i class="fas fa-eye"></i> View
-                                </a>
-                            ` : ''}
-                        </div>
-                    </div>
-                `;
-            }
-        }
-        
-        if (message) {
-            bubbleContent += nl2br(escapeHtml(message));
-        }
-        
-        row.innerHTML = `
-            <div class="message-bubble">
-                ${bubbleContent}
-                <span class="message-time">${timeStr} <i class="fas fa-check" style="margin-left:2px;opacity:0.5;"></i></span>
-            </div>
-        `;
-        container.appendChild(row);
-        scrollToBottom();
-        
-        if (data.msg_id) {
-            state.lastMsgId = Math.max(state.lastMsgId, data.msg_id);
-            if (DOM.lastMsgId) DOM.lastMsgId.value = state.lastMsgId;
-        }
-    }
 }
 
 window.addEventListener('beforeunload', function() {
