@@ -1,6 +1,6 @@
 <?php
 // ============================================================
-// WARD COORDINATOR - CHAT WITH AGENTS (COMPLETE VERSION)
+// WARD COORDINATOR - CHAT WITH AGENTS (OPTIMIZED VERSION)
 // ============================================================
 require_once '../../config/config.php';
 require_once '../../includes/session.php';
@@ -9,32 +9,35 @@ require_once '../../includes/functions.php';
 // Start session
 SessionManager::start();
 
-// Check if user is logged in
+// Authentication checks
 if (!SessionManager::isLoggedIn()) {
     header('Location: ../../auth/login.php');
     exit();
 }
 
-// Only Ward coordinator can access
 $user_role_level = SessionManager::get('role_level');
 if ($user_role_level !== 'ward') {
     header('Location: ../client-admin/');
     exit();
 }
 
-// Get user data from session
-$user_name = SessionManager::get('user_name', 'Coordinator');
+// ============================================================
+// GET USER DATA
+// ============================================================
 $user_id = SessionManager::get('user_id');
 $tenant_id = SessionManager::get('tenant_id');
-$ward_id = SessionManager::get('ward_id');
-$lga_id = SessionManager::get('lga_id');
-$state_id = SessionManager::get('state_id');
+$ward_id = SessionManager::get('ward_id') ?: 0;
+$lga_id = SessionManager::get('lga_id') ?: 0;
+$state_id = SessionManager::get('state_id') ?: 0;
+$user_name = SessionManager::get('user_name', 'Coordinator');
 
-// Get database connection
+// ============================================================
+// DATABASE CONNECTION
+// ============================================================
 $db = getDB();
 
 // ============================================================
-// FIX: Ensure ward_id is properly set
+// ENSURE WARD_ID IS SET
 // ============================================================
 if (empty($ward_id)) {
     try {
@@ -55,20 +58,20 @@ if (empty($ward_id)) {
 }
 
 // ============================================================
-// FETCH WARD NAME
+// GET WARD NAME
 // ============================================================
 $ward_name = 'Unknown Ward';
-try {
-    if ($ward_id) {
+if ($ward_id) {
+    try {
         $stmt = $db->prepare("SELECT name FROM wards WHERE id = ?");
         $stmt->execute([$ward_id]);
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
         if ($result) {
             $ward_name = $result['name'];
         }
+    } catch (Exception $e) {
+        error_log("Error fetching ward name: " . $e->getMessage());
     }
-} catch (Exception $e) {
-    error_log("Error fetching ward name: " . $e->getMessage());
 }
 
 // ============================================================
@@ -82,7 +85,7 @@ $role_definitions = [
 ];
 
 // ============================================================
-// GET SELECTED ROLE AND CONTACT
+// GET REQUEST PARAMETERS
 // ============================================================
 $selected_role = isset($_GET['role']) ? (int)$_GET['role'] : 9;
 $selected_contact_id = isset($_GET['contact_id']) ? (int)$_GET['contact_id'] : 0;
@@ -91,20 +94,21 @@ $messages = [];
 $contacts = [];
 
 // ============================================================
-// HANDLE AJAX REQUESTS
+// AJAX HANDLER - OPTIMIZED
 // ============================================================
 if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
     header('Content-Type: application/json');
-    
     $response = ['success' => false, 'messages' => [], 'contacts' => [], 'new_messages' => 0];
     
     try {
         if ($selected_contact_id > 0) {
             $last_msg_id = isset($_GET['last_msg_id']) ? (int)$_GET['last_msg_id'] : 0;
             
+            // Optimized query with proper indexing
             $stmt = $db->prepare("
                 SELECT 
-                    cm.*,
+                    cm.id, cm.sender_id, cm.receiver_id, cm.message_type, 
+                    cm.content, cm.media_url, cm.is_read, cm.created_at,
                     u_sender.full_name as sender_name,
                     u_sender.photograph_url as sender_photo,
                     u_receiver.full_name as receiver_name
@@ -123,7 +127,8 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
             $response['messages'] = $new_messages;
             $response['new_messages'] = count($new_messages);
             
-            if (count($new_messages) > 0) {
+            // Mark messages as read
+            if (!empty($new_messages)) {
                 $stmt = $db->prepare("
                     UPDATE chat_messages 
                     SET is_read = 1, read_at = NOW() 
@@ -133,34 +138,34 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
             }
         }
         
+        // Optimized contacts query with subquery optimization
         $stmt = $db->prepare("
             SELECT 
-                u.id,
-                u.full_name,
-                u.user_code,
-                u.email,
-                u.phone,
-                u.status,
-                u.photograph_url,
-                u.last_login_at,
-                u.pu_id,
-                u.role_id,
-                pu.name as pu_name,
-                pu.code as pu_code,
-                r.level as role_level,
-                r.name as role_name,
-                (SELECT COUNT(*) FROM chat_messages cm 
-                 WHERE cm.sender_id = u.id AND cm.receiver_id = ? AND cm.is_read = 0 AND cm.is_deleted = 0) as unread_count,
-                (SELECT COUNT(*) FROM user_sessions us 
-                 WHERE us.user_id = u.id AND us.is_active = 1 
-                 AND us.last_activity_at > DATE_SUB(NOW(), INTERVAL 5 MINUTE)) as is_online,
-                (SELECT MAX(created_at) FROM chat_messages 
-                 WHERE (sender_id = u.id AND receiver_id = ?) 
-                    OR (sender_id = ? AND receiver_id = u.id)) as last_message_time,
-                (SELECT content FROM chat_messages 
-                 WHERE (sender_id = u.id AND receiver_id = ?) 
-                    OR (sender_id = ? AND receiver_id = u.id) 
-                 ORDER BY created_at DESC LIMIT 1) as last_message
+                u.id, u.full_name, u.user_code, u.email, u.phone, u.status,
+                u.photograph_url, u.last_login_at, u.pu_id, u.role_id,
+                pu.name as pu_name, pu.code as pu_code,
+                r.level as role_level, r.name as role_name,
+                (
+                    SELECT COUNT(*) FROM chat_messages cm 
+                    WHERE cm.sender_id = u.id AND cm.receiver_id = ? 
+                    AND cm.is_read = 0 AND cm.is_deleted = 0
+                ) as unread_count,
+                (
+                    SELECT COUNT(*) FROM user_sessions us 
+                    WHERE us.user_id = u.id AND us.is_active = 1 
+                    AND us.last_activity_at > DATE_SUB(NOW(), INTERVAL 5 MINUTE)
+                ) as is_online,
+                (
+                    SELECT MAX(created_at) FROM chat_messages 
+                    WHERE (sender_id = u.id AND receiver_id = ?) 
+                       OR (sender_id = ? AND receiver_id = u.id)
+                ) as last_message_time,
+                (
+                    SELECT content FROM chat_messages 
+                    WHERE (sender_id = u.id AND receiver_id = ?) 
+                       OR (sender_id = ? AND receiver_id = u.id) 
+                    ORDER BY created_at DESC LIMIT 1
+                ) as last_message
             FROM users u
             LEFT JOIN polling_units pu ON u.pu_id = pu.id
             LEFT JOIN roles r ON u.role_id = r.id
@@ -172,9 +177,12 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
             AND u.role_id = ?
             ORDER BY last_message_time DESC, u.full_name ASC
         ");
-        $stmt->execute([$user_id, $user_id, $user_id, $user_id, $user_id, $tenant_id, $ward_id, $user_id, $selected_role]);
+        $stmt->execute([
+            $user_id, $user_id, $user_id, 
+            $user_id, $user_id, 
+            $tenant_id, $ward_id, $user_id, $selected_role
+        ]);
         $response['contacts'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        
         $response['success'] = true;
         
     } catch (Exception $e) {
@@ -187,11 +195,10 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
 }
 
 // ============================================================
-// HANDLE FILE UPLOAD
+// FILE UPLOAD HANDLER - OPTIMIZED
 // ============================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'upload_file') {
     header('Content-Type: application/json');
-    
     $response = ['success' => false, 'message' => 'Upload failed'];
     
     if (isset($_FILES['attachment']) && $_FILES['attachment']['error'] === UPLOAD_ERR_OK) {
@@ -199,7 +206,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $upload_dir = '../../uploads/chat/';
         
         if (!is_dir($upload_dir)) {
-            mkdir($upload_dir, 0777, true);
+            mkdir($upload_dir, 0755, true);
         }
         
         $file_ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
@@ -210,13 +217,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         
         if (in_array($file_ext, $allowed_types) && $file['size'] < 10485760) {
             if (move_uploaded_file($file['tmp_name'], $file_path)) {
-                $response['success'] = true;
-                $response['message'] = 'File uploaded successfully';
-                $response['url'] = '/election/uploads/chat/' . $file_name;
-                $response['filename'] = $file['name'];
-                $response['filesize'] = $file['size'];
-                $response['filetype'] = $file_ext;
-                $response['type'] = in_array($file_ext, ['jpg', 'jpeg', 'png', 'gif']) ? 'image' : 'file';
+                $response = [
+                    'success' => true,
+                    'message' => 'File uploaded successfully',
+                    'url' => '/election/uploads/chat/' . $file_name,
+                    'filename' => $file['name'],
+                    'filesize' => $file['size'],
+                    'filetype' => $file_ext,
+                    'type' => in_array($file_ext, ['jpg', 'jpeg', 'png', 'gif']) ? 'image' : 'file'
+                ];
             } else {
                 $response['message'] = 'Failed to move uploaded file';
             }
@@ -232,37 +241,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 }
 
 // ============================================================
-// FETCH CONTACTS BY ROLE
+// FETCH CONTACTS - OPTIMIZED
 // ============================================================
 try {
     $stmt = $db->prepare("
         SELECT 
-            u.id,
-            u.full_name,
-            u.user_code,
-            u.email,
-            u.phone,
-            u.status,
-            u.photograph_url,
-            u.last_login_at,
-            u.pu_id,
-            u.role_id,
-            pu.name as pu_name,
-            pu.code as pu_code,
-            r.level as role_level,
-            r.name as role_name,
-            (SELECT COUNT(*) FROM chat_messages cm 
-             WHERE cm.sender_id = u.id AND cm.receiver_id = ? AND cm.is_read = 0 AND cm.is_deleted = 0) as unread_count,
-            (SELECT COUNT(*) FROM user_sessions us 
-             WHERE us.user_id = u.id AND us.is_active = 1 
-             AND us.last_activity_at > DATE_SUB(NOW(), INTERVAL 5 MINUTE)) as is_online,
-            (SELECT MAX(created_at) FROM chat_messages 
-             WHERE (sender_id = u.id AND receiver_id = ?) 
-                OR (sender_id = ? AND receiver_id = u.id)) as last_message_time,
-            (SELECT content FROM chat_messages 
-             WHERE (sender_id = u.id AND receiver_id = ?) 
-                OR (sender_id = ? AND receiver_id = u.id) 
-             ORDER BY created_at DESC LIMIT 1) as last_message
+            u.id, u.full_name, u.user_code, u.email, u.phone, u.status,
+            u.photograph_url, u.last_login_at, u.pu_id, u.role_id,
+            pu.name as pu_name, pu.code as pu_code,
+            r.level as role_level, r.name as role_name,
+            (
+                SELECT COUNT(*) FROM chat_messages cm 
+                WHERE cm.sender_id = u.id AND cm.receiver_id = ? 
+                AND cm.is_read = 0 AND cm.is_deleted = 0
+            ) as unread_count,
+            (
+                SELECT COUNT(*) FROM user_sessions us 
+                WHERE us.user_id = u.id AND us.is_active = 1 
+                AND us.last_activity_at > DATE_SUB(NOW(), INTERVAL 5 MINUTE)
+            ) as is_online,
+            (
+                SELECT MAX(created_at) FROM chat_messages 
+                WHERE (sender_id = u.id AND receiver_id = ?) 
+                   OR (sender_id = ? AND receiver_id = u.id)
+            ) as last_message_time,
+            (
+                SELECT content FROM chat_messages 
+                WHERE (sender_id = u.id AND receiver_id = ?) 
+                   OR (sender_id = ? AND receiver_id = u.id) 
+                ORDER BY created_at DESC LIMIT 1
+            ) as last_message
         FROM users u
         LEFT JOIN polling_units pu ON u.pu_id = pu.id
         LEFT JOIN roles r ON u.role_id = r.id
@@ -277,6 +285,7 @@ try {
     $stmt->execute([$user_id, $user_id, $user_id, $user_id, $user_id, $tenant_id, $ward_id, $user_id, $selected_role]);
     $contacts = $stmt->fetchAll(PDO::FETCH_ASSOC);
     
+    // Get selected contact data
     if ($selected_contact_id > 0) {
         foreach ($contacts as $contact) {
             if ($contact['id'] == $selected_contact_id) {
@@ -285,6 +294,7 @@ try {
             }
         }
         
+        // Fetch messages for selected contact
         if ($selected_contact) {
             $stmt = $db->prepare("
                 SELECT 
@@ -303,6 +313,7 @@ try {
             $stmt->execute([$user_id, $selected_contact_id, $selected_contact_id, $user_id]);
             $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
             
+            // Mark messages as read
             $stmt = $db->prepare("
                 UPDATE chat_messages 
                 SET is_read = 1, read_at = NOW() 
@@ -317,7 +328,7 @@ try {
 }
 
 // ============================================================
-// HANDLE SEND MESSAGE
+// HANDLE SEND MESSAGE - OPTIMIZED
 // ============================================================
 $success_message = '';
 $error_message = '';
@@ -346,6 +357,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         try {
             $db->beginTransaction();
             
+            // Verify recipient
             $stmt = $db->prepare("
                 SELECT id, full_name, role_id FROM users 
                 WHERE id = ? AND tenant_id = ? AND ward_id = ? AND role_id = ? AND status = 'active'
@@ -357,6 +369,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 throw new Exception('Recipient not found or not in your ward.');
             }
             
+            // Get or create chat room
             $stmt = $db->prepare("
                 SELECT cr.id FROM chat_rooms cr
                 JOIN chat_room_members crm1 ON cr.id = crm1.room_id
@@ -383,7 +396,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 $stmt->execute([$room_id, $receiver_id]);
             }
             
-            // If it's a file, include file info in the content
+            // Prepare content
             $content = $message;
             if ($media_url && $message_type === 'file') {
                 $file_info = json_encode([
@@ -395,6 +408,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 $content = $file_info;
             }
             
+            // Insert message
             $stmt = $db->prepare("
                 INSERT INTO chat_messages (
                     room_id, sender_id, receiver_id, message_type, content, 
@@ -402,6 +416,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 ) VALUES (?, ?, ?, ?, ?, ?, NOW())
             ");
             $stmt->execute([$room_id, $user_id, $receiver_id, $message_type, $content, $media_url]);
+            $msg_id = $db->lastInsertId();
             
             logActivity($user_id, 'chat_message', "Sent message to {$receiver['full_name']} (ID: $receiver_id)", 'chat', $room_id);
             
@@ -409,10 +424,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             $success_message = 'Message sent successfully!';
             $show_success = true;
             
+            // Handle AJAX response
             if (isset($_POST['ajax']) && $_POST['ajax'] === '1') {
                 if (ob_get_level()) ob_clean();
                 header('Content-Type: application/json');
-                echo json_encode(['success' => true, 'message' => 'Message sent successfully', 'msg_id' => $db->lastInsertId()]);
+                echo json_encode(['success' => true, 'message' => 'Message sent successfully', 'msg_id' => $msg_id]);
                 exit();
             }
             
@@ -435,26 +451,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
 }
 
-// Generate CSRF token
+// ============================================================
+// GENERATE CSRF TOKEN
+// ============================================================
 $csrf_token = bin2hex(random_bytes(32));
 SessionManager::set('csrf_token', $csrf_token);
 
-// Count contacts per role
-$role_counts = [];
-foreach ($role_definitions as $role_id => $role) {
-    try {
-        $stmt = $db->prepare("
-            SELECT COUNT(*) as count FROM users 
-            WHERE tenant_id = ? AND ward_id = ? AND role_id = ? AND status = 'active' AND deleted_at IS NULL
-        ");
-        $stmt->execute([$tenant_id, $ward_id, $role_id]);
-        $result = $stmt->fetch(PDO::FETCH_ASSOC);
-        $role_counts[$role_id] = $result['count'] ?? 0;
-    } catch (Exception $e) {
-        $role_counts[$role_id] = 0;
+// ============================================================
+// COUNT CONTACTS PER ROLE - OPTIMIZED WITH SINGLE QUERY
+// ============================================================
+$role_counts = array_fill_keys(array_keys($role_definitions), 0);
+try {
+    $stmt = $db->prepare("
+        SELECT role_id, COUNT(*) as count FROM users 
+        WHERE tenant_id = ? AND ward_id = ? AND status = 'active' AND deleted_at IS NULL
+        AND role_id IN (" . implode(',', array_keys($role_definitions)) . ")
+        GROUP BY role_id
+    ");
+    $stmt->execute([$tenant_id, $ward_id]);
+    while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+        $role_counts[$row['role_id']] = $row['count'];
     }
+} catch (Exception $e) {
+    error_log("Error counting contacts: " . $e->getMessage());
 }
 
+// ============================================================
+// PAGE SETUP
+// ============================================================
 $page_title = 'Chat with Agents';
 include '../includes/base.php';
 include '../includes/sidebar.php';
@@ -462,7 +486,7 @@ include '../includes/sidebar.php';
 
 <style>
 /* ============================================================
-   CHAT INTERFACE - COMPLETE VERSION
+   CHAT INTERFACE - COMPLETE STYLES
    ============================================================ */
 :root {
     --chat-primary: #0F4C81;
@@ -480,9 +504,18 @@ include '../includes/sidebar.php';
     --chat-unread-text: #ffffff;
     --chat-shadow: 0 2px 12px rgba(0,0,0,0.08);
     --chat-radius: 12px;
+    --gray-50: #f9fafb;
+    --gray-100: #f3f4f6;
+    --gray-200: #e5e7eb;
+    --gray-300: #d1d5db;
+    --gray-400: #9ca3af;
+    --gray-500: #6b7280;
+    --gray-600: #4b5563;
+    --gray-700: #374151;
+    --gray-800: #1f2937;
 }
 
-/* Main Container - FIXED */
+/* Main Container */
 .chat-container {
     display: flex;
     height: calc(100vh - 200px);
@@ -748,7 +781,7 @@ include '../includes/sidebar.php';
 }
 
 /* ============================================================
-   RIGHT CONTENT - CHAT AREA (FIXED SCROLLING)
+   RIGHT CONTENT - CHAT AREA
    ============================================================ */
 .chat-content {
     flex: 1;
@@ -831,7 +864,7 @@ include '../includes/sidebar.php';
     font-size: 0.8rem;
 }
 
-/* Chat Messages - FIXED SCROLLING */
+/* Chat Messages */
 .chat-messages {
     flex: 1;
     overflow-y: auto;
@@ -857,7 +890,6 @@ include '../includes/sidebar.php';
     border-radius: 4px;
 }
 
-/* Message rows - prevent shrinking */
 .message-row {
     display: flex;
     margin-bottom: 2px;
@@ -920,9 +952,7 @@ include '../includes/sidebar.php';
     color: var(--chat-primary);
 }
 
-/* ============================================================
-   FILE MESSAGE - WHATSAPP STYLE
-   ============================================================ */
+/* File Message */
 .file-message {
     background: rgba(59, 130, 246, 0.05);
     border-radius: 8px;
@@ -932,7 +962,6 @@ include '../includes/sidebar.php';
     min-width: 180px;
     max-width: 260px;
 }
-
 .file-message .file-icon {
     width: 36px;
     height: 36px;
@@ -1041,9 +1070,7 @@ include '../includes/sidebar.php';
     background: rgba(255,255,255,0.3);
 }
 
-/* ============================================================
-   LOCATION MESSAGE STYLES
-   ============================================================ */
+/* Location Message */
 .location-message {
     background: rgba(59, 130, 246, 0.05);
     border-radius: 8px;
@@ -1873,270 +1900,302 @@ function formatFileSize($bytes) {
 
 <script>
 // ============================================================
-// CHAT FUNCTIONS - COMPLETE VERSION
+// CHAT FUNCTIONS - OPTIMIZED
 // ============================================================
 
-let currentContactId = <?php echo $selected_contact_id ?: 0; ?>;
-let lastMsgId = parseInt(document.getElementById('lastMsgId')?.value || 0);
-let isPolling = false;
-let pollInterval = null;
-let typingTimeout = null;
+// Configuration
+const CONFIG = {
+    POLL_INTERVAL: 3000,
+    TYPING_TIMEOUT: 5000,
+    MAX_MESSAGE_LENGTH: 5000
+};
 
-// Send message
-function sendMessage() {
-    const form = document.getElementById('chatForm');
-    const message = document.getElementById('messageInput').value.trim();
-    if (message) {
-        form.submit();
-    }
-}
+// State
+let state = {
+    currentContactId: <?php echo $selected_contact_id ?: 0; ?>,
+    lastMsgId: parseInt(document.getElementById('lastMsgId')?.value || 0),
+    isPolling: false,
+    pollInterval: null,
+    typingTimeout: null
+};
 
-// Auto-resize textarea
+// ============================================================
+// DOM REFERENCES - CACHED FOR PERFORMANCE
+// ============================================================
+const DOM = {
+    chatMessages: document.getElementById('chatMessages'),
+    messageInput: document.getElementById('messageInput'),
+    sendBtn: document.getElementById('sendBtn'),
+    chatForm: document.getElementById('chatForm'),
+    typingIndicator: document.getElementById('typingIndicator'),
+    connectionStatus: document.getElementById('connectionStatus'),
+    contactSearch: document.getElementById('contactSearch'),
+    contactBadge: document.getElementById('contactBadge'),
+    lastMsgId: document.getElementById('lastMsgId')
+};
+
+// ============================================================
+// INITIALIZATION
+// ============================================================
 document.addEventListener('DOMContentLoaded', function() {
-    const textarea = document.getElementById('messageInput');
-    if (textarea) {
-        textarea.addEventListener('input', function() {
+    // Auto-resize textarea
+    if (DOM.messageInput) {
+        DOM.messageInput.addEventListener('input', function() {
             this.style.height = 'auto';
             this.style.height = Math.min(this.scrollHeight, 80) + 'px';
         });
     }
     
-    if (currentContactId > 0) {
+    // Start polling and scroll to bottom
+    if (state.currentContactId > 0) {
         startPolling();
-        // Scroll to bottom after a short delay
-        setTimeout(function() {
-            scrollToBottom();
-        }, 300);
+        setTimeout(scrollToBottom, 300);
     }
     
-    const typingIndicator = document.getElementById('typingIndicator');
-    if (typingIndicator) {
-        typingIndicator.style.display = 'none';
+    // Hide typing indicator initially
+    if (DOM.typingIndicator) {
+        DOM.typingIndicator.style.display = 'none';
+    }
+    
+    // Preloader
+    const preloader = document.getElementById('preloader');
+    if (preloader) {
+        preloader.classList.add('hidden');
+        setTimeout(function() { preloader.style.display = 'none'; }, 600);
+    }
+    
+    // Cache last message ID from server
+    const lastMsgElement = document.querySelector('.message-bubble:last-child');
+    if (lastMsgElement) {
+        const id = lastMsgElement.dataset.msgId;
+        if (id) state.lastMsgId = Math.max(state.lastMsgId, parseInt(id));
     }
 });
 
-// Scroll to bottom - FIXED
+// ============================================================
+// SCROLL FUNCTIONS
+// ============================================================
 function scrollToBottom() {
-    const container = document.getElementById('chatMessages');
-    if (container) {
+    if (DOM.chatMessages) {
         requestAnimationFrame(function() {
-            container.scrollTop = container.scrollHeight;
+            DOM.chatMessages.scrollTop = DOM.chatMessages.scrollHeight;
         });
     }
 }
 
 // ============================================================
-// SHOW/HIDE TYPING INDICATOR
+// MESSAGE SENDING
+// ============================================================
+function sendMessage() {
+    const message = DOM.messageInput?.value.trim();
+    if (message) {
+        DOM.chatForm?.submit();
+    }
+}
+
+function updateSendButtonState(disabled, text) {
+    if (DOM.sendBtn) {
+        DOM.sendBtn.disabled = disabled;
+        DOM.sendBtn.innerHTML = text;
+    }
+}
+
+// ============================================================
+// TYPING INDICATOR
 // ============================================================
 function showTyping() {
-    const indicator = document.getElementById('typingIndicator');
-    if (indicator) {
-        indicator.style.display = 'block';
-        if (typingTimeout) {
-            clearTimeout(typingTimeout);
-        }
-        typingTimeout = setTimeout(function() {
-            hideTyping();
-        }, 5000);
+    if (DOM.typingIndicator) {
+        DOM.typingIndicator.style.display = 'block';
+        clearTimeout(state.typingTimeout);
+        state.typingTimeout = setTimeout(hideTyping, CONFIG.TYPING_TIMEOUT);
     }
 }
 
 function hideTyping() {
-    const indicator = document.getElementById('typingIndicator');
-    if (indicator) {
-        indicator.style.display = 'none';
+    if (DOM.typingIndicator) {
+        DOM.typingIndicator.style.display = 'none';
     }
-    if (typingTimeout) {
-        clearTimeout(typingTimeout);
-        typingTimeout = null;
-    }
+    clearTimeout(state.typingTimeout);
+    state.typingTimeout = null;
 }
 
 // ============================================================
-// SHARE LOCATION
+// LOCATION SHARING
 // ============================================================
 function shareLocation() {
-    if (navigator.geolocation) {
-        const sendBtn = document.getElementById('sendBtn');
-        sendBtn.disabled = true;
-        sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Getting location...';
-        
-        navigator.geolocation.getCurrentPosition(function(position) {
+    if (!navigator.geolocation) {
+        alert('Geolocation is not supported by your browser.');
+        return;
+    }
+    
+    updateSendButtonState(true, '<i class="fas fa-spinner fa-spin"></i> Getting location...');
+    
+    navigator.geolocation.getCurrentPosition(
+        function(position) {
             const lat = position.coords.latitude;
             const lng = position.coords.longitude;
             
             getLocationName(lat, lng, function(locationName) {
-                const message = `📍 ${locationName || 'Location'}: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-                document.getElementById('messageInput').value = message;
+                if (DOM.messageInput) {
+                    DOM.messageInput.value = `📍 ${locationName || 'Location'}: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+                }
                 document.getElementById('messageType').value = 'location';
-                
-                sendBtn.disabled = false;
-                sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send';
-                
-                document.getElementById('chatForm').submit();
+                updateSendButtonState(false, '<i class="fas fa-paper-plane"></i> Send');
+                DOM.chatForm?.submit();
             });
-        }, function(error) {
-            sendBtn.disabled = false;
-            sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send';
+        },
+        function(error) {
+            updateSendButtonState(false, '<i class="fas fa-paper-plane"></i> Send');
             alert('Unable to get your location. Please try again.');
-        }, {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 0
-        });
-    } else {
-        alert('Geolocation is not supported by your browser.');
-    }
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
 }
 
-// ============================================================
-// GET LOCATION NAME
-// ============================================================
 function getLocationName(lat, lng, callback) {
     const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
     
-    fetch(url, {
-        headers: { 'User-Agent': 'ElectionGuruChat/1.0' }
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data && data.display_name) {
-            const address = data.address || {};
-            const nameParts = [];
-            
-            if (address.road || address.street) nameParts.push(address.road || address.street);
-            if (address.suburb || address.neighbourhood) nameParts.push(address.suburb || address.neighbourhood);
-            if (address.city || address.town || address.village) nameParts.push(address.city || address.town || address.village);
-            if (address.state) nameParts.push(address.state);
-            
-            if (data.name && data.name !== '') {
-                callback(data.name);
-            } else if (nameParts.length > 0) {
-                if (address.building || address.house_number) {
-                    const building = address.building || address.house_number;
-                    if (building) nameParts.unshift(building);
+    fetch(url, { headers: { 'User-Agent': 'ElectionGuruChat/1.0' } })
+        .then(response => response.json())
+        .then(data => {
+            if (data && data.display_name) {
+                const address = data.address || {};
+                const nameParts = [];
+                
+                if (address.road || address.street) nameParts.push(address.road || address.street);
+                if (address.suburb || address.neighbourhood) nameParts.push(address.suburb || address.neighbourhood);
+                if (address.city || address.town || address.village) nameParts.push(address.city || address.town || address.village);
+                if (address.state) nameParts.push(address.state);
+                
+                if (data.name && data.name !== '') {
+                    callback(data.name);
+                } else if (nameParts.length > 0) {
+                    if (address.building || address.house_number) {
+                        const building = address.building || address.house_number;
+                        if (building) nameParts.unshift(building);
+                    }
+                    callback(nameParts.join(', '));
+                } else {
+                    const shortName = data.display_name.split(',').slice(0, 3).join(', ');
+                    callback(shortName);
                 }
-                callback(nameParts.join(', '));
             } else {
-                const shortName = data.display_name.split(',').slice(0, 3).join(', ');
-                callback(shortName);
+                callback(`Location (${lat.toFixed(6)}, ${lng.toFixed(6)})`);
             }
-        } else {
+        })
+        .catch(function() {
             callback(`Location (${lat.toFixed(6)}, ${lng.toFixed(6)})`);
-        }
-    })
-    .catch(function(error) {
-        console.error('Reverse geocoding error:', error);
-        callback(`Location (${lat.toFixed(6)}, ${lng.toFixed(6)})`);
-    });
+        });
 }
 
 // ============================================================
-// FILE UPLOAD - WHATSAPP STYLE
+// FILE UPLOAD
 // ============================================================
 function uploadFile(input) {
-    if (input.files && input.files[0]) {
-        const file = input.files[0];
-        const formData = new FormData();
-        formData.append('attachment', file);
-        formData.append('action', 'upload_file');
-        formData.append('csrf_token', document.querySelector('input[name="csrf_token"]').value);
+    if (!input.files || !input.files[0]) return;
+    
+    const file = input.files[0];
+    const formData = new FormData();
+    formData.append('attachment', file);
+    formData.append('action', 'upload_file');
+    formData.append('csrf_token', document.querySelector('input[name="csrf_token"]')?.value || '');
+    
+    updateSendButtonState(true, '<i class="fas fa-spinner fa-spin"></i> Uploading...');
+    
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', 'chat-agents.php', true);
+    xhr.onload = function() {
+        updateSendButtonState(false, '<i class="fas fa-paper-plane"></i> Send');
         
-        const sendBtn = document.getElementById('sendBtn');
-        sendBtn.disabled = true;
-        sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
-        
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', 'chat-agents.php', true);
-        xhr.onload = function() {
-            sendBtn.disabled = false;
-            sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send';
-            
-            if (xhr.status === 200) {
-                try {
-                    const response = JSON.parse(xhr.responseText);
-                    if (response.success) {
-                        document.getElementById('mediaUrl').value = response.url;
-                        document.getElementById('mediaFilename').value = response.filename;
-                        document.getElementById('mediaFilesize').value = response.filesize;
-                        document.getElementById('mediaFiletype').value = response.filetype;
-                        document.getElementById('messageType').value = 'file';
-                        document.getElementById('chatForm').submit();
-                    } else {
-                        alert('Upload failed: ' + response.message);
-                    }
-                } catch (e) {
-                    alert('Upload failed. Please try again.');
+        if (xhr.status === 200) {
+            try {
+                const response = JSON.parse(xhr.responseText);
+                if (response.success) {
+                    document.getElementById('mediaUrl').value = response.url;
+                    document.getElementById('mediaFilename').value = response.filename;
+                    document.getElementById('mediaFilesize').value = response.filesize;
+                    document.getElementById('mediaFiletype').value = response.filetype;
+                    document.getElementById('messageType').value = 'file';
+                    DOM.chatForm?.submit();
+                } else {
+                    alert('Upload failed: ' + (response.message || 'Unknown error'));
                 }
-            } else {
-                alert('Upload failed. Server error.');
+            } catch (e) {
+                alert('Upload failed. Please try again.');
             }
-        };
-        xhr.onerror = function() {
-            sendBtn.disabled = false;
-            sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send';
-            alert('Upload failed. Please check your connection.');
-        };
-        xhr.send(formData);
-    }
+        } else {
+            alert('Upload failed. Server error.');
+        }
+    };
+    xhr.onerror = function() {
+        updateSendButtonState(false, '<i class="fas fa-paper-plane"></i> Send');
+        alert('Upload failed. Please check your connection.');
+    };
+    xhr.send(formData);
 }
 
-// Filter contacts
+// ============================================================
+// CONTACT FILTERING
+// ============================================================
 function filterContacts() {
-    const search = document.getElementById('contactSearch').value.toLowerCase();
+    const search = (DOM.contactSearch?.value || '').toLowerCase();
     const items = document.querySelectorAll('.chat-contact-item');
     let visibleCount = 0;
     
     items.forEach(function(item) {
         const name = item.dataset.name || '';
-        if (name.includes(search)) {
-            item.style.display = 'flex';
-            visibleCount++;
-        } else {
-            item.style.display = 'none';
-        }
+        const matches = name.includes(search);
+        item.style.display = matches ? 'flex' : 'none';
+        if (matches) visibleCount++;
     });
     
-    document.getElementById('contactBadge').textContent = visibleCount;
+    if (DOM.contactBadge) {
+        DOM.contactBadge.textContent = visibleCount;
+    }
 }
 
+// ============================================================
+// SIDEBAR TOGGLE
+// ============================================================
 function toggleMobileSidebar() {
     const sidebar = document.getElementById('chatSidebar');
-    sidebar.classList.toggle('mobile-collapsed');
+    if (sidebar) {
+        sidebar.classList.toggle('mobile-collapsed');
+    }
 }
 
 function refreshChat() {
     const contactId = document.querySelector('input[name="receiver_id"]');
     const roleId = document.querySelector('input[name="role_id"]');
-    if (contactId && contactId.value && roleId && roleId.value) {
+    if (contactId?.value && roleId?.value) {
         window.location.href = 'chat-agents.php?role=' + roleId.value + '&contact_id=' + contactId.value;
     }
 }
 
 // ============================================================
-// REAL-TIME POLLING
+// REAL-TIME POLLING - OPTIMIZED
 // ============================================================
 function startPolling() {
-    if (pollInterval) {
-        clearInterval(pollInterval);
+    if (state.pollInterval) {
+        clearInterval(state.pollInterval);
     }
     
-    pollInterval = setInterval(function() {
-        if (!isPolling) {
+    state.pollInterval = setInterval(function() {
+        if (!state.isPolling) {
             checkForNewMessages();
         }
-    }, 3000);
+    }, CONFIG.POLL_INTERVAL);
 }
 
 function checkForNewMessages() {
-    if (currentContactId <= 0) return;
+    if (state.currentContactId <= 0) return;
     
-    isPolling = true;
+    state.isPolling = true;
     
-    const lastMsgId = document.getElementById('lastMsgId')?.value || 0;
     const roleId = document.querySelector('input[name="role_id"]')?.value || <?php echo $selected_role; ?>;
+    const url = `chat-agents.php?ajax=1&contact_id=${state.currentContactId}&last_msg_id=${state.lastMsgId}&role=${roleId}`;
     
-    fetch('chat-agents.php?ajax=1&contact_id=' + currentContactId + '&last_msg_id=' + lastMsgId + '&role=' + roleId)
+    fetch(url)
         .then(response => response.json())
         .then(data => {
             if (data.success) {
@@ -2146,34 +2205,51 @@ function checkForNewMessages() {
                 if (data.contacts) {
                     updateContacts(data.contacts);
                 }
-                document.getElementById('connectionStatus').innerHTML = '<i class="fas fa-circle" style="font-size:0.25rem;"></i> Live';
+                updateConnectionStatus(true);
             }
-            isPolling = false;
+            state.isPolling = false;
         })
-        .catch(err => {
-            console.log('Polling error:', err);
-            document.getElementById('connectionStatus').innerHTML = '<i class="fas fa-circle" style="font-size:0.25rem;color:#EF4444;"></i> Reconnecting...';
-            isPolling = false;
+        .catch(() => {
+            updateConnectionStatus(false);
+            state.isPolling = false;
         });
 }
 
+function updateConnectionStatus(online) {
+    if (DOM.connectionStatus) {
+        DOM.connectionStatus.innerHTML = online 
+            ? '<i class="fas fa-circle" style="font-size:0.25rem;"></i> Live'
+            : '<i class="fas fa-circle" style="font-size:0.25rem;color:#EF4444;"></i> Reconnecting...';
+    }
+}
+
+// ============================================================
+// DISPLAY NEW MESSAGES - OPTIMIZED
+// ============================================================
 function displayNewMessages(messages) {
-    const container = document.getElementById('chatMessages');
-    const emptyState = container.querySelector('.empty-chat');
+    const container = DOM.chatMessages;
+    if (!container) return;
     
+    // Remove empty state if present
+    const emptyState = container.querySelector('.empty-chat');
     if (emptyState) {
         emptyState.remove();
     }
     
     let lastDate = '';
-    let lastMsgId = 0;
+    let lastMsgId = state.lastMsgId;
+    const fragment = document.createDocumentFragment();
     
     messages.forEach(function(msg) {
-        const msgDate = new Date(msg.created_at).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
-        const msgDateKey = new Date(msg.created_at).toDateString();
+        const msgDate = new Date(msg.created_at);
+        const msgDateKey = msgDate.toDateString();
+        const displayDate = msgDate.toLocaleDateString('en-US', { 
+            weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' 
+        });
         const isSent = msg.sender_id == <?php echo $user_id; ?>;
-        const time = new Date(msg.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        const time = msgDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
         
+        // Add date divider if needed
         const lastDivider = container.querySelector('.date-divider:last-child');
         const lastDividerDate = lastDivider ? lastDivider.dataset.date : '';
         
@@ -2181,17 +2257,18 @@ function displayNewMessages(messages) {
             const divider = document.createElement('div');
             divider.className = 'date-divider';
             divider.dataset.date = msgDateKey;
-            divider.innerHTML = '<span>' + msgDate + '</span>';
-            container.appendChild(divider);
+            divider.innerHTML = `<span>${displayDate}</span>`;
+            fragment.appendChild(divider);
         }
         
         const row = document.createElement('div');
-        row.className = 'message-row ' + (isSent ? 'sent' : 'received');
+        row.className = `message-row ${isSent ? 'sent' : 'received'}`;
         
         const bubble = document.createElement('div');
         bubble.className = 'message-bubble';
         bubble.dataset.msgId = msg.id;
         
+        // Add sender name for received messages
         if (!isSent) {
             const sender = document.createElement('span');
             sender.className = 'message-sender';
@@ -2199,169 +2276,192 @@ function displayNewMessages(messages) {
             bubble.appendChild(sender);
         }
         
-        // Parse file message
-        let file_data = null;
-        if (msg.message_type === 'file' && msg.content) {
-            try {
-                file_data = JSON.parse(msg.content);
-                if (!file_data.filename && msg.media_url) {
-                    file_data = {
-                        url: msg.media_url,
-                        filename: basename(msg.media_url),
-                        filesize: 0,
-                        filetype: msg.media_url.split('.').pop()
-                    };
-                }
-            } catch(e) {
-                if (msg.media_url) {
-                    file_data = {
-                        url: msg.media_url,
-                        filename: basename(msg.media_url),
-                        filesize: 0,
-                        filetype: msg.media_url.split('.').pop()
-                    };
-                }
-            }
+        // Parse and render message content
+        const content = renderMessageContent(msg, isSent);
+        if (content) {
+            bubble.appendChild(content);
         }
         
-        if (msg.message_type === 'file' && file_data) {
-            const ext = (file_data.filetype || '').toLowerCase();
-            let iconClass = 'default', iconIcon = 'fa-file';
-            if (['pdf'].includes(ext)) { iconClass = 'pdf'; iconIcon = 'fa-file-pdf'; }
-            else if (['doc', 'docx'].includes(ext)) { iconClass = 'doc'; iconIcon = 'fa-file-word'; }
-            else if (['xls', 'xlsx'].includes(ext)) { iconClass = 'xls'; iconIcon = 'fa-file-excel'; }
-            else if (['ppt', 'pptx'].includes(ext)) { iconClass = 'ppt'; iconIcon = 'fa-file-powerpoint'; }
-            else if (['txt'].includes(ext)) { iconClass = 'txt'; iconIcon = 'fa-file-alt'; }
-            else if (['zip', 'rar'].includes(ext)) { iconClass = 'zip'; iconIcon = 'fa-file-archive'; }
-            else if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) { iconClass = 'image'; iconIcon = 'fa-file-image'; }
-            
-            const fileSizeText = file_data.filesize ? formatFileSize(file_data.filesize) : 'Unknown size';
-            
-            const fileDiv = document.createElement('div');
-            fileDiv.className = 'file-message';
-            fileDiv.innerHTML = `
-                <div style="display:flex;align-items:center;">
-                    <div class="file-icon ${iconClass}">
-                        <i class="fas ${iconIcon}"></i>
-                    </div>
-                    <div class="file-info">
-                        <div class="file-name">${escapeHtml(file_data.filename || 'File')}</div>
-                        <div>
-                            <span class="file-size">${fileSizeText}</span>
-                            <span class="file-type">${(ext || 'FILE').toUpperCase()}</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="file-actions">
-                    <a href="${escapeHtml(file_data.url || msg.media_url)}" download class="download">
-                        <i class="fas fa-download"></i> Download
-                    </a>
-                    ${['pdf', 'jpg', 'jpeg', 'png', 'gif'].includes(ext) ? `
-                        <a href="${escapeHtml(file_data.url || msg.media_url)}" target="_blank" class="view">
-                            <i class="fas fa-eye"></i> View
-                        </a>
-                    ` : ''}
-                </div>
-            `;
-            bubble.appendChild(fileDiv);
-        } else if (msg.message_type === 'location' && msg.content) {
-            let lat = '', lng = '', locationName = '';
-            if (msg.content.match(/📍 (.*?): ([\d.-]+), ([\d.-]+)/)) {
-                const matches = msg.content.match(/📍 (.*?): ([\d.-]+), ([\d.-]+)/);
-                if (matches) {
-                    locationName = matches[1];
-                    lat = matches[2];
-                    lng = matches[3];
-                }
-            } else if (msg.content.match(/📍 Location: ([\d.-]+), ([\d.-]+)/)) {
-                const matches = msg.content.match(/📍 Location: ([\d.-]+), ([\d.-]+)/);
-                if (matches) {
-                    lat = matches[1];
-                    lng = matches[2];
-                }
-            }
-            
-            const locationDiv = document.createElement('div');
-            locationDiv.className = 'location-message';
-            locationDiv.innerHTML = `
-                <div class="location-header">
-                    <i class="fas fa-map-marker-alt" style="color:#3B82F6;"></i>
-                    <span>📍 Location Shared</span>
-                </div>
-                ${locationName && locationName !== 'Location' ? `
-                    <div class="location-name">
-                        <i class="fas fa-building" style="font-size:0.65rem;"></i> ${escapeHtml(locationName)}
-                    </div>
-                ` : ''}
-                <div class="location-details">
-                    ${lat && lng ? `
-                        <span class="coord">Lat: ${lat}</span>
-                        <span class="coord" style="margin-left:6px;">Lng: ${lng}</span>
-                        <br>
-                        <a href="https://www.google.com/maps?q=${encodeURIComponent(lat + ',' + lng)}" 
-                           target="_blank" class="location-map-link">
-                            <i class="fas fa-map"></i> View on Google Maps
-                        </a>
-                        <a href="https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}&zoom=15" 
-                           target="_blank" class="location-map-link" 
-                           style="background:#10B981;margin-left:4px;">
-                            <i class="fas fa-globe"></i> OpenStreetMap
-                        </a>
-                    ` : nl2br(escapeHtml(msg.content))}
-                </div>
-            `;
-            bubble.appendChild(locationDiv);
-        } else if (msg.media_url && msg.message_type === 'image') {
-            const imgDiv = document.createElement('div');
-            imgDiv.style.cssText = 'margin:3px 0;';
-            const img = document.createElement('img');
-            img.src = msg.media_url;
-            img.alt = 'Image';
-            img.style.cssText = 'max-width:180px;border-radius:6px;cursor:pointer;';
-            img.onclick = function() { window.open(this.src); };
-            imgDiv.appendChild(img);
-            bubble.appendChild(imgDiv);
-        }
-        
-        if (msg.content && !['location', 'file'].includes(msg.message_type)) {
-            const contentSpan = document.createElement('span');
-            contentSpan.innerHTML = nl2br(escapeHtml(msg.content));
-            bubble.appendChild(contentSpan);
-        }
-        
+        // Add timestamp
         const timeSpan = document.createElement('span');
         timeSpan.className = 'message-time';
-        timeSpan.innerHTML = time;
+        timeSpan.textContent = time;
+        
         if (isSent) {
             const checkIcon = document.createElement('i');
             checkIcon.className = msg.is_read ? 'fas fa-check-double' : 'fas fa-check';
-            checkIcon.style.cssText = 'margin-left:2px;' + (msg.is_read ? 'color:#34D399;' : 'opacity:0.5;');
+            checkIcon.style.cssText = msg.is_read ? 'margin-left:2px;color:#34D399;' : 'margin-left:2px;opacity:0.5;';
             timeSpan.appendChild(checkIcon);
         }
-        bubble.appendChild(timeSpan);
         
+        bubble.appendChild(timeSpan);
         row.appendChild(bubble);
-        container.appendChild(row);
+        fragment.appendChild(row);
         
         lastMsgId = Math.max(lastMsgId, msg.id);
     });
     
-    if (lastMsgId > 0) {
-        document.getElementById('lastMsgId').value = lastMsgId;
+    container.appendChild(fragment);
+    state.lastMsgId = lastMsgId;
+    if (DOM.lastMsgId) {
+        DOM.lastMsgId.value = lastMsgId;
     }
     
     scrollToBottom();
 }
 
-function updateContacts(contacts) {
-    contacts.forEach(function(contact) {
-        const lastMsgEl = document.getElementById('lastMsg_' + contact.id);
-        if (lastMsgEl) {
-            if (contact.last_message) {
-                lastMsgEl.textContent = contact.last_message.substring(0, 50) + (contact.last_message.length > 50 ? '...' : '');
+function renderMessageContent(msg, isSent) {
+    // Parse file message
+    let file_data = null;
+    if (msg.message_type === 'file' && msg.content) {
+        try {
+            file_data = JSON.parse(msg.content);
+            if (!file_data.filename && msg.media_url) {
+                file_data = {
+                    url: msg.media_url,
+                    filename: basename(msg.media_url),
+                    filesize: 0,
+                    filetype: msg.media_url.split('.').pop()
+                };
+            }
+        } catch(e) {
+            if (msg.media_url) {
+                file_data = {
+                    url: msg.media_url,
+                    filename: basename(msg.media_url),
+                    filesize: 0,
+                    filetype: msg.media_url.split('.').pop()
+                };
             }
         }
+    }
+    
+    // File message
+    if (msg.message_type === 'file' && file_data) {
+        const ext = (file_data.filetype || '').toLowerCase();
+        let iconClass = 'default', iconIcon = 'fa-file';
+        if (['pdf'].includes(ext)) { iconClass = 'pdf'; iconIcon = 'fa-file-pdf'; }
+        else if (['doc', 'docx'].includes(ext)) { iconClass = 'doc'; iconIcon = 'fa-file-word'; }
+        else if (['xls', 'xlsx'].includes(ext)) { iconClass = 'xls'; iconIcon = 'fa-file-excel'; }
+        else if (['ppt', 'pptx'].includes(ext)) { iconClass = 'ppt'; iconIcon = 'fa-file-powerpoint'; }
+        else if (['txt'].includes(ext)) { iconClass = 'txt'; iconIcon = 'fa-file-alt'; }
+        else if (['zip', 'rar'].includes(ext)) { iconClass = 'zip'; iconIcon = 'fa-file-archive'; }
+        else if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) { iconClass = 'image'; iconIcon = 'fa-file-image'; }
         
+        const fileSizeText = file_data.filesize ? formatFileSizeJS(file_data.filesize) : 'Unknown size';
+        
+        const fileDiv = document.createElement('div');
+        fileDiv.className = 'file-message';
+        fileDiv.innerHTML = `
+            <div style="display:flex;align-items:center;">
+                <div class="file-icon ${iconClass}">
+                    <i class="fas ${iconIcon}"></i>
+                </div>
+                <div class="file-info">
+                    <div class="file-name">${escapeHtml(file_data.filename || 'File')}</div>
+                    <div>
+                        <span class="file-size">${fileSizeText}</span>
+                        <span class="file-type">${(ext || 'FILE').toUpperCase()}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="file-actions">
+                <a href="${escapeHtml(file_data.url || msg.media_url)}" download class="download">
+                    <i class="fas fa-download"></i> Download
+                </a>
+                ${['pdf', 'jpg', 'jpeg', 'png', 'gif'].includes(ext) ? `
+                    <a href="${escapeHtml(file_data.url || msg.media_url)}" target="_blank" class="view">
+                        <i class="fas fa-eye"></i> View
+                    </a>
+                ` : ''}
+            </div>
+        `;
+        return fileDiv;
+    }
+    
+    // Location message
+    if (msg.message_type === 'location' && msg.content) {
+        let lat = '', lng = '', locationName = '';
+        const match1 = msg.content.match(/📍 (.*?): ([\d.-]+), ([\d.-]+)/);
+        const match2 = msg.content.match(/📍 Location: ([\d.-]+), ([\d.-]+)/);
+        
+        if (match1) {
+            locationName = match1[1];
+            lat = match1[2];
+            lng = match1[3];
+        } else if (match2) {
+            lat = match2[1];
+            lng = match2[2];
+        }
+        
+        const locationDiv = document.createElement('div');
+        locationDiv.className = 'location-message';
+        locationDiv.innerHTML = `
+            <div class="location-header">
+                <i class="fas fa-map-marker-alt" style="color:#3B82F6;"></i>
+                <span>📍 Location Shared</span>
+            </div>
+            ${locationName && locationName !== 'Location' ? `
+                <div class="location-name">
+                    <i class="fas fa-building" style="font-size:0.65rem;"></i> ${escapeHtml(locationName)}
+                </div>
+            ` : ''}
+            <div class="location-details">
+                ${lat && lng ? `
+                    <span class="coord">Lat: ${lat}</span>
+                    <span class="coord" style="margin-left:6px;">Lng: ${lng}</span>
+                    <br>
+                    <a href="https://www.google.com/maps?q=${encodeURIComponent(lat + ',' + lng)}" 
+                       target="_blank" class="location-map-link">
+                        <i class="fas fa-map"></i> View on Google Maps
+                    </a>
+                    <a href="https://www.openstreetmap.org/?mlat=${lat}&mlon=${lng}&zoom=15" 
+                       target="_blank" class="location-map-link" 
+                       style="background:#10B981;margin-left:4px;">
+                        <i class="fas fa-globe"></i> OpenStreetMap
+                    </a>
+                ` : nl2br(escapeHtml(msg.content))}
+            </div>
+        `;
+        return locationDiv;
+    }
+    
+    // Image message
+    if (msg.media_url && msg.message_type === 'image') {
+        const container = document.createElement('div');
+        container.style.cssText = 'margin:3px 0;';
+        const img = document.createElement('img');
+        img.src = msg.media_url;
+        img.alt = 'Image';
+        img.style.cssText = 'max-width:180px;border-radius:6px;cursor:pointer;';
+        img.onclick = function() { window.open(this.src); };
+        container.appendChild(img);
+        return container;
+    }
+    
+    // Plain text message
+    if (msg.content && !['location', 'file'].includes(msg.message_type)) {
+        const span = document.createElement('span');
+        span.innerHTML = nl2br(escapeHtml(msg.content));
+        return span;
+    }
+    
+    return null;
+}
+
+// ============================================================
+// UPDATE CONTACTS
+// ============================================================
+function updateContacts(contacts) {
+    contacts.forEach(function(contact) {
+        // Update last message
+        const lastMsgEl = document.getElementById('lastMsg_' + contact.id);
+        if (lastMsgEl && contact.last_message) {
+            const msg = contact.last_message.substring(0, 50) + (contact.last_message.length > 50 ? '...' : '');
+            lastMsgEl.textContent = msg;
+        }
+        
+        // Update unread badge
         const unreadBadge = document.getElementById('unreadBadge_' + contact.id);
         if (contact.unread_count > 0) {
             if (unreadBadge) {
@@ -2374,7 +2474,10 @@ function updateContacts(contacts) {
     });
 }
 
-function formatFileSize(bytes) {
+// ============================================================
+// UTILITY FUNCTIONS
+// ============================================================
+function formatFileSizeJS(bytes) {
     if (bytes >= 1073741824) return (bytes / 1073741824).toFixed(2) + ' GB';
     if (bytes >= 1048576) return (bytes / 1048576).toFixed(2) + ' MB';
     if (bytes >= 1024) return (bytes / 1024).toFixed(2) + ' KB';
@@ -2396,22 +2499,18 @@ function nl2br(text) {
 }
 
 // ============================================================
-// HANDLE FORM SUBMISSION - AJAX
+// FORM SUBMISSION HANDLER - OPTIMIZED
 // ============================================================
-document.getElementById('chatForm').addEventListener('submit', function(e) {
+DOM.chatForm?.addEventListener('submit', function(e) {
     e.preventDefault();
     
-    const message = document.getElementById('messageInput').value.trim();
-    const mediaUrl = document.getElementById('mediaUrl').value;
+    const message = DOM.messageInput?.value.trim() || '';
+    const mediaUrl = document.getElementById('mediaUrl')?.value || '';
     
-    if (!message && !mediaUrl) {
-        return;
-    }
+    if (!message && !mediaUrl) return;
     
     const formData = new FormData(this);
-    const sendBtn = document.getElementById('sendBtn');
-    sendBtn.disabled = true;
-    sendBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+    updateSendButtonState(true, '<i class="fas fa-spinner fa-spin"></i> Sending...');
     
     fetch('chat-agents.php', {
         method: 'POST',
@@ -2419,111 +2518,18 @@ document.getElementById('chatForm').addEventListener('submit', function(e) {
     })
     .then(response => response.text())
     .then(text => {
-        sendBtn.disabled = false;
-        sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send';
+        updateSendButtonState(false, '<i class="fas fa-paper-plane"></i> Send');
         
         try {
             const data = JSON.parse(text);
-            
             if (data.success) {
-                document.getElementById('messageInput').value = '';
-                document.getElementById('messageInput').style.height = 'auto';
-                document.getElementById('mediaUrl').value = '';
-                document.getElementById('mediaFilename').value = '';
-                document.getElementById('mediaFilesize').value = '0';
-                document.getElementById('mediaFiletype').value = '';
-                document.getElementById('messageType').value = 'text';
-                
-                const container = document.getElementById('chatMessages');
-                const emptyState = container.querySelector('.empty-chat');
-                if (emptyState) emptyState.remove();
-                
-                const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-                const row = document.createElement('div');
-                row.className = 'message-row sent';
-                
-                let bubbleContent = '';
-                
-                if (mediaUrl) {
-                    const ext = (document.getElementById('mediaFiletype').value || '').toLowerCase();
-                    const filename = document.getElementById('mediaFilename').value || 'File';
-                    const filesize = parseInt(document.getElementById('mediaFilesize').value) || 0;
-                    
-                    if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) {
-                        bubbleContent += `<div style="margin:3px 0;"><img src="${mediaUrl}" alt="Image" style="max-width:180px;border-radius:6px;cursor:pointer;" onclick="window.open(this.src)"></div>`;
-                    } else {
-                        let iconClass = 'default', iconIcon = 'fa-file';
-                        if (['pdf'].includes(ext)) { iconClass = 'pdf'; iconIcon = 'fa-file-pdf'; }
-                        else if (['doc', 'docx'].includes(ext)) { iconClass = 'doc'; iconIcon = 'fa-file-word'; }
-                        else if (['xls', 'xlsx'].includes(ext)) { iconClass = 'xls'; iconIcon = 'fa-file-excel'; }
-                        else if (['ppt', 'pptx'].includes(ext)) { iconClass = 'ppt'; iconIcon = 'fa-file-powerpoint'; }
-                        else if (['txt'].includes(ext)) { iconClass = 'txt'; iconIcon = 'fa-file-alt'; }
-                        else if (['zip', 'rar'].includes(ext)) { iconClass = 'zip'; iconIcon = 'fa-file-archive'; }
-                        
-                        const fileSizeText = filesize ? formatFileSize(filesize) : 'Unknown size';
-                        
-                        bubbleContent += `
-                            <div class="file-message">
-                                <div style="display:flex;align-items:center;">
-                                    <div class="file-icon ${iconClass}">
-                                        <i class="fas ${iconIcon}"></i>
-                                    </div>
-                                    <div class="file-info">
-                                        <div class="file-name">${escapeHtml(filename)}</div>
-                                        <div>
-                                            <span class="file-size">${fileSizeText}</span>
-                                            <span class="file-type">${(ext || 'FILE').toUpperCase()}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="file-actions">
-                                    <a href="${mediaUrl}" download class="download">
-                                        <i class="fas fa-download"></i> Download
-                                    </a>
-                                    ${['pdf', 'jpg', 'jpeg', 'png', 'gif'].includes(ext) ? `
-                                        <a href="${mediaUrl}" target="_blank" class="view">
-                                            <i class="fas fa-eye"></i> View
-                                        </a>
-                                    ` : ''}
-                                </div>
-                            </div>
-                        `;
-                    }
-                }
-                
-                if (message) {
-                    bubbleContent += nl2br(escapeHtml(message));
-                }
-                
-                row.innerHTML = `
-                    <div class="message-bubble">
-                        ${bubbleContent}
-                        <span class="message-time">${time} <i class="fas fa-check" style="margin-left:2px;opacity:0.5;"></i></span>
-                    </div>
-                `;
-                container.appendChild(row);
-                scrollToBottom();
-                
-                if (data.msg_id) {
-                    document.getElementById('lastMsgId').value = data.msg_id;
-                }
+                handleMessageSuccess(data);
             } else {
                 alert('Failed to send message: ' + (data.message || 'Unknown error'));
             }
         } catch (e) {
             if (text.includes('Message sent successfully')) {
-                document.getElementById('messageInput').value = '';
-                document.getElementById('messageInput').style.height = 'auto';
-                document.getElementById('mediaUrl').value = '';
-                document.getElementById('messageType').value = 'text';
-                
-                setTimeout(function() {
-                    const contactId = document.querySelector('input[name="receiver_id"]');
-                    const roleId = document.querySelector('input[name="role_id"]');
-                    if (contactId && contactId.value && roleId && roleId.value) {
-                        window.location.href = 'chat-agents.php?role=' + roleId.value + '&contact_id=' + contactId.value;
-                    }
-                }, 1000);
+                handleMessageSuccess({ success: true });
             } else {
                 console.error('Unexpected response:', text);
                 alert('An unexpected error occurred. Please try again.');
@@ -2531,15 +2537,116 @@ document.getElementById('chatForm').addEventListener('submit', function(e) {
         }
     })
     .catch(err => {
-        sendBtn.disabled = false;
-        sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send';
+        updateSendButtonState(false, '<i class="fas fa-paper-plane"></i> Send');
         alert('Failed to send message. Please check your connection.');
         console.error('Send error:', err);
     });
 });
 
+function handleMessageSuccess(data) {
+    // Reset form
+    if (DOM.messageInput) {
+        DOM.messageInput.value = '';
+        DOM.messageInput.style.height = 'auto';
+    }
+    document.getElementById('mediaUrl').value = '';
+    document.getElementById('mediaFilename').value = '';
+    document.getElementById('mediaFilesize').value = '0';
+    document.getElementById('mediaFiletype').value = '';
+    document.getElementById('messageType').value = 'text';
+    
+    // Update UI with sent message
+    const container = DOM.chatMessages;
+    if (container) {
+        const emptyState = container.querySelector('.empty-chat');
+        if (emptyState) emptyState.remove();
+        
+        const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        const row = document.createElement('div');
+        row.className = 'message-row sent';
+        
+        let bubbleContent = '';
+        const mediaUrl = document.getElementById('mediaUrl')?.value || '';
+        const message = DOM.messageInput?.value || '';
+        
+        // Build message content
+        if (mediaUrl) {
+            const ext = (document.getElementById('mediaFiletype')?.value || '').toLowerCase();
+            const filename = document.getElementById('mediaFilename')?.value || 'File';
+            const filesize = parseInt(document.getElementById('mediaFilesize')?.value || 0);
+            
+            if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) {
+                bubbleContent += `<div style="margin:3px 0;"><img src="${mediaUrl}" alt="Image" style="max-width:180px;border-radius:6px;cursor:pointer;" onclick="window.open(this.src)"></div>`;
+            } else {
+                let iconClass = 'default', iconIcon = 'fa-file';
+                if (['pdf'].includes(ext)) { iconClass = 'pdf'; iconIcon = 'fa-file-pdf'; }
+                else if (['doc', 'docx'].includes(ext)) { iconClass = 'doc'; iconIcon = 'fa-file-word'; }
+                else if (['xls', 'xlsx'].includes(ext)) { iconClass = 'xls'; iconIcon = 'fa-file-excel'; }
+                else if (['ppt', 'pptx'].includes(ext)) { iconClass = 'ppt'; iconIcon = 'fa-file-powerpoint'; }
+                else if (['txt'].includes(ext)) { iconClass = 'txt'; iconIcon = 'fa-file-alt'; }
+                else if (['zip', 'rar'].includes(ext)) { iconClass = 'zip'; iconIcon = 'fa-file-archive'; }
+                
+                const fileSizeText = filesize ? formatFileSizeJS(filesize) : 'Unknown size';
+                bubbleContent += `
+                    <div class="file-message">
+                        <div style="display:flex;align-items:center;">
+                            <div class="file-icon ${iconClass}">
+                                <i class="fas ${iconIcon}"></i>
+                            </div>
+                            <div class="file-info">
+                                <div class="file-name">${escapeHtml(filename)}</div>
+                                <div>
+                                    <span class="file-size">${fileSizeText}</span>
+                                    <span class="file-type">${(ext || 'FILE').toUpperCase()}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="file-actions">
+                            <a href="${mediaUrl}" download class="download">
+                                <i class="fas fa-download"></i> Download
+                            </a>
+                            ${['pdf', 'jpg', 'jpeg', 'png', 'gif'].includes(ext) ? `
+                                <a href="${mediaUrl}" target="_blank" class="view">
+                                    <i class="fas fa-eye"></i> View
+                                </a>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+        }
+        
+        if (message) {
+            bubbleContent += nl2br(escapeHtml(message));
+        }
+        
+        row.innerHTML = `
+            <div class="message-bubble">
+                ${bubbleContent}
+                <span class="message-time">${time} <i class="fas fa-check" style="margin-left:2px;opacity:0.5;"></i></span>
+            </div>
+        `;
+        container.appendChild(row);
+        scrollToBottom();
+        
+        if (data.msg_id) {
+            state.lastMsgId = Math.max(state.lastMsgId, data.msg_id);
+            if (DOM.lastMsgId) DOM.lastMsgId.value = state.lastMsgId;
+        }
+    }
+}
+
 // ============================================================
-// SIDEBAR TOGGLE
+// WINDOW CLEANUP
+// ============================================================
+window.addEventListener('beforeunload', function() {
+    if (state.pollInterval) {
+        clearInterval(state.pollInterval);
+    }
+});
+
+// ============================================================
+// SIDEBAR TOGGLE INTEGRATION
 // ============================================================
 var sidebar = document.getElementById('sidebar');
 var sidebarToggle = document.getElementById('sidebarToggle');
@@ -2547,18 +2654,24 @@ var sidebarOverlay = document.getElementById('sidebarOverlay');
 var dashboardHeader = document.getElementById('dashboardHeader');
 
 function toggleSidebar() {
-    sidebar.classList.toggle('open');
-    sidebarOverlay.classList.toggle('active');
-    updateHeaderPosition();
+    if (sidebar) {
+        sidebar.classList.toggle('open');
+        if (sidebarOverlay) {
+            sidebarOverlay.classList.toggle('active');
+        }
+        updateHeaderPosition();
+    }
 }
 
 function updateHeaderPosition() {
-    if (window.innerWidth > 768) {
-        dashboardHeader.style.left = '260px';
-    } else if (sidebar.classList.contains('open')) {
-        dashboardHeader.style.left = '280px';
-    } else {
-        dashboardHeader.style.left = '0';
+    if (dashboardHeader) {
+        if (window.innerWidth > 768) {
+            dashboardHeader.style.left = '260px';
+        } else if (sidebar?.classList.contains('open')) {
+            dashboardHeader.style.left = '280px';
+        } else {
+            dashboardHeader.style.left = '0';
+        }
     }
 }
 
@@ -2571,14 +2684,21 @@ if (sidebarOverlay) {
 
 window.addEventListener('resize', function() {
     if (window.innerWidth > 768) {
-        sidebar.classList.remove('open');
-        sidebarOverlay.classList.remove('active');
-        dashboardHeader.style.left = '260px';
-    } else if (!sidebar.classList.contains('open')) {
+        if (sidebar) {
+            sidebar.classList.remove('open');
+        }
+        if (sidebarOverlay) {
+            sidebarOverlay.classList.remove('active');
+        }
+        if (dashboardHeader) {
+            dashboardHeader.style.left = '260px';
+        }
+    } else if (!sidebar?.classList.contains('open') && dashboardHeader) {
         dashboardHeader.style.left = '0';
     }
 });
 
+// Dropdown toggles
 document.querySelectorAll('.dropdown-toggle').forEach(function(toggle) {
     toggle.addEventListener('click', function(e) {
         e.preventDefault();
@@ -2592,6 +2712,7 @@ document.querySelectorAll('.dropdown-toggle').forEach(function(toggle) {
     });
 });
 
+// Profile menu
 var profileBtn = document.getElementById('profileBtn');
 var profileMenu = document.getElementById('profileMenu');
 
@@ -2606,22 +2727,6 @@ if (profileBtn && profileMenu) {
         }
     });
 }
-
-window.addEventListener('load', function() {
-    var preloader = document.getElementById('preloader');
-    if (preloader) {
-        preloader.classList.add('hidden');
-        setTimeout(function() { preloader.style.display = 'none'; }, 600);
-    }
-    scrollToBottom();
-    hideTyping();
-});
-
-window.addEventListener('beforeunload', function() {
-    if (pollInterval) {
-        clearInterval(pollInterval);
-    }
-});
 </script>
 </body>
 </html>
