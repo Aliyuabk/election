@@ -238,9 +238,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 }
 
 // ============================================================
-// SEND MESSAGE HANDLER - WHATSAPP STYLE (NO REDIRECT)
+// SEND MESSAGE HANDLER - ALWAYS RETURNS JSON
 // ============================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'send_message') {
+    // Clear any output buffers
+    while (ob_get_level()) {
+        ob_end_clean();
+    }
+    header('Content-Type: application/json');
+    
     $receiver_id = isset($_POST['receiver_id']) ? (int)$_POST['receiver_id'] : 0;
     $message = isset($_POST['message']) ? trim($_POST['message']) : '';
     $message_type = isset($_POST['message_type']) ? $_POST['message_type'] : 'text';
@@ -341,11 +347,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
     }
     
-    // Always return JSON (no redirect)
-    while (ob_get_level()) {
-        ob_end_clean();
-    }
-    header('Content-Type: application/json');
+    // Return JSON response
     echo json_encode($response);
     exit();
 }
@@ -486,7 +488,6 @@ include '../includes/sidebar.php';
     --wa-offline: #B3B3B3;
 }
 
-/* Chat Container */
 .chat-container {
     display: flex;
     height: calc(100vh - 180px);
@@ -500,7 +501,7 @@ include '../includes/sidebar.php';
 }
 
 /* ============================================================
-   LEFT SIDEBAR - WHATSAPP STYLE
+   LEFT SIDEBAR
    ============================================================ */
 .chat-sidebar {
     width: 380px;
@@ -513,7 +514,6 @@ include '../includes/sidebar.php';
     overflow: hidden;
 }
 
-/* Role Tabs - WhatsApp Style */
 .role-tabs {
     display: flex;
     background: #F0F2F5;
@@ -561,7 +561,6 @@ include '../includes/sidebar.php';
     color: white;
 }
 
-/* Sidebar Header */
 .chat-sidebar-header {
     padding: 12px 16px;
     background: var(--wa-sidebar-bg);
@@ -591,7 +590,6 @@ include '../includes/sidebar.php';
     font-weight: 600;
 }
 
-/* Search */
 .chat-sidebar-search {
     padding: 6px 12px;
     background: var(--wa-sidebar-bg);
@@ -625,7 +623,6 @@ include '../includes/sidebar.php';
     box-shadow: 0 0 0 2px var(--wa-secondary);
 }
 
-/* Contact List */
 .chat-contact-list {
     flex: 1;
     overflow-y: auto;
@@ -638,7 +635,6 @@ include '../includes/sidebar.php';
 .chat-contact-list::-webkit-scrollbar-track { background: transparent; }
 .chat-contact-list::-webkit-scrollbar-thumb { background: #D1D5DB; border-radius: 4px; }
 
-/* Contact Item - WhatsApp Style */
 .chat-contact-item {
     display: flex;
     align-items: center;
@@ -753,7 +749,7 @@ include '../includes/sidebar.php';
 }
 
 /* ============================================================
-   RIGHT CONTENT - CHAT AREA (WHATSAPP STYLE)
+   RIGHT CONTENT - CHAT AREA
    ============================================================ */
 .chat-content {
     flex: 1;
@@ -767,7 +763,6 @@ include '../includes/sidebar.php';
     overflow: hidden;
 }
 
-/* Chat Header - WhatsApp Style */
 .chat-content-header {
     padding: 8px 16px;
     background: #EDEDED;
@@ -835,7 +830,6 @@ include '../includes/sidebar.php';
 }
 .chat-content-header .header-actions button i { font-size: 0.9rem; }
 
-/* Chat Messages - WhatsApp Style */
 .chat-messages {
     flex: 1;
     overflow-y: auto;
@@ -855,7 +849,6 @@ include '../includes/sidebar.php';
 .chat-messages::-webkit-scrollbar-track { background: transparent; }
 .chat-messages::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 4px; }
 
-/* Message Row - WhatsApp Style */
 .message-row {
     display: flex;
     margin-bottom: 1px;
@@ -871,7 +864,6 @@ include '../includes/sidebar.php';
     to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-/* Message Bubble - WhatsApp Style */
 .message-bubble {
     max-width: 70%;
     padding: 6px 12px;
@@ -912,7 +904,7 @@ include '../includes/sidebar.php';
     color: var(--wa-primary-light);
 }
 
-/* File Message - WhatsApp Style */
+/* File Message */
 .file-message {
     background: rgba(37, 211, 102, 0.08);
     border-radius: 6px;
@@ -984,15 +976,6 @@ include '../includes/sidebar.php';
 .message-row.sent .file-message {
     background: rgba(37, 211, 102, 0.15);
 }
-.message-row.sent .file-message .file-info .file-name { color: var(--wa-text-primary); }
-.message-row.sent .file-message .file-actions .download {
-    background: var(--wa-primary);
-    color: white;
-}
-.message-row.sent .file-message .file-actions .view {
-    background: rgba(0,0,0,0.08);
-    color: var(--wa-text-secondary);
-}
 
 /* Location Message */
 .location-message {
@@ -1040,7 +1023,6 @@ include '../includes/sidebar.php';
     box-shadow: 0 2px 8px rgba(37, 211, 102, 0.3);
 }
 
-/* Date Divider - WhatsApp Style */
 .date-divider {
     text-align: center;
     padding: 6px 0;
@@ -1055,7 +1037,6 @@ include '../includes/sidebar.php';
     backdrop-filter: blur(4px);
 }
 
-/* Chat Input - WhatsApp Style */
 .chat-input-area {
     padding: 6px 12px;
     background: #F0F2F5;
@@ -1140,7 +1121,6 @@ include '../includes/sidebar.php';
     box-shadow: none;
 }
 
-/* Typing Indicator - WhatsApp Style */
 .typing-indicator {
     padding: 4px 16px;
     font-size: 0.65rem;
@@ -1174,7 +1154,6 @@ include '../includes/sidebar.php';
     30% { opacity: 1; transform: scale(1.3); }
 }
 
-/* Empty State */
 .empty-chat {
     display: flex;
     flex-direction: column;
@@ -1202,7 +1181,6 @@ include '../includes/sidebar.php';
     max-width: 300px;
 }
 
-/* Connection Status */
 .connection-status {
     position: fixed;
     bottom: 20px;
@@ -1227,7 +1205,6 @@ include '../includes/sidebar.php';
     display: block;
 }
 
-/* Mobile Toggle */
 .mobile-toggle {
     display: none;
     padding: 4px 12px;
@@ -1355,7 +1332,6 @@ include '../includes/sidebar.php';
     <?php include '../includes/header.php'; ?>
     
     <div class="main-content-inner">
-        <!-- Page Header -->
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:6px;">
             <div>
                 <h2 style="font-size:1rem;font-weight:700;margin:0;">
@@ -1381,9 +1357,8 @@ include '../includes/sidebar.php';
             </div>
         </div>
 
-        <!-- Chat Container -->
         <div class="chat-container" id="chatContainer">
-            <!-- Left Sidebar - Contacts -->
+            <!-- Left Sidebar -->
             <div class="chat-sidebar" id="chatSidebar">
                 <div class="role-tabs">
                     <?php foreach ($role_definitions as $role_id => $role): ?>
@@ -1423,7 +1398,6 @@ include '../includes/sidebar.php';
                             $role_color = $role_info ? $role_info['color'] : '#6B7280';
                             $role_name = $role_info ? $role_info['name'] : 'Agent';
                             
-                            // Format last message preview
                             $msg_preview = $last_msg;
                             if ($last_msg_type === 'file') {
                                 $msg_preview = '📎 File attached';
@@ -1489,7 +1463,7 @@ include '../includes/sidebar.php';
                 </div>
             </div>
 
-            <!-- Right Content - Chat Area -->
+            <!-- Right Content -->
             <div class="chat-content" id="chatContent">
                 <?php if ($selected_contact): ?>
                     <div class="chat-content-header">
@@ -1529,7 +1503,6 @@ include '../includes/sidebar.php';
                         </div>
                     </div>
 
-                    <!-- Messages -->
                     <div class="chat-messages" id="chatMessages">
                         <?php if (count($messages) > 0): ?>
                             <?php 
@@ -1673,7 +1646,6 @@ include '../includes/sidebar.php';
                         <?php endif; ?>
                     </div>
 
-                    <!-- Typing Indicator -->
                     <div class="typing-indicator" id="typingIndicator" style="display:none;">
                         <span>Agent is typing</span>
                         <span class="dots">
@@ -1683,7 +1655,6 @@ include '../includes/sidebar.php';
                         </span>
                     </div>
 
-                    <!-- Chat Input - WhatsApp Style -->
                     <div class="chat-input-area">
                         <form method="POST" action="" id="chatForm" enctype="multipart/form-data">
                             <input type="hidden" name="action" value="send_message">
@@ -1755,17 +1726,14 @@ function formatFileSize($bytes) {
 
 <script>
 // ============================================================
-// WHATSAPP STYLE CHAT - COMPLETE REALTIME
+// WHATSAPP STYLE CHAT - NO REDIRECT, REAL-TIME
 // ============================================================
 
-// Configuration
 const CONFIG = {
-    POLL_INTERVAL: 1500, // Fast polling for real-time feel
-    TYPING_TIMEOUT: 5000,
-    MAX_MESSAGE_LENGTH: 5000
+    POLL_INTERVAL: 1500,
+    TYPING_TIMEOUT: 5000
 };
 
-// State
 const state = {
     currentContactId: <?php echo $selected_contact_id ?: 0; ?>,
     lastMsgId: parseInt(document.getElementById('lastMsgId')?.value || 0),
@@ -1775,7 +1743,6 @@ const state = {
     isSending: false
 };
 
-// DOM Cache
 const DOM = {
     chatMessages: document.getElementById('chatMessages'),
     messageInput: document.getElementById('messageInput'),
@@ -1797,7 +1764,6 @@ const DOM = {
 // INITIALIZATION
 // ============================================================
 document.addEventListener('DOMContentLoaded', function() {
-    // Auto-resize textarea
     if (DOM.messageInput) {
         DOM.messageInput.addEventListener('input', function() {
             this.style.height = 'auto';
@@ -1805,18 +1771,15 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Start polling for real-time updates
     if (state.currentContactId > 0) {
         startPolling();
         setTimeout(scrollToBottom, 400);
     }
     
-    // Hide typing indicator
     if (DOM.typingIndicator) {
         DOM.typingIndicator.style.display = 'none';
     }
     
-    // Preloader
     const preloader = document.getElementById('preloader');
     if (preloader) {
         preloader.classList.add('hidden');
@@ -1824,9 +1787,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// ============================================================
-// SCROLL FUNCTIONS
-// ============================================================
 function scrollToBottom() {
     if (DOM.chatMessages) {
         requestAnimationFrame(function() {
@@ -1835,9 +1795,6 @@ function scrollToBottom() {
     }
 }
 
-// ============================================================
-// MESSAGE SENDING - NO REDIRECT
-// ============================================================
 function sendMessage() {
     const message = DOM.messageInput?.value.trim();
     if (message && !state.isSending) {
@@ -1853,9 +1810,6 @@ function updateSendButton(disabled, icon) {
     }
 }
 
-// ============================================================
-// TYPING INDICATOR
-// ============================================================
 function showTyping() {
     if (DOM.typingIndicator) {
         DOM.typingIndicator.style.display = 'block';
@@ -1987,9 +1941,6 @@ function uploadFile(input) {
     xhr.send(formData);
 }
 
-// ============================================================
-// CONTACT FILTERING
-// ============================================================
 function filterContacts() {
     const search = (DOM.contactSearch?.value || '').toLowerCase();
     const items = document.querySelectorAll('.chat-contact-item');
@@ -2007,9 +1958,6 @@ function filterContacts() {
     }
 }
 
-// ============================================================
-// SIDEBAR TOGGLE
-// ============================================================
 function toggleMobileSidebar() {
     const sidebar = document.getElementById('chatSidebar');
     if (sidebar) {
@@ -2026,7 +1974,7 @@ function refreshChat() {
 }
 
 // ============================================================
-// REAL-TIME POLLING - FAST UPDATES
+// REAL-TIME POLLING
 // ============================================================
 function startPolling() {
     if (state.pollInterval) {
@@ -2052,21 +2000,15 @@ function checkForNewMessages() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                // Display new messages
                 if (data.new_messages > 0) {
                     displayNewMessages(data.messages);
                 }
-                
-                // Update contacts with real-time changes
                 if (data.contacts) {
                     updateContacts(data.contacts);
                 }
-                
-                // Update unread badges
                 if (data.unread_updates) {
                     updateUnreadBadges(data.unread_updates);
                 }
-                
                 updateConnectionStatus(true);
             }
             state.isPolling = false;
@@ -2085,9 +2027,6 @@ function updateConnectionStatus(online) {
     }
 }
 
-// ============================================================
-// DISPLAY NEW MESSAGES
-// ============================================================
 function displayNewMessages(messages) {
     const container = DOM.chatMessages;
     if (!container) return;
@@ -2109,7 +2048,6 @@ function displayNewMessages(messages) {
         const isSent = msg.sender_id == <?php echo $user_id; ?>;
         const time = msgDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
         
-        // Date divider
         const lastDivider = container.querySelector('.date-divider:last-child');
         const lastDividerDate = lastDivider ? lastDivider.dataset.date : '';
         
@@ -2168,7 +2106,6 @@ function displayNewMessages(messages) {
 }
 
 function renderMessageContent(msg) {
-    // File message
     if (msg.message_type === 'file') {
         let fileData = null;
         try {
@@ -2197,12 +2134,10 @@ function renderMessageContent(msg) {
         }
     }
     
-    // Location message
     if (msg.message_type === 'location' && msg.content) {
         return createLocationMessageElement(msg.content);
     }
     
-    // Image message
     if (msg.media_url && msg.message_type === 'image') {
         const container = document.createElement('div');
         container.style.cssText = 'margin:3px 0;';
@@ -2215,7 +2150,6 @@ function renderMessageContent(msg) {
         return container;
     }
     
-    // Text message
     if (msg.content && !['location', 'file'].includes(msg.message_type)) {
         const span = document.createElement('span');
         span.innerHTML = nl2br(escapeHtml(msg.content));
@@ -2303,12 +2237,8 @@ function createLocationMessageElement(content) {
     return div;
 }
 
-// ============================================================
-// UPDATE CONTACTS - REALTIME
-// ============================================================
 function updateContacts(contacts) {
     contacts.forEach(function(contact) {
-        // Update last message
         const lastMsgEl = document.getElementById('lastMsg_' + contact.id);
         if (lastMsgEl) {
             let msgPreview = contact.last_message || 'No messages yet';
@@ -2324,29 +2254,17 @@ function updateContacts(contacts) {
             lastMsgEl.innerHTML = truncated;
         }
         
-        // Update time
         const timeEl = document.getElementById('lastTime_' + contact.id);
         if (timeEl && contact.last_message_time) {
             const time = new Date(contact.last_message_time);
             timeEl.textContent = time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
         }
         
-        // Update online status
         const contactItem = document.querySelector(`.chat-contact-item[data-id="${contact.id}"]`);
         if (contactItem) {
             const dot = contactItem.querySelector('.online-dot');
             if (dot) {
                 dot.className = `online-dot ${contact.is_online > 0 ? 'online' : 'offline'}`;
-            }
-            
-            const statusEl = contactItem.querySelector('.online-status');
-            if (statusEl) {
-                if (contact.is_online > 0) {
-                    statusEl.textContent = '● Online';
-                    statusEl.style.color = '#25D366';
-                } else {
-                    statusEl.textContent = '';
-                }
             }
         }
     });
@@ -2366,9 +2284,6 @@ function updateUnreadBadges(unreadData) {
     });
 }
 
-// ============================================================
-// UTILITY FUNCTIONS
-// ============================================================
 function formatFileSizeJS(bytes) {
     if (bytes >= 1073741824) return (bytes / 1073741824).toFixed(2) + ' GB';
     if (bytes >= 1048576) return (bytes / 1048576).toFixed(2) + ' MB';
@@ -2391,7 +2306,7 @@ function nl2br(text) {
 }
 
 // ============================================================
-// FORM SUBMISSION - WHATSAPP STYLE (NO REDIRECT)
+// FORM SUBMISSION - NO REDIRECT, JUST AJAX
 // ============================================================
 DOM.chatForm?.addEventListener('submit', function(e) {
     e.preventDefault();
@@ -2519,18 +2434,13 @@ function handleMessageSuccess(data) {
     }
 }
 
-// ============================================================
-// CLEANUP
-// ============================================================
 window.addEventListener('beforeunload', function() {
     if (state.pollInterval) {
         clearInterval(state.pollInterval);
     }
 });
 
-// ============================================================
-// SIDEBAR INTEGRATION
-// ============================================================
+// Sidebar integration
 var sidebar = document.getElementById('sidebar');
 var sidebarToggle = document.getElementById('sidebarToggle');
 var sidebarOverlay = document.getElementById('sidebarOverlay');
