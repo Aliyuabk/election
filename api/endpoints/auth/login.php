@@ -74,6 +74,7 @@ try {
             unset($user['password_hash']);
             unset($user['remember_token']);
             unset($user['two_factor_secret']);
+            $user['token'] = $token;
             
             // Log activity
             $logStmt = $conn->prepare("
@@ -87,10 +88,9 @@ try {
             // Check if 2FA is enabled
             $requires2FA = isset($user['two_factor_enabled']) && $user['two_factor_enabled'] == 1;
             
-            // ✅ FIX: Return token in response
             sendSuccess('Login successful', [
                 'user' => $user,
-                'token' => $token,  // ← THIS WAS MISSING!
+                'token' => $token,
                 'requires_2fa' => $requires2FA
             ]);
             
@@ -130,4 +130,3 @@ try {
 } catch (Exception $e) {
     sendError('Server error: ' . $e->getMessage(), HTTP_INTERNAL_ERROR);
 }
-?>
