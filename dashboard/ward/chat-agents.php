@@ -229,7 +229,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 // SEND MESSAGE HANDLER - FIXED
 // ============================================================
 // ============================================================
-// SEND MESSAGE HANDLER - MODIFIED TO STAY ON PAGE
+// SEND MESSAGE HANDLER - SIMPLEST SOLUTION
 // ============================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'send_message') {
     $receiver_id = isset($_POST['receiver_id']) ? (int)$_POST['receiver_id'] : 0;
@@ -246,20 +246,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     $session_token = SessionManager::get('csrf_token');
     
     $response = ['success' => false, 'message' => 'An error occurred'];
-    $error_message = '';
-    $success_message = '';
-    $show_success = false;
-    $msg_id = 0;
     
     if (empty($csrf_token) || $csrf_token !== $session_token) {
         $response['message'] = 'Security validation failed. Please try again.';
-        $error_message = 'Security validation failed. Please try again.';
     } elseif ($receiver_id <= 0) {
         $response['message'] = 'Invalid recipient.';
-        $error_message = 'Invalid recipient.';
     } elseif (empty($message) && empty($media_url)) {
         $response['message'] = 'Please enter a message or attach a file.';
-        $error_message = 'Please enter a message or attach a file.';
     } else {
         try {
             $db->beginTransaction();
@@ -331,22 +324,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                 'msg_id' => $msg_id
             ];
             
-            $success_message = 'Message sent successfully!';
-            $show_success = true;
-            
         } catch (Exception $e) {
             $db->rollBack();
             $response['message'] = "Error sending message: " . $e->getMessage();
-            $error_message = "Error sending message: " . $e->getMessage();
             error_log("Chat send error: " . $e->getMessage());
         }
     }
     
     // ============================================================
-    // AJAX RESPONSE - For JavaScript handling
+    // HANDLE AJAX REQUEST
     // ============================================================
     if ($is_ajax) {
-        // Clear output buffers
         while (ob_get_level()) {
             ob_end_clean();
         }
@@ -356,42 +344,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
     }
     
     // ============================================================
-    // NON-AJAX RESPONSE - Stay on page with message
+    // SIMPLEST SOLUTION: REDIRECT BACK TO SAME PAGE WITH PARAMETER
     // ============================================================
-    // We're already on the page, just show the message
-    // The $success_message or $error_message will be displayed below
-    
-    // If success, clear the form values in session for display
     if ($response['success']) {
-        // Re-fetch messages to show the new one
-        try {
-            $stmt = $db->prepare("
-                SELECT 
-                    cm.*,
-                    u_sender.full_name as sender_name,
-                    u_sender.photograph_url as sender_photo,
-                    u_receiver.full_name as receiver_name
-                FROM chat_messages cm
-                LEFT JOIN users u_sender ON cm.sender_id = u_sender.id
-                LEFT JOIN users u_receiver ON cm.receiver_id = u_receiver.id
-                WHERE (cm.sender_id = ? AND cm.receiver_id = ?)
-                   OR (cm.sender_id = ? AND cm.receiver_id = ?)
-                AND cm.is_deleted = 0
-                ORDER BY cm.created_at ASC
-            ");
-            $stmt->execute([$user_id, $receiver_id, $receiver_id, $user_id]);
-            $messages = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            
-            // Mark messages as read
-            $stmt = $db->prepare("
-                UPDATE chat_messages 
-                SET is_read = 1, read_at = NOW() 
-                WHERE sender_id = ? AND receiver_id = ? AND is_read = 0
-            ");
-            $stmt->execute([$receiver_id, $user_id]);
-        } catch (Exception $e) {
-            error_log("Error fetching messages after send: " . $e->getMessage());
-        }
+        header('Location: chat-agents.php?role=' . $role_id . '&contact_id=' . $receiver_id . '&sent=1');
+        exit();
+    } else {
+        // On error, redirect with error parameter
+        header('Location: chat-agents.php?role=' . $role_id . '&contact_id=' . $receiver_id . '&error=1&msg=' . urlencode($response['message']));
+        exit();
     }
 }
 // ============================================================
@@ -1378,29 +1339,38 @@ include '../includes/sidebar.php';
         </div>
 
         <!-- Alerts -->
-        <?php if (!empty($success_message) && $show_success): ?>
-            <div class="alert alert-success" id="successAlert">
-                <i class="fas fa-check-circle"></i>
-                <span><?php echo htmlspecialchars($success_message); ?></span>
-                <button class="alert-close" onclick="this.parentElement.style.display='none'">&times;</button>
-            </div>
-        <?php endif; ?>
-        
-        <?php if (!empty($error_message)): ?>
-            <div class="alert alert-danger" id="errorAlert">
-                <i class="fas fa-exclamation-circle"></i>
-                <span><?php echo htmlspecialchars($error_message); ?></span>
-                <button class="alert-close" onclick="this.parentElement.style.display='none'">&times;</button>
-            </div>
-        <?php endif; ?>
+    <?php if (isset($_GET['sent']) && $_GET['sent'] == 1): ?>
+        <div class="alert alert-success" id="successAlert">
+            <i class="fas fa-check-circle"></i>
+            <span>Message sent successfully!</span>
+            <button class="alert-close" onclick="this.parentElement.style.display='none'">&times;</button>
+        </div>
+        <script>
+            // Auto-hide after 3 seconds
+            setTimeout(function() {
+                var alert = document.getElementById('successAlert');
+                if (alert) {
+                    alert.style.display = 'none';
+                }
+            }, 3000);
+        </script>
+    <?php endif; ?>
 
-        <?php if (isset($_GET['sent'])): ?>
-            <div class="alert alert-success" id="sentAlert">
-                <i class="fas fa-check-circle"></i>
-                <span>Message sent successfully!</span>
-                <button class="alert-close" onclick="this.parentElement.style.display='none'">&times;</button>
-            </div>
-        <?php endif; ?>
+    <?php if (isset($_GET['error']) && $_GET['error'] == 1): ?>
+        <div class="alert alert-danger" id="errorAlert">
+            <i class="fas fa-exclamation-circle"></i>
+            <span><?php echo isset($_GET['msg']) ? htmlspecialchars(urldecode($_GET['msg'])) : 'An error occurred. Please try again.'; ?></span>
+            <button class="alert-close" onclick="this.parentElement.style.display='none'">&times;</button>
+        </div>
+        <script>
+            setTimeout(function() {
+                var alert = document.getElementById('errorAlert');
+                if (alert) {
+                    alert.style.display = 'none';
+                }
+            }, 5000);
+        </script>
+    <?php endif; ?>
 
         <!-- Chat Container -->
         <div class="chat-container" id="chatContainer">
@@ -2368,8 +2338,8 @@ function nl2br(text) {
 // ============================================================
 // FORM SUBMISSION - FIXED AJAX HANDLING
 // ============================================================
-// ============================================================
-// FORM SUBMISSION - HANDLES BOTH AJAX AND NON-AJAX
+ // ============================================================
+// FORM SUBMISSION - SIMPLIFIED
 // ============================================================
 DOM.chatForm?.addEventListener('submit', function(e) {
     e.preventDefault();
@@ -2379,59 +2349,52 @@ DOM.chatForm?.addEventListener('submit', function(e) {
     
     if (!message && !mediaUrl) return;
     
-    // Check if we should use AJAX or regular submit
-    // For file uploads, use regular submit to handle the page stay
-    const hasFile = DOM.mediaUrl?.value || false;
-    
-    if (hasFile) {
-        // Regular form submit - will reload page with success message
-        this.submit();
-        return;
-    }
-    
-    // For text messages, use AJAX for smoother experience
-    const formData = new FormData(this);
-    if (!formData.has('ajax')) {
-        formData.append('ajax', '1');
-    }
-    
-    updateSendButton(true, '<i class="fas fa-spinner fa-spin"></i> Sending...');
-    
-    fetch('chat-agents.php', {
-        method: 'POST',
-        body: formData,
-        headers: {
-            'X-Requested-With': 'XMLHttpRequest'
+    // For AJAX requests (text messages only)
+    if (!mediaUrl) {
+        const formData = new FormData(this);
+        if (!formData.has('ajax')) {
+            formData.append('ajax', '1');
         }
-    })
-    .then(response => response.text())
-    .then(text => {
-        updateSendButton(false, '<i class="fas fa-paper-plane"></i> Send');
         
-        try {
-            const data = JSON.parse(text);
-            if (data.success) {
-                handleMessageSuccess(data);
-            } else {
-                alert('Failed to send message: ' + (data.message || 'Unknown error'));
+        updateSendButton(true, '<i class="fas fa-spinner fa-spin"></i> Sending...');
+        
+        fetch('chat-agents.php', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
             }
-        } catch (e) {
-            // If response is not JSON, it means page rendered
-            // Check if success message is in the response
-            if (text.includes('Message sent successfully')) {
-                // Reload the page to show the new message
-                window.location.reload();
-            } else {
-                console.error('Unexpected response:', text);
-                alert('An unexpected error occurred. Please try again.');
+        })
+        .then(response => response.text())
+        .then(text => {
+            updateSendButton(false, '<i class="fas fa-paper-plane"></i> Send');
+            
+            try {
+                const data = JSON.parse(text);
+                if (data.success) {
+                    handleMessageSuccess(data);
+                } else {
+                    alert('Failed to send message: ' + (data.message || 'Unknown error'));
+                }
+            } catch (e) {
+                // If response is not JSON, reload to show success
+                if (text.includes('Message sent successfully')) {
+                    window.location.reload();
+                } else {
+                    console.error('Unexpected response:', text);
+                    alert('An unexpected error occurred. Please try again.');
+                }
             }
-        }
-    })
-    .catch(err => {
-        updateSendButton(false, '<i class="fas fa-paper-plane"></i> Send');
-        alert('Failed to send message. Please check your connection.');
-        console.error('Send error:', err);
-    });
+        })
+        .catch(err => {
+            updateSendButton(false, '<i class="fas fa-paper-plane"></i> Send');
+            alert('Failed to send message. Please check your connection.');
+            console.error('Send error:', err);
+        });
+    } else {
+        // For file uploads, submit normally (page will reload with ?sent=1)
+        this.submit();
+    }
 });
 
 function handleMessageSuccess(data) {
