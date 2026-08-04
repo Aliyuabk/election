@@ -1,47 +1,94 @@
 <?php
-// Database configuration
+/**
+ * Database Configuration
+ * Secure connection to MySQL database
+ */
+
+
 define('DB_HOST', 'localhost');
-define('DB_USER', 'utgoohwm_election');
-define('DB_PASS', 'Jiddaahh@1');
 define('DB_NAME', 'utgoohwm_election');
+define('DB_USER', 'utgoohwm_election');
+define('DB_PASS', 'Jiddahhh@1');
 
-// JWT Secret
-define('JWT_SECRET', 'your-secret-key-change-this-in-production');
+define('API_BASE_URL', 'https://eguruelection.kowagurutech.ng/api/');
+define('JWT_SECRET', 'your_super_secret_jwt_key_change_this');
+define('JWT_EXPIRY', 86400); // 24 hours
 
-// Response codes
-define('HTTP_OK', 200);
-define('HTTP_CREATED', 201);
-define('HTTP_BAD_REQUEST', 400);
-define('HTTP_UNAUTHORIZED', 401);
-define('HTTP_FORBIDDEN', 403);
-define('HTTP_NOT_FOUND', 404);
-define('HTTP_METHOD_NOT_ALLOWED', 405);
-define('HTTP_INTERNAL_ERROR', 500);
+// CORS Configuration
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
 
-// Upload paths
-define('UPLOAD_PATH', '../uploads/');
-define('EC8A_PATH', UPLOAD_PATH . 'ec8a/');
-define('MEDIA_PATH', UPLOAD_PATH . 'media/');
-define('PROFILE_PATH', UPLOAD_PATH . 'profile/');
-
-// Ensure upload directories exist
-if (!file_exists(EC8A_PATH)) {
-    mkdir(EC8A_PATH, 0777, true);
-}
-if (!file_exists(MEDIA_PATH)) {
-    mkdir(MEDIA_PATH, 0777, true);
-}
-if (!file_exists(PROFILE_PATH)) {
-    mkdir(PROFILE_PATH, 0777, true);
+// Handle preflight requests
+if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
+    exit(0);
 }
 
-function getDBConnection() {
-    $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+// Error reporting - disable in production
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+ini_set('error_log', '/path/to/error.log');
+
+// Database connection class
+class Database {
+    private static $instance = null;
+    private $connection;
     
-    if ($conn->connect_error) {
-        throw new Exception("Database connection failed: " . $conn->connect_error);
+    private function __construct() {
+        try {
+            $this->connection = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+            
+            if ($this->connection->connect_error) {
+                throw new Exception("Connection failed: " . $this->connection->connect_error);
+            }
+            
+            $this->connection->set_charset("utf8mb4");
+        } catch (Exception $e) {
+            error_log("Database connection error: " . $e->getMessage());
+            throw $e;
+        }
     }
     
-    $conn->set_charset("utf8mb4");
-    return $conn;
+    public static function getInstance() {
+        if (self::$instance === null) {
+            self::$instance = new Database();
+        }
+        return self::$instance;
+    }
+    
+    public function getConnection() {
+        return $this->connection;
+    }
+    
+    public function prepare($sql) {
+        return $this->connection->prepare($sql);
+    }
+    
+    public function query($sql) {
+        return $this->connection->query($sql);
+    }
+    
+    public function escapeString($str) {
+        return $this->connection->real_escape_string($str);
+    }
+    
+    public function lastInsertId() {
+        return $this->connection->insert_id;
+    }
+    
+    public function affectedRows() {
+        return $this->connection->affected_rows;
+    }
+    
+    public function close() {
+        $this->connection->close();
+    }
+    
+    // Prevent cloning
+    private function __clone() {}
+    
+    // Prevent unserialize
+    private function __wakeup() {}
 }
+?>

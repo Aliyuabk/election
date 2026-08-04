@@ -1,98 +1,237 @@
 <?php
-require_once __DIR__ . '/../config/database.php';
-require_once __DIR__ . '/response.php';
+/**
+ * Authentication Handler
+ * JWT-based authentication for API
+ */
 
-function verifyToken($token) {
-    $conn = getDBConnection();
-    $stmt = $conn->prepare("
-        SELECT user_id, expires_at 
-        FROM user_sessions 
-        WHERE token = ? AND is_active = 1
-    ");
-    $stmt->bind_param("s", $token);
-    $stmt->execute();
-    $result = $stmt->get_result();
+require_once dirname(__DIR__) . '/config/database.php';
+
+class Auth {
+    private $db;
     
-    if ($result->num_rows === 0) {
+    public function __construct() {
+        $this->db = Database::getInstance();
+    }
+    
+    /**
+     * Generate JWT Token
+     */
+    public function generateToken($userId, $roleId, $tenantId = null) {
+        $header = base64_encode(json_encode(['alg' => 'HS256', 'typ' => 'JWT']));
+        
+        $payload = base64_encode(json_encode([
+            'user_id' => $userId,
+            'role_id' => $roleId,
+            'tenant_id' => $tenantId,
+            'iat' => time(),
+            'exp' => time() + JWT_EXPIRY
+        ]));
+        
+        $signature = hash_hmac('sha256', $header . '.' . $payload, JWT_SECRET, true);
+        $signature = base64_encode($signature);
+        
+        return $header . '.' . $payload . '.' . $signature;
+    }
+    
+    /**
+     * Verify JWT Token
+     */
+    public function verifyToken($token) {
+        $parts = explode('.', $token);
+        if (count($parts) !== 3) {
+            return false;
+        }
+        
+        list($header, $payload, $signature) = $parts;
+        
+        $expectedSignature = hash_hmac('sha256', $header . '.' . $payload, JWT_SECRET, true);
+        $expectedSignature = base64_encode($expectedSignature);
+        
+        if (!hash_equals($expectedSignature, $signature)) {
+            return false;
+        }
+        
+        $payloadData = json_decode(base64_decode($payload), true);
+        
+        if (!$payloadData || $payloadData['exp'] < time()) {
+            return false;
+        }
+        
+        return $payloadData;
+    }
+    
+    /**
+     * Authenticate user from request
+     */
+    public function authenticate() {
+        $headers = getallheaders();
+        
+        $authHeader = isset($headers['Authorization']) ? $headers['Authorization'] : '';
+        
+        if (empty($authHeader)) {
+            // Check for bearer token in $_SERVER
+            if (isset($_SERVER['HTTP_AUTHORIZATION'])) {
+                $authHeader = $_SERVER['HTTP_AUTHORIZATION'];
+            }
+        }
+        
+        if (empty($authHeader) || !preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
+            return false;
+        }
+        
+        $token = $matches[1];
+        $payload = $this->verifyToken($token);
+        
+        if (!$payload) {
+            return false;
+        }
+        
+        // Get user from database
+        $stmt = $this->db->prepare("
+            SELECT id, tenant_id, role_id, first_name, last_name, email, phone, status 
+            FROM users WHERE id = ? AND status = 'active'
+        ");
+        
+        if (!$stmt) {
+            return false;
+        }
+        
+        $stmt->bind_param("i", $payload['user_id']);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $user = $result->fetch_assoc();
         $stmt->close();
-        $conn->close();
-        return false;
+        
+        if (!$user) {
+            return false;
+        }
+        
+        return $user;
     }
     
-    $session = $result->fetch_assoc();
-    $stmt->close();
-    $conn->close();
-    
-    // Check if token expired
-    $expiresAt = strtotime($session['expires_at']);
-    if ($expiresAt < time()) {
-        return false;
+    /**
+     * Hash password
+     */
+    public function hashPassword($password) {
+        return password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
     }
     
-    return $session['user_id'];
-}
-
-function generateAuthToken($userId) {
-    $token = bin2hex(random_bytes(32));
-    $expiresAt = date('Y-m-d H:i:s', strtotime('+7 days'));
+    /**
+     * Verify password
+     */
+    public function verifyPassword($password, $hash) {
+        return password_verify($password, $hash);
+    }
     
-    $conn = getDBConnection();
-    $stmt = $conn->prepare("
-        INSERT INTO user_sessions (user_id, token, device_type, ip_address, user_agent, is_active, expires_at)
-        VALUES (?, ?, 'mobile', ?, ?, 1, ?)
-    ");
-    
-    $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
-    $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? 'unknown';
-    
-    $stmt->bind_param("issss", $userId, $token, $ip, $userAgent, $expiresAt);
-    $stmt->execute();
-    $stmt->close();
-    $conn->close();
-    
-    return $token;
-}
-
-function revokeToken($token) {
-    $conn = getDBConnection();
-    $stmt = $conn->prepare("
-        UPDATE user_sessions 
-        SET is_active = 0 
-        WHERE token = ?
-    ");
-    $stmt->bind_param("s", $token);
-    $stmt->execute();
-    $stmt->close();
-    $conn->close();
-}
-
-function getUserData($userId) {
-    $conn = getDBConnection();
-    $stmt = $conn->prepare("
-        SELECT u.*, r.name as role_name, r.level as role_level, 
-               t.name as tenant_name, t.id as tenant_id
-        FROM users u
-        LEFT JOIN roles r ON u.role_id = r.id
-        LEFT JOIN tenants t ON u.tenant_id = t.id
-        WHERE u.id = ? AND u.status = 'active'
-    ");
-    $stmt->bind_param("i", $userId);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    
-    if ($result->num_rows === 0) {
+    /**
+     * Login user
+     */
+    public function login($email, $password, $deviceId = null, $ipAddress = null) {
+        // Get user by email
+        $stmt = $this->db->prepare("
+            SELECT id, tenant_id, role_id, first_name, last_name, email, phone, 
+                   password_hash, status, two_factor_enabled 
+            FROM users WHERE email = ? AND status != 'archived'
+        ");
+        
+        if (!$stmt) {
+            return ['success' => false, 'message' => 'Database error'];
+        }
+        
+        $stmt->bind_param("s", $email);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        $user = $result->fetch_assoc();
         $stmt->close();
-        $conn->close();
-        return null;
+        
+        if (!$user) {
+            // Log failed attempt
+            $this->logLoginAttempt($email, $ipAddress, $deviceId, false);
+            return ['success' => false, 'message' => 'Invalid credentials'];
+        }
+        
+        if ($user['status'] !== 'active') {
+            return ['success' => false, 'message' => 'Account is ' . $user['status']];
+        }
+        
+        if (!$this->verifyPassword($password, $user['password_hash'])) {
+            $this->logLoginAttempt($email, $ipAddress, $deviceId, false);
+            return ['success' => false, 'message' => 'Invalid credentials'];
+        }
+        
+        // Log successful login
+        $this->logLoginAttempt($email, $ipAddress, $deviceId, true);
+        
+        // Generate token
+        $token = $this->generateToken($user['id'], $user['role_id'], $user['tenant_id']);
+        
+        // Update last login
+        $this->updateLastLogin($user['id'], $ipAddress, $deviceId);
+        
+        return [
+            'success' => true,
+            'token' => $token,
+            'user' => [
+                'id' => $user['id'],
+                'full_name' => $user['first_name'] . ' ' . $user['last_name'],
+                'email' => $user['email'],
+                'phone' => $user['phone'],
+                'role_id' => $user['role_id'],
+                'tenant_id' => $user['tenant_id'],
+                'two_factor_enabled' => (bool)$user['two_factor_enabled']
+            ]
+        ];
     }
     
-    $user = $result->fetch_assoc();
-    unset($user['password_hash']);
-    unset($user['remember_token']);
-    unset($user['two_factor_secret']);
+    /**
+     * Log login attempt
+     */
+    private function logLoginAttempt($email, $ipAddress, $deviceId, $success) {
+        $stmt = $this->db->prepare("
+            INSERT INTO login_attempts (email, ip_address, user_agent, attempt_type, success, created_at)
+            VALUES (?, ?, ?, 'login', ?, NOW())
+        ");
+        
+        if (!$stmt) return;
+        
+        $userAgent = isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : '';
+        $successInt = $success ? 1 : 0;
+        
+        $stmt->bind_param("sssi", $email, $ipAddress, $userAgent, $successInt);
+        $stmt->execute();
+        $stmt->close();
+    }
     
-    $stmt->close();
-    $conn->close();
+    /**
+     * Update last login
+     */
+    private function updateLastLogin($userId, $ipAddress, $deviceId) {
+        $stmt = $this->db->prepare("
+            UPDATE users SET 
+                last_login_at = NOW(),
+                last_login_ip = ?,
+                device_id = ?
+            WHERE id = ?
+        ");
+        
+        if (!$stmt) return;
+        
+        $stmt->bind_param("ssi", $ipAddress, $deviceId, $userId);
+        $stmt->execute();
+        $stmt->close();
+    }
     
-    return $user;
+    /**
+     * Logout user
+     */
+    public function logout($userId) {
+        // Log logout activity
+        $this->db->query("
+            INSERT INTO activity_logs (user_id, activity_type, description, created_at)
+            VALUES ($userId, 'logout', 'User logged out successfully', NOW())
+        ");
+        
+        return ['success' => true];
+    }
 }
+?>
