@@ -4,55 +4,47 @@
  * Secure connection to MySQL database
  */
 
+require_once __DIR__ . '/config.php';
 
 define('DB_HOST', 'localhost');
 define('DB_NAME', 'utgoohwm_election');
 define('DB_USER', 'utgoohwm_election');
 define('DB_PASS', 'Jiddahhh@1');
 
-define('API_BASE_URL', 'https://eguruelection.kowagurutech.ng/api/');
-define('JWT_SECRET', 'your_super_secret_jwt_key_change_this');
-define('JWT_EXPIRY', 86400); // 24 hours
-
-// CORS Configuration
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
-
-// Handle preflight requests
-if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
-    exit(0);
-}
-
-// Error reporting - disable in production
-error_reporting(E_ALL);
-ini_set('display_errors', 0);
-ini_set('log_errors', 1);
-ini_set('error_log', '/path/to/error.log');
-
-// Database connection class
+// Database connection class with improved security
 class Database {
     private static $instance = null;
     private $connection;
+    private $isConnected = false;
     
     private function __construct() {
-        try {
-            $this->connection = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
-            
-            if ($this->connection->connect_error) {
-                throw new Exception("Connection failed: " . $this->connection->connect_error);
-            }
-            
-            $this->connection->set_charset("utf8mb4");
-        } catch (Exception $e) {
-            error_log("Database connection error: " . $e->getMessage());
-            throw $e;
+        // Don't use persistent connections for security
+        $this->connection = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+        
+        if ($this->connection->connect_error) {
+            error_log("Database connection failed: " . $this->connection->connect_error);
+            throw new Exception("Database connection failed");
         }
+        
+        $this->connection->set_charset("utf8mb4");
+        
+        // Set timezone
+        $this->connection->query("SET time_zone = '+00:00'");
+        
+        // Enable strict mode for better data integrity
+        $this->connection->query("SET SESSION sql_mode = 'STRICT_ALL_TABLES'");
+        
+        $this->isConnected = true;
     }
     
     public static function getInstance() {
         if (self::$instance === null) {
-            self::$instance = new Database();
+            try {
+                self::$instance = new Database();
+            } catch (Exception $e) {
+                error_log("Database initialization error: " . $e->getMessage());
+                throw $e;
+            }
         }
         return self::$instance;
     }
@@ -62,10 +54,16 @@ class Database {
     }
     
     public function prepare($sql) {
+        if (!$this->isConnected) {
+            $this->reconnect();
+        }
         return $this->connection->prepare($sql);
     }
     
     public function query($sql) {
+        if (!$this->isConnected) {
+            $this->reconnect();
+        }
         return $this->connection->query($sql);
     }
     
@@ -82,7 +80,19 @@ class Database {
     }
     
     public function close() {
-        $this->connection->close();
+        if ($this->isConnected) {
+            $this->connection->close();
+            $this->isConnected = false;
+        }
+    }
+    
+    private function reconnect() {
+        $this->connection = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
+        if ($this->connection->connect_error) {
+            throw new Exception("Reconnection failed: " . $this->connection->connect_error);
+        }
+        $this->connection->set_charset("utf8mb4");
+        $this->isConnected = true;
     }
     
     // Prevent cloning
@@ -91,4 +101,3 @@ class Database {
     // Prevent unserialize
     private function __wakeup() {}
 }
-?>

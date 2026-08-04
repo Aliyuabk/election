@@ -11,10 +11,6 @@ require_once dirname(__DIR__, 2) . '/includes/response.php';
 $auth = new Auth();
 $user = $auth->authenticate();
 
-if (!$user) {
-    Response::unauthorized();
-}
-
 $db = Database::getInstance();
 
 // Get role level
@@ -76,6 +72,13 @@ $checklistCheck = $db->query("
 ");
 $stats['pending_checklists'] = $checklistCheck->fetch_assoc()['count'];
 
+// Get EC8A pending uploads
+$ec8aCheck = $db->query("
+    SELECT COUNT(*) as count FROM results_ec8a 
+    WHERE agent_id = {$user['id']} AND status = 'pending'
+");
+$stats['pending_ec8a'] = $ec8aCheck->fetch_assoc()['count'];
+
 $dashboardData['stats'] = $stats;
 
 // Get recent activity
@@ -101,8 +104,18 @@ $notificationResult = $db->query("
 ");
 
 while ($row = $notificationResult->fetch_assoc()) {
+    $row['is_read'] = (bool)$row['is_read'];
     $dashboardData['notifications'][] = $row;
 }
 
+// Get assigned polling unit
+$puResult = $db->query("
+    SELECT pu.id, pu.code, pu.name, pu.registered_voters, pu.accredited_voters
+    FROM agent_assignments aa
+    JOIN polling_units pu ON aa.pu_id = pu.id
+    WHERE aa.user_id = {$user['id']} AND aa.status = 'active'
+    LIMIT 1
+");
+$dashboardData['assigned_pu'] = $puResult->fetch_assoc();
+
 Response::success($dashboardData);
-?>

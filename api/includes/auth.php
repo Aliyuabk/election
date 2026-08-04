@@ -1,34 +1,41 @@
 <?php
 /**
  * Authentication Handler
- * JWT-based authentication for API
+ * JWT-based authentication for mobile API
  */
 
-require_once dirname(__DIR__) . '/config/database.php';
+require_once __DIR__ . '/../config/database.php';
 
 class Auth {
     private $db;
+    private $jwtSecret;
+    private $jwtExpiry;
     
     public function __construct() {
         $this->db = Database::getInstance();
+        $this->jwtSecret = 'your_super_secret_jwt_key_change_this';
+        $this->jwtExpiry = 86400; // 24 hours
     }
     
     /**
      * Generate JWT Token
      */
-    public function generateToken($userId, $roleId, $tenantId = null) {
-        $header = base64_encode(json_encode(['alg' => 'HS256', 'typ' => 'JWT']));
+    public function generateToken($userId, $roleId, $tenantId = null, $deviceId = null) {
+        $header = json_encode(['alg' => 'HS256', 'typ' => 'JWT']);
+        $header = $this->base64UrlEncode($header);
         
-        $payload = base64_encode(json_encode([
+        $payload = json_encode([
             'user_id' => $userId,
             'role_id' => $roleId,
             'tenant_id' => $tenantId,
+            'device_id' => $deviceId,
             'iat' => time(),
-            'exp' => time() + JWT_EXPIRY
-        ]));
+            'exp' => time() + $this->jwtExpiry
+        ]);
+        $payload = $this->base64UrlEncode($payload);
         
-        $signature = hash_hmac('sha256', $header . '.' . $payload, JWT_SECRET, true);
-        $signature = base64_encode($signature);
+        $signature = hash_hmac('sha256', $header . '.' . $payload, $this->jwtSecret, true);
+        $signature = $this->base64UrlEncode($signature);
         
         return $header . '.' . $payload . '.' . $signature;
     }
@@ -44,14 +51,14 @@ class Auth {
         
         list($header, $payload, $signature) = $parts;
         
-        $expectedSignature = hash_hmac('sha256', $header . '.' . $payload, JWT_SECRET, true);
-        $expectedSignature = base64_encode($expectedSignature);
+        $expectedSignature = hash_hmac('sha256', $header . '.' . $payload, $this->jwtSecret, true);
+        $expectedSignature = $this->base64UrlEncode($expectedSignature);
         
         if (!hash_equals($expectedSignature, $signature)) {
             return false;
         }
         
-        $payloadData = json_decode(base64_decode($payload), true);
+        $payloadData = json_decode($this->base64UrlDecode($payload), true);
         
         if (!$payloadData || $payloadData['exp'] < time()) {
             return false;
@@ -64,36 +71,41 @@ class Auth {
      * Authenticate user from request
      */
     public function authenticate() {
-        $headers = getallheaders();
-        
-        $authHeader = isset($headers['Authorization']) ? $headers['Authorization'] : '';
-        
-        if (empty($authHeader)) {
-            // Check for bearer token in $_SERVER
-            if (isset($_SERVER['HTTP_AUTHORIZATION'])) {
-                $authHeader = $_SERVER['HTTP_AUTHORIZATION'];
-            }
+        // Check app version first
+        $appVersion = $_SERVER['HTTP_X_APP_VERSION'] ?? null;
+        if ($appVersion && version_compare($appVersion, '1.0.0', '<')) {
+            Response::appUpdateRequired('Please update your app to continue');
         }
         
+        $headers = getallheaders();
+        $authHeader = $headers['Authorization'] ?? $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+        
         if (empty($authHeader) || !preg_match('/Bearer\s(\S+)/', $authHeader, $matches)) {
-            return false;
+            Response::unauthorized('Missing or invalid authorization token');
         }
         
         $token = $matches[1];
         $payload = $this->verifyToken($token);
         
         if (!$payload) {
-            return false;
+            Response::unauthorized('Invalid or expired token');
+        }
+        
+        // Check rate limit
+        $rateLimitKey = 'auth_' . $payload['user_id'] . '_' . date('Y-m-d-H');
+        if (!checkRateLimit($rateLimitKey, 100, 3600)) {
+            Response::rateLimitExceeded('Too many requests. Please try again later.');
         }
         
         // Get user from database
         $stmt = $this->db->prepare("
-            SELECT id, tenant_id, role_id, first_name, last_name, email, phone, status 
-            FROM users WHERE id = ? AND status = 'active'
+            SELECT id, tenant_id, role_id, first_name, last_name, email, phone, status, 
+                   photograph_url, pu_id, ward_id, lga_id, state_id
+            FROM users WHERE id = ? AND status != 'archived'
         ");
         
         if (!$stmt) {
-            return false;
+            Response::error('Database error', 500);
         }
         
         $stmt->bind_param("i", $payload['user_id']);
@@ -103,7 +115,11 @@ class Auth {
         $stmt->close();
         
         if (!$user) {
-            return false;
+            Response::unauthorized('User not found');
+        }
+        
+        if ($user['status'] !== 'active') {
+            Response::error('Account is ' . $user['status'], 403);
         }
         
         return $user;
@@ -127,10 +143,17 @@ class Auth {
      * Login user
      */
     public function login($email, $password, $deviceId = null, $ipAddress = null) {
+        // Check rate limit
+        $rateLimitKey = 'login_' . $email . '_' . date('Y-m-d-H');
+        if (!checkRateLimit($rateLimitKey, 10, 3600)) {
+            return ['success' => false, 'message' => 'Too many login attempts. Please try again later.'];
+        }
+        
         // Get user by email
         $stmt = $this->db->prepare("
             SELECT id, tenant_id, role_id, first_name, last_name, email, phone, 
-                   password_hash, status, two_factor_enabled 
+                   password_hash, status, two_factor_enabled, photograph_url,
+                   pu_id, ward_id, lga_id, state_id
             FROM users WHERE email = ? AND status != 'archived'
         ");
         
@@ -145,7 +168,6 @@ class Auth {
         $stmt->close();
         
         if (!$user) {
-            // Log failed attempt
             $this->logLoginAttempt($email, $ipAddress, $deviceId, false);
             return ['success' => false, 'message' => 'Invalid credentials'];
         }
@@ -156,17 +178,41 @@ class Auth {
         
         if (!$this->verifyPassword($password, $user['password_hash'])) {
             $this->logLoginAttempt($email, $ipAddress, $deviceId, false);
+            
+            // Increment login attempts
+            $this->incrementLoginAttempts($user['id']);
+            
             return ['success' => false, 'message' => 'Invalid credentials'];
         }
+        
+        // Reset login attempts on successful login
+        $this->resetLoginAttempts($user['id']);
         
         // Log successful login
         $this->logLoginAttempt($email, $ipAddress, $deviceId, true);
         
         // Generate token
-        $token = $this->generateToken($user['id'], $user['role_id'], $user['tenant_id']);
+        $token = $this->generateToken($user['id'], $user['role_id'], $user['tenant_id'], $deviceId);
+        
+        // Get role details
+        $roleResult = $this->db->query("SELECT name, level FROM roles WHERE id = " . $user['role_id']);
+        $role = $roleResult->fetch_assoc();
         
         // Update last login
         $this->updateLastLogin($user['id'], $ipAddress, $deviceId);
+        
+        // Get user permissions
+        $permissions = $this->getUserPermissions($user['role_id']);
+        
+        // Get assigned polling unit info
+        $puData = null;
+        if ($user['pu_id']) {
+            $puResult = $this->db->query("
+                SELECT id, code, name, registered_voters 
+                FROM polling_units WHERE id = " . $user['pu_id']
+            );
+            $puData = $puResult->fetch_assoc();
+        }
         
         return [
             'success' => true,
@@ -174,13 +220,34 @@ class Auth {
             'user' => [
                 'id' => $user['id'],
                 'full_name' => $user['first_name'] . ' ' . $user['last_name'],
+                'first_name' => $user['first_name'],
+                'last_name' => $user['last_name'],
                 'email' => $user['email'],
                 'phone' => $user['phone'],
                 'role_id' => $user['role_id'],
+                'role_name' => $role['name'] ?? '',
+                'role_level' => $role['level'] ?? '',
                 'tenant_id' => $user['tenant_id'],
-                'two_factor_enabled' => (bool)$user['two_factor_enabled']
+                'two_factor_enabled' => (bool)$user['two_factor_enabled'],
+                'photograph_url' => $user['photograph_url'],
+                'permissions' => $permissions,
+                'assigned_pu' => $puData
             ]
         ];
+    }
+    
+    /**
+     * Get user permissions
+     */
+    private function getUserPermissions($roleId) {
+        $result = $this->db->query("
+            SELECT permissions_json FROM roles WHERE id = $roleId
+        ");
+        $row = $result->fetch_assoc();
+        if ($row && $row['permissions_json']) {
+            return json_decode($row['permissions_json'], true);
+        }
+        return [];
     }
     
     /**
@@ -188,18 +255,36 @@ class Auth {
      */
     private function logLoginAttempt($email, $ipAddress, $deviceId, $success) {
         $stmt = $this->db->prepare("
-            INSERT INTO login_attempts (email, ip_address, user_agent, attempt_type, success, created_at)
-            VALUES (?, ?, ?, 'login', ?, NOW())
+            INSERT INTO login_attempts (email, ip_address, user_agent, attempt_type, success, device_id, created_at)
+            VALUES (?, ?, ?, 'login', ?, ?, NOW())
         ");
         
         if (!$stmt) return;
         
-        $userAgent = isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : '';
+        $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
         $successInt = $success ? 1 : 0;
         
-        $stmt->bind_param("sssi", $email, $ipAddress, $userAgent, $successInt);
+        $stmt->bind_param("sssis", $email, $ipAddress, $userAgent, $successInt, $deviceId);
         $stmt->execute();
         $stmt->close();
+    }
+    
+    /**
+     * Increment login attempts
+     */
+    private function incrementLoginAttempts($userId) {
+        $this->db->query("
+            UPDATE users SET login_attempts = login_attempts + 1 WHERE id = $userId
+        ");
+    }
+    
+    /**
+     * Reset login attempts
+     */
+    private function resetLoginAttempts($userId) {
+        $this->db->query("
+            UPDATE users SET login_attempts = 0, locked_until = NULL WHERE id = $userId
+        ");
     }
     
     /**
@@ -222,16 +307,16 @@ class Auth {
     }
     
     /**
-     * Logout user
+     * Base64 URL Encode
      */
-    public function logout($userId) {
-        // Log logout activity
-        $this->db->query("
-            INSERT INTO activity_logs (user_id, activity_type, description, created_at)
-            VALUES ($userId, 'logout', 'User logged out successfully', NOW())
-        ");
-        
-        return ['success' => true];
+    private function base64UrlEncode($data) {
+        return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
+    }
+    
+    /**
+     * Base64 URL Decode
+     */
+    private function base64UrlDecode($data) {
+        return base64_decode(strtr($data, '-_', '+/'));
     }
 }
-?>

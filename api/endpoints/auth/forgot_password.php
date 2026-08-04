@@ -24,7 +24,7 @@ if (!Validator::validateEmail($email)) {
 $db = Database::getInstance();
 
 // Check if user exists
-$stmt = $db->prepare("SELECT id FROM users WHERE email = ?");
+$stmt = $db->prepare("SELECT id, first_name, last_name FROM users WHERE email = ? AND status = 'active'");
 $stmt->bind_param("s", $email);
 $stmt->execute();
 $result = $stmt->get_result();
@@ -53,11 +53,10 @@ $stmt->close();
 // Log activity
 $db->query("
     INSERT INTO activity_logs (user_id, activity_type, description, created_at)
-    VALUES ({$user['id']}, 'password_reset', 'Password reset requested', NOW())
+    VALUES ({$user['id']}, 'password_reset', 'Password reset requested from mobile app', NOW())
 ");
 
 // TODO: Send email with reset link
-// $resetLink = API_BASE_URL . 'reset-password?token=' . $token;
+// $resetLink = 'https://eguruelection.kowagurutech.ng/reset-password?token=' . $token;
 
 Response::success(null, 'If your email is registered, you will receive a reset link');
-?>

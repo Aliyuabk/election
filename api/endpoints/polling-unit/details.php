@@ -11,10 +11,6 @@ require_once dirname(__DIR__, 2) . '/includes/response.php';
 $auth = new Auth();
 $user = $auth->authenticate();
 
-if (!$user) {
-    Response::unauthorized();
-}
-
 $puId = isset($_GET['id']) ? intval($_GET['id']) : 0;
 
 if ($puId <= 0) {
@@ -92,7 +88,7 @@ $puData['coordinator'] = $coordinator;
 // Get recent results
 $resultResult = $db->query("
     SELECT party_votes_json, valid_votes, rejected_votes, total_votes_cast,
-           created_at, status
+           accredited_voters, created_at, status
     FROM results_ec8a
     WHERE pu_id = $puId
     ORDER BY created_at DESC
@@ -101,4 +97,3 @@ $resultResult = $db->query("
 $puData['latest_result'] = $resultResult->fetch_assoc();
 
 Response::success($puData);
-?>

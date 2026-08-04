@@ -1,17 +1,20 @@
 <?php
 /**
  * API Router
- * Routes requests to appropriate endpoints
+ * Routes requests to appropriate endpoints for mobile app
  */
 
 // Load configuration
-require_once 'config/database.php';
+require_once __DIR__ . '/config/database.php';
 
 // Parse route
 $route = isset($_GET['route']) ? $_GET['route'] : '';
 $method = $_SERVER['REQUEST_METHOD'];
 
-// Route definitions
+// Log request
+logApiRequest($route);
+
+// Route definitions for mobile app
 $routes = [
     // Auth
     'auth/login' => ['file' => 'endpoints/auth/login.php', 'methods' => ['POST']],
@@ -89,4 +92,3 @@ foreach ($routes as $routePath => $routeConfig) {
 if (!$matched) {
     Response::error('Endpoint not found', 404);
 }
-?>

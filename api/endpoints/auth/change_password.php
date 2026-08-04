@@ -12,10 +12,6 @@ require_once dirname(__DIR__, 2) . '/includes/validation.php';
 $auth = new Auth();
 $user = $auth->authenticate();
 
-if (!$user) {
-    Response::unauthorized();
-}
-
 $rawData = file_get_contents('php://input');
 $data = json_decode($rawData, true);
 
@@ -31,8 +27,9 @@ if (!empty($errors)) {
 $currentPassword = $data['current_password'];
 $newPassword = $data['new_password'];
 
-if (strlen($newPassword) < 8) {
-    Response::error('New password must be at least 8 characters', 422);
+$passwordValidation = Validator::validatePassword($newPassword);
+if ($passwordValidation !== true) {
+    Response::error($passwordValidation, 422);
 }
 
 $db = Database::getInstance();
@@ -61,8 +58,7 @@ $stmt->close();
 // Log activity
 $db->query("
     INSERT INTO activity_logs (user_id, activity_type, description, created_at)
-    VALUES ({$user['id']}, 'password_change', 'Password changed successfully', NOW())
+    VALUES ({$user['id']}, 'password_change', 'Password changed successfully from mobile app', NOW())
 ");
 
 Response::success(null, 'Password changed successfully');
-?>
