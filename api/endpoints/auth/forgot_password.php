@@ -5,8 +5,9 @@
  */
 
 require_once dirname(__DIR__, 2) . '/config/database.php';
-require_once dirname(__DIR__, 2) . '/includes/response.php';
-require_once dirname(__DIR__, 2) . '/includes/validation.php';
+require_once dirname(__DIR__, 2) . '/config/constants.php';
+require_once dirname(__DIR__, 2) . '/includes/Response.php';
+require_once dirname(__DIR__, 2) . '/includes/Validator.php';
 
 $rawData = file_get_contents('php://input');
 $data = json_decode($rawData, true);
@@ -30,7 +31,6 @@ $stmt->execute();
 $result = $stmt->get_result();
 
 if ($result->num_rows === 0) {
-    // Don't reveal if email exists or not for security
     Response::success(null, 'If your email is registered, you will receive a reset link');
 }
 

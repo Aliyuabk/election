@@ -64,12 +64,10 @@ class MobileAuth {
             return false;
         }
         
-        // If device binding is not enforced, allow any device
         if ($user['device_bound'] == 0) {
             return true;
         }
         
-        // If device is bound, verify the device ID matches
         if ($user['device_id'] && $user['device_id'] === $deviceId) {
             return true;
         }
@@ -82,10 +80,7 @@ class MobileAuth {
      */
     public function enableFingerprint($userId, $fingerprintHash) {
         $stmt = $this->db->prepare("
-            UPDATE users SET 
-                fingerprint_hash = ?,
-                fingerprint_enabled = 1
-            WHERE id = ?
+            UPDATE users SET fingerprint_hash = ?, fingerprint_enabled = 1 WHERE id = ?
         ");
         $stmt->bind_param("si", $fingerprintHash, $userId);
         $stmt->execute();
@@ -104,10 +99,7 @@ class MobileAuth {
      */
     public function disableFingerprint($userId) {
         $stmt = $this->db->prepare("
-            UPDATE users SET 
-                fingerprint_hash = NULL,
-                fingerprint_enabled = 0
-            WHERE id = ?
+            UPDATE users SET fingerprint_hash = NULL, fingerprint_enabled = 0 WHERE id = ?
         ");
         $stmt->bind_param("i", $userId);
         $stmt->execute();

@@ -2,15 +2,14 @@
 /**
  * Login Endpoint
  * POST /api/auth/login
- * 
- * Request body: { "email": "user@example.com", "password": "password", "device_id": "device_id" }
  */
 
 require_once dirname(__DIR__, 2) . '/config/database.php';
-require_once dirname(__DIR__, 2) . '/includes/auth.php';
-require_once dirname(__DIR__, 2) . '/includes/response.php';
-require_once dirname(__DIR__, 2) . '/includes/validation.php';
-require_once dirname(__DIR__, 2) . '/includes/mobile_auth.php';
+require_once dirname(__DIR__, 2) . '/config/constants.php';
+require_once dirname(__DIR__, 2) . '/includes/Auth.php';
+require_once dirname(__DIR__, 2) . '/includes/Response.php';
+require_once dirname(__DIR__, 2) . '/includes/Validator.php';
+require_once dirname(__DIR__, 2) . '/includes/MobileAuth.php';
 
 // Log request
 logApiRequest('auth/login');
@@ -50,7 +49,6 @@ if ($result['success']) {
         $mobileAuth = new MobileAuth();
         $bindResult = $mobileAuth->bindDevice($result['user']['id'], $deviceId, $deviceName);
         
-        // Don't fail login if device binding fails
         if (!$bindResult['success']) {
             error_log("Device binding failed: " . $bindResult['message']);
         }

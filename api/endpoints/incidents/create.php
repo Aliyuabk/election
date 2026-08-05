@@ -5,9 +5,10 @@
  */
 
 require_once dirname(__DIR__, 2) . '/config/database.php';
-require_once dirname(__DIR__, 2) . '/includes/auth.php';
-require_once dirname(__DIR__, 2) . '/includes/response.php';
-require_once dirname(__DIR__, 2) . '/includes/validation.php';
+require_once dirname(__DIR__, 2) . '/config/constants.php';
+require_once dirname(__DIR__, 2) . '/includes/Auth.php';
+require_once dirname(__DIR__, 2) . '/includes/Response.php';
+require_once dirname(__DIR__, 2) . '/includes/Validator.php';
 
 $auth = new Auth();
 $user = $auth->authenticate();
@@ -42,7 +43,6 @@ $gpsLng = isset($data['gps_lng']) ? floatval($data['gps_lng']) : null;
 $deviceId = isset($data['device_id']) ? Validator::sanitize($data['device_id']) : null;
 $photoUrls = isset($data['photo_urls']) ? json_encode($data['photo_urls']) : null;
 $isPanic = isset($data['is_panic']) ? 1 : 0;
-$isOfflineSync = isset($data['is_offline_sync']) ? 1 : 0;
 
 $validTypes = [
     'violence', 'intimidation', 'ballot_stuffing', 'vote_buying',
@@ -87,14 +87,14 @@ $stmt = $db->prepare("
         incident_type, severity, is_panic, title, description,
         gps_lat, gps_lng, photo_urls_json, device_id,
         is_offline_sync, status, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'reported', NOW())
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'reported', NOW())
 ");
 
 $stmt->bind_param(
     "iiiiiiississsssii",
     $tenantId, $electionId, $user['id'], $puId, $wardId, $lgaId, $stateId,
     $incidentType, $severity, $isPanic, $title, $description,
-    $gpsLat, $gpsLng, $photoUrls, $deviceId, $isOfflineSync
+    $gpsLat, $gpsLng, $photoUrls, $deviceId
 );
 
 if (!$stmt->execute()) {
@@ -114,17 +114,18 @@ $db->query("
 
 // If panic button, send immediate notification
 if ($isPanic) {
-    // TODO: Send SMS/Email notifications to coordinators
     $db->query("
         INSERT INTO notifications (user_id, type, title, message, created_at)
         SELECT 
             u.id, 'security', '🚨 PANIC ALERT', 
-            CONCAT('Emergency alert from ', u.full_name, ': ', '$title'),
+            CONCAT('Emergency alert from ', u2.full_name, ': ', '$title'),
             NOW()
         FROM users u
         JOIN roles r ON u.role_id = r.id
+        CROSS JOIN users u2
         WHERE r.level IN ('lga', 'ward', 'state', 'national')
         AND u.tenant_id = $tenantId
+        AND u2.id = {$user['id']}
     ");
 }
 
@@ -133,4 +134,3 @@ Response::success([
     'status' => 'reported',
     'is_panic' => (bool)$isPanic
 ], 'Incident reported successfully');
-?>

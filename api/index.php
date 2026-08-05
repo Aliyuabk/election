@@ -6,6 +6,8 @@
 
 // Load configuration
 require_once __DIR__ . '/config/database.php';
+require_once __DIR__ . '/config/constants.php';
+require_once __DIR__ . '/includes/Response.php';
 
 // Parse route
 $route = isset($_GET['route']) ? $_GET['route'] : '';
@@ -22,9 +24,14 @@ $routes = [
     'auth/forgot-password' => ['file' => 'endpoints/auth/forgot_password.php', 'methods' => ['POST']],
     'auth/change-password' => ['file' => 'endpoints/auth/change_password.php', 'methods' => ['POST']],
     
+    // Fingerprint
+    'fingerprint/enable' => ['file' => 'endpoints/fingerprint/enable.php', 'methods' => ['POST']],
+    'fingerprint/disable' => ['file' => 'endpoints/fingerprint/disable.php', 'methods' => ['POST']],
+    
     // User
     'user/profile' => ['file' => 'endpoints/user/profile.php', 'methods' => ['GET']],
     'user/dashboard' => ['file' => 'endpoints/user/dashboard.php', 'methods' => ['GET']],
+    'user/update-profile' => ['file' => 'endpoints/user/update_profile.php', 'methods' => ['POST']],
     
     // Polling Unit
     'polling-unit/assigned' => ['file' => 'endpoints/polling-unit/assigned.php', 'methods' => ['GET']],
@@ -53,7 +60,6 @@ $routes = [
     // Incidents
     'incidents/create' => ['file' => 'endpoints/incidents/create.php', 'methods' => ['POST']],
     'incidents/list' => ['file' => 'endpoints/incidents/list.php', 'methods' => ['GET']],
-    'incidents/update' => ['file' => 'endpoints/incidents/update.php', 'methods' => ['POST']],
     
     // Panic
     'panic/trigger' => ['file' => 'endpoints/panic/trigger.php', 'methods' => ['POST']],

@@ -5,9 +5,10 @@
  */
 
 require_once dirname(__DIR__, 2) . '/config/database.php';
-require_once dirname(__DIR__, 2) . '/includes/auth.php';
-require_once dirname(__DIR__, 2) . '/includes/response.php';
-require_once dirname(__DIR__, 2) . '/includes/validation.php';
+require_once dirname(__DIR__, 2) . '/config/constants.php';
+require_once dirname(__DIR__, 2) . '/includes/Auth.php';
+require_once dirname(__DIR__, 2) . '/includes/Response.php';
+require_once dirname(__DIR__, 2) . '/includes/Validator.php';
 
 $auth = new Auth();
 $user = $auth->authenticate();
@@ -32,7 +33,6 @@ $db = Database::getInstance();
 
 // Create incident with panic type
 $tenantId = $user['tenant_id'];
-$now = date('Y-m-d H:i:s');
 
 $stmt = $db->prepare("
     INSERT INTO incidents (
@@ -80,11 +80,7 @@ $db->query("
             '$deviceId', NOW())
 ");
 
-// TODO: Send SMS to emergency contacts
-// TODO: Send push notifications
-
 Response::success([
     'incident_id' => $incidentId,
     'message' => 'Emergency alert sent successfully'
 ]);
-?>

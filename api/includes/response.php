@@ -11,9 +11,8 @@ class Response {
     public static function send($data, $statusCode = 200) {
         http_response_code($statusCode);
         header('Content-Type: application/json');
-        header('X-Powered-By: Election Guru');
+        header('X-Powered-By: Election Guru Mobile API');
         
-        // Add response timestamp
         if (is_array($data) && !isset($data['timestamp'])) {
             $data['timestamp'] = date('Y-m-d H:i:s');
         }

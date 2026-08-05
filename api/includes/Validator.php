@@ -20,22 +20,6 @@ class Validator {
     }
     
     /**
-     * Validate email
-     */
-    public static function validateEmail($email) {
-        return filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
-    }
-    
-    /**
-     * Validate phone number (Nigerian format)
-     */
-    public static function validatePhone($phone) {
-        // Nigerian phone numbers: 080xxxxxxx, 090xxxxxxx, 081xxxxxxx, 070xxxxxxx
-        return preg_match('/^(0[7-9][0-9]{9})$/', $phone) || 
-               preg_match('/^\+234[7-9][0-9]{9}$/', $phone);
-    }
-    
-    /**
      * Sanitize input
      */
     public static function sanitize($input) {
@@ -46,17 +30,18 @@ class Validator {
     }
     
     /**
-     * Validate integer
+     * Validate email
      */
-    public static function validateInt($value) {
-        return filter_var($value, FILTER_VALIDATE_INT) !== false;
+    public static function validateEmail($email) {
+        return filter_var($email, FILTER_VALIDATE_EMAIL) !== false;
     }
     
     /**
-     * Validate float
+     * Validate phone number (Nigerian format)
      */
-    public static function validateFloat($value) {
-        return filter_var($value, FILTER_VALIDATE_FLOAT) !== false;
+    public static function validatePhone($phone) {
+        return preg_match('/^(0[7-9][0-9]{9})$/', $phone) || 
+               preg_match('/^\+234[7-9][0-9]{9}$/', $phone);
     }
     
     /**
@@ -71,14 +56,6 @@ class Validator {
      */
     public static function validateLng($lng) {
         return is_numeric($lng) && $lng >= -180 && $lng <= 180;
-    }
-    
-    /**
-     * Validate date format (Y-m-d)
-     */
-    public static function validateDate($date, $format = 'Y-m-d') {
-        $d = DateTime::createFromFormat($format, $date);
-        return $d && $d->format($format) === $date;
     }
     
     /**
@@ -101,16 +78,24 @@ class Validator {
     }
     
     /**
-     * Validate enum value
+     * Validate integer
      */
-    public static function validateEnum($value, $allowed) {
-        return in_array($value, $allowed);
+    public static function validateInt($value) {
+        return filter_var($value, FILTER_VALIDATE_INT) !== false;
     }
     
     /**
-     * Validate base64 string
+     * Validate float
      */
-    public static function validateBase64($str) {
-        return base64_encode(base64_decode($str, true)) === $str;
+    public static function validateFloat($value) {
+        return filter_var($value, FILTER_VALIDATE_FLOAT) !== false;
+    }
+    
+    /**
+     * Validate date format (Y-m-d)
+     */
+    public static function validateDate($date, $format = 'Y-m-d') {
+        $d = DateTime::createFromFormat($format, $date);
+        return $d && $d->format($format) === $date;
     }
 }

@@ -5,8 +5,9 @@
  */
 
 require_once dirname(__DIR__, 2) . '/config/database.php';
-require_once dirname(__DIR__, 2) . '/includes/auth.php';
-require_once dirname(__DIR__, 2) . '/includes/response.php';
+require_once dirname(__DIR__, 2) . '/config/constants.php';
+require_once dirname(__DIR__, 2) . '/includes/Auth.php';
+require_once dirname(__DIR__, 2) . '/includes/Response.php';
 
 $auth = new Auth();
 $user = $auth->authenticate();
@@ -68,4 +69,3 @@ if (!$checklist) {
 }
 
 Response::success($checklist);
-?>

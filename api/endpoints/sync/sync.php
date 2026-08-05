@@ -5,9 +5,10 @@
  */
 
 require_once dirname(__DIR__, 2) . '/config/database.php';
-require_once dirname(__DIR__, 2) . '/includes/auth.php';
-require_once dirname(__DIR__, 2) . '/includes/response.php';
-require_once dirname(__DIR__, 2) . '/includes/validation.php';
+require_once dirname(__DIR__, 2) . '/config/constants.php';
+require_once dirname(__DIR__, 2) . '/includes/Auth.php';
+require_once dirname(__DIR__, 2) . '/includes/Response.php';
+require_once dirname(__DIR__, 2) . '/includes/Validator.php';
 
 $auth = new Auth();
 $user = $auth->authenticate();
@@ -82,37 +83,9 @@ foreach ($syncData as $index => $item) {
                 'id' => $result['id'] ?? null,
                 'local_id' => $item['local_id'] ?? null
             ];
-            
-            if (isset($item['queue_id']) && $item['queue_id'] > 0) {
-                $db->query("
-                    UPDATE offline_sync_queue 
-                    SET status = 'completed', synced_at = NOW() 
-                    WHERE id = {$item['queue_id']}
-                ");
-            }
         } else {
             $results['failed_count']++;
             $results['errors'][] = "Item $index ($type): " . ($result['error'] ?? 'Unknown error');
-            
-            if (isset($item['queue_id']) && $item['queue_id'] > 0) {
-                $retryCount = $item['retry_count'] ?? 0;
-                $newRetryCount = $retryCount + 1;
-                $maxRetries = $item['max_retries'] ?? 5;
-                
-                if ($newRetryCount >= $maxRetries) {
-                    $status = 'failed';
-                } else {
-                    $status = 'retrying';
-                }
-                
-                $db->query("
-                    UPDATE offline_sync_queue 
-                    SET status = '$status', 
-                        retry_count = $newRetryCount,
-                        last_error = '" . $db->escapeString($result['error'] ?? 'Sync failed') . "'
-                    WHERE id = {$item['queue_id']}
-                ");
-            }
         }
     } catch (Exception $e) {
         $results['failed_count']++;
@@ -126,9 +99,6 @@ Response::success($results);
 // SYNC HELPER FUNCTIONS
 // ============================================
 
-/**
- * Sync Incident from offline
- */
 function syncIncident($db, $user, $data, $deviceId) {
     $required = ['incident_type', 'title', 'description'];
     foreach ($required as $field) {
@@ -185,19 +155,9 @@ function syncIncident($db, $user, $data, $deviceId) {
     $id = $db->lastInsertId();
     $stmt->close();
     
-    $db->query("
-        INSERT INTO activity_logs (user_id, activity_type, description, device_id, created_at)
-        VALUES ({$user['id']}, 'incident_synced', 
-                'Synced incident: $title (Type: $incidentType)',
-                '$deviceId', NOW())
-    ");
-    
     return ['success' => true, 'id' => $id];
 }
 
-/**
- * Sync Check-in from offline
- */
 function syncCheckin($db, $user, $data, $deviceId) {
     $required = ['assignment_id', 'checkin_type', 'gps_lat', 'gps_lng'];
     foreach ($required as $field) {
@@ -263,9 +223,6 @@ function syncCheckin($db, $user, $data, $deviceId) {
     return ['success' => true, 'id' => $id];
 }
 
-/**
- * Sync EC8A from offline
- */
 function syncEC8A($db, $user, $data, $deviceId) {
     $required = ['election_id', 'pu_id'];
     foreach ($required as $field) {
@@ -346,9 +303,6 @@ function syncEC8A($db, $user, $data, $deviceId) {
     return ['success' => true, 'id' => $id];
 }
 
-/**
- * Sync Chat Message from offline
- */
 function syncChat($db, $user, $data) {
     $required = ['receiver_id', 'content'];
     foreach ($required as $field) {
@@ -445,9 +399,6 @@ function syncChat($db, $user, $data) {
     return ['success' => true, 'id' => $id];
 }
 
-/**
- * Sync Accreditation from offline
- */
 function syncAccreditation($db, $user, $data, $deviceId) {
     $required = ['election_id', 'pu_id', 'accredited_voters'];
     foreach ($required as $field) {
@@ -547,9 +498,6 @@ function syncAccreditation($db, $user, $data, $deviceId) {
     return ['success' => true, 'id' => $id];
 }
 
-/**
- * Sync Vote Count from offline
- */
 function syncVoteCount($db, $user, $data, $deviceId) {
     $required = ['election_id', 'pu_id', 'party_votes'];
     foreach ($required as $field) {
@@ -633,9 +581,6 @@ function syncVoteCount($db, $user, $data, $deviceId) {
     return ['success' => true, 'id' => $id];
 }
 
-/**
- * Sync Checklist from offline
- */
 function syncChecklist($db, $user, $data) {
     $required = ['election_id'];
     foreach ($required as $field) {
@@ -740,9 +685,6 @@ function syncChecklist($db, $user, $data) {
     return ['success' => true, 'id' => $id];
 }
 
-/**
- * Sync Profile Update from offline
- */
 function syncProfileUpdate($db, $user, $data) {
     $updates = [];
     $params = [];
@@ -779,4 +721,3 @@ function syncProfileUpdate($db, $user, $data) {
     
     return ['success' => true, 'id' => $user['id']];
 }
-?>

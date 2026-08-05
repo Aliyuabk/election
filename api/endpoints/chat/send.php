@@ -5,9 +5,10 @@
  */
 
 require_once dirname(__DIR__, 2) . '/config/database.php';
-require_once dirname(__DIR__, 2) . '/includes/auth.php';
-require_once dirname(__DIR__, 2) . '/includes/response.php';
-require_once dirname(__DIR__, 2) . '/includes/validation.php';
+require_once dirname(__DIR__, 2) . '/config/constants.php';
+require_once dirname(__DIR__, 2) . '/includes/Auth.php';
+require_once dirname(__DIR__, 2) . '/includes/Response.php';
+require_once dirname(__DIR__, 2) . '/includes/Validator.php';
 
 $auth = new Auth();
 $user = $auth->authenticate();
@@ -34,18 +35,17 @@ $messageType = isset($data['message_type']) ? Validator::sanitize($data['message
 $mediaUrl = isset($data['media_url']) ? Validator::sanitize($data['media_url']) : null;
 $gpsLat = isset($data['gps_lat']) ? floatval($data['gps_lat']) : null;
 $gpsLng = isset($data['gps_lng']) ? floatval($data['gps_lng']) : null;
-$isOfflineSync = isset($data['is_offline_sync']) ? 1 : 0;
 
-$validTypes = ['text', 'image', 'video', 'audio', 'file', 'location', 'system'];
+$validTypes = ['text', 'image', 'video', 'audio', 'file', 'location'];
 if (!in_array($messageType, $validTypes)) {
     $messageType = 'text';
 }
 
 $db = Database::getInstance();
 
-// Verify receiver exists and is in same tenant or allowed
+// Verify receiver exists and is in same tenant
 $stmt = $db->prepare("
-    SELECT id, tenant_id FROM users WHERE id = ? AND status = 'active'
+    SELECT id, tenant_id, first_name, last_name FROM users WHERE id = ? AND status = 'active'
 ");
 $stmt->bind_param("i", $receiverId);
 $stmt->execute();
@@ -75,13 +75,8 @@ if ($receiver['tenant_id'] != $user['tenant_id']) {
 $stmt = $db->prepare("
     SELECT id FROM chat_rooms 
     WHERE type = 'direct' 
-    AND id IN (
-        SELECT room_id FROM chat_room_members 
-        WHERE user_id = ?
-    ) AND id IN (
-        SELECT room_id FROM chat_room_members 
-        WHERE user_id = ?
-    )
+    AND id IN (SELECT room_id FROM chat_room_members WHERE user_id = ?)
+    AND id IN (SELECT room_id FROM chat_room_members WHERE user_id = ?)
 ");
 $stmt->bind_param("ii", $user['id'], $receiverId);
 $stmt->execute();
@@ -125,13 +120,13 @@ $stmt = $db->prepare("
     INSERT INTO chat_messages (
         room_id, sender_id, receiver_id, message_type, content,
         media_url, gps_lat, gps_lng, is_offline_sync, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, NOW())
 ");
 
 $stmt->bind_param(
     "iiisssddi",
     $roomId, $user['id'], $receiverId, $messageType, $content,
-    $mediaUrl, $gpsLat, $gpsLng, $isOfflineSync
+    $mediaUrl, $gpsLat, $gpsLng
 );
 
 if (!$stmt->execute()) {
@@ -146,7 +141,7 @@ $db->query("
     INSERT INTO notifications (user_id, type, title, message, created_at)
     VALUES (
         $receiverId, 'chat',
-        'New message from ' . {$user['first_name']},
+        'New message from ' . {$user['first_name']} . ' ' . {$user['last_name']},
         '$content',
         NOW()
     )
@@ -161,4 +156,3 @@ Response::success([
     'message_type' => $messageType,
     'created_at' => date('Y-m-d H:i:s')
 ], 'Message sent successfully');
-?>

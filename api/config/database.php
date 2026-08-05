@@ -4,21 +4,64 @@
  * Secure connection to MySQL database
  */
 
-require_once __DIR__ . '/config.php';
+// Error reporting - disable in production
+error_reporting(0);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+ini_set('error_log', __DIR__ . '/../logs/error.log');
 
+// CORS Configuration for mobile app
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, X-Device-ID, X-App-Version, X-Platform');
+header('Access-Control-Expose-Headers: Authorization');
+
+// Handle preflight requests
+if ($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
+    http_response_code(200);
+    exit(0);
+}
+
+// Database credentials
 define('DB_HOST', 'localhost');
 define('DB_NAME', 'utgoohwm_election');
 define('DB_USER', 'utgoohwm_election');
 define('DB_PASS', 'Jiddahhh@1');
 
-// Database connection class with improved security
+// App configuration
+define('BASE_URL', 'https://eguruelection.kowagurutech.ng/api/');
+define('UPLOAD_PATH', __DIR__ . '/../uploads/');
+define('MAX_FILE_SIZE', 10485760); // 10MB
+define('APP_VERSION', '1.0.0');
+define('MIN_APP_VERSION', '1.0.0');
+
+// Rate limiting
+define('RATE_LIMIT_REQUESTS', 100);
+define('RATE_LIMIT_WINDOW', 60); // seconds
+
+// Create upload directories
+$directories = [
+    UPLOAD_PATH . 'profiles/',
+    UPLOAD_PATH . 'ec8a/',
+    UPLOAD_PATH . 'incidents/',
+    UPLOAD_PATH . 'chat/',
+    UPLOAD_PATH . 'media/',
+    __DIR__ . '/../logs/'
+];
+
+foreach ($directories as $dir) {
+    if (!is_dir($dir)) {
+        mkdir($dir, 0755, true);
+    }
+}
+
+// Database connection class
 class Database {
     private static $instance = null;
     private $connection;
     private $isConnected = false;
     
     private function __construct() {
-        // Don't use persistent connections for security
         $this->connection = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);
         
         if ($this->connection->connect_error) {
@@ -27,13 +70,8 @@ class Database {
         }
         
         $this->connection->set_charset("utf8mb4");
-        
-        // Set timezone
         $this->connection->query("SET time_zone = '+00:00'");
-        
-        // Enable strict mode for better data integrity
         $this->connection->query("SET SESSION sql_mode = 'STRICT_ALL_TABLES'");
-        
         $this->isConnected = true;
     }
     
@@ -95,9 +133,6 @@ class Database {
         $this->isConnected = true;
     }
     
-    // Prevent cloning
     private function __clone() {}
-    
-    // Prevent unserialize
     private function __wakeup() {}
 }

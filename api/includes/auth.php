@@ -5,6 +5,7 @@
  */
 
 require_once __DIR__ . '/../config/database.php';
+require_once __DIR__ . '/../config/constants.php';
 
 class Auth {
     private $db;
@@ -13,7 +14,7 @@ class Auth {
     
     public function __construct() {
         $this->db = Database::getInstance();
-        $this->jwtSecret = 'your_super_secret_jwt_key_change_this';
+        $this->jwtSecret = 'your_super_secret_jwt_key_change_this_2026';
         $this->jwtExpiry = 86400; // 24 hours
     }
     
@@ -50,7 +51,6 @@ class Auth {
         }
         
         list($header, $payload, $signature) = $parts;
-        
         $expectedSignature = hash_hmac('sha256', $header . '.' . $payload, $this->jwtSecret, true);
         $expectedSignature = $this->base64UrlEncode($expectedSignature);
         
@@ -71,9 +71,9 @@ class Auth {
      * Authenticate user from request
      */
     public function authenticate() {
-        // Check app version first
+        // Check app version
         $appVersion = $_SERVER['HTTP_X_APP_VERSION'] ?? null;
-        if ($appVersion && version_compare($appVersion, '1.0.0', '<')) {
+        if ($appVersion && version_compare($appVersion, MIN_APP_VERSION, '<')) {
             Response::appUpdateRequired('Please update your app to continue');
         }
         
@@ -94,13 +94,13 @@ class Auth {
         // Check rate limit
         $rateLimitKey = 'auth_' . $payload['user_id'] . '_' . date('Y-m-d-H');
         if (!checkRateLimit($rateLimitKey, 100, 3600)) {
-            Response::rateLimitExceeded('Too many requests. Please try again later.');
+            Response::rateLimitExceeded();
         }
         
         // Get user from database
         $stmt = $this->db->prepare("
             SELECT id, tenant_id, role_id, first_name, last_name, email, phone, status, 
-                   photograph_url, pu_id, ward_id, lga_id, state_id
+                   photograph_url, pu_id, ward_id, lga_id, state_id, user_code
             FROM users WHERE id = ? AND status != 'archived'
         ");
         
@@ -152,8 +152,8 @@ class Auth {
         // Get user by email
         $stmt = $this->db->prepare("
             SELECT id, tenant_id, role_id, first_name, last_name, email, phone, 
-                   password_hash, status, two_factor_enabled, photograph_url,
-                   pu_id, ward_id, lga_id, state_id
+                   password_hash, status, photograph_url, user_code,
+                   pu_id, ward_id, lga_id, state_id, device_bound, device_id
             FROM users WHERE email = ? AND status != 'archived'
         ");
         
@@ -178,17 +178,12 @@ class Auth {
         
         if (!$this->verifyPassword($password, $user['password_hash'])) {
             $this->logLoginAttempt($email, $ipAddress, $deviceId, false);
-            
-            // Increment login attempts
             $this->incrementLoginAttempts($user['id']);
-            
             return ['success' => false, 'message' => 'Invalid credentials'];
         }
         
-        // Reset login attempts on successful login
+        // Reset login attempts
         $this->resetLoginAttempts($user['id']);
-        
-        // Log successful login
         $this->logLoginAttempt($email, $ipAddress, $deviceId, true);
         
         // Generate token
@@ -214,11 +209,15 @@ class Auth {
             $puData = $puResult->fetch_assoc();
         }
         
+        // Get dashboard features based on role
+        $dashboardFeatures = $this->getDashboardFeatures($role['level'] ?? '');
+        
         return [
             'success' => true,
             'token' => $token,
             'user' => [
                 'id' => $user['id'],
+                'user_code' => $user['user_code'],
                 'full_name' => $user['first_name'] . ' ' . $user['last_name'],
                 'first_name' => $user['first_name'],
                 'last_name' => $user['last_name'],
@@ -228,21 +227,89 @@ class Auth {
                 'role_name' => $role['name'] ?? '',
                 'role_level' => $role['level'] ?? '',
                 'tenant_id' => $user['tenant_id'],
-                'two_factor_enabled' => (bool)$user['two_factor_enabled'],
                 'photograph_url' => $user['photograph_url'],
                 'permissions' => $permissions,
-                'assigned_pu' => $puData
+                'assigned_pu' => $puData,
+                'dashboard_features' => $dashboardFeatures
             ]
         ];
+    }
+    
+    /**
+     * Get dashboard features based on role
+     */
+    private function getDashboardFeatures($roleLevel) {
+        $features = [];
+        
+        switch ($roleLevel) {
+            case ROLE_PU_AGENT:
+                $features = [
+                    'home' => true,
+                    'checkin' => true,
+                    'checklist' => true,
+                    'accreditation' => true,
+                    'vote_count' => true,
+                    'ec8a' => true,
+                    'media' => true,
+                    'incidents' => true,
+                    'panic' => true,
+                    'chat' => true,
+                    'notifications' => true,
+                    'history' => true,
+                    'profile' => true,
+                    'offline_sync' => true
+                ];
+                break;
+                
+            case ROLE_PARTY_AGENT:
+                $features = [
+                    'home' => true,
+                    'observations' => true,
+                    'evidence' => true,
+                    'incidents' => true,
+                    'chat' => true,
+                    'notifications' => true,
+                    'profile' => true
+                ];
+                break;
+                
+            case ROLE_VOLUNTEER:
+                $features = [
+                    'home' => true,
+                    'tasks' => true,
+                    'community_reports' => true,
+                    'media' => true,
+                    'chat' => true,
+                    'notifications' => true,
+                    'profile' => true
+                ];
+                break;
+                
+            case ROLE_OBSERVER:
+                $features = [
+                    'home' => true,
+                    'observation_form' => true,
+                    'reports' => true,
+                    'media' => true,
+                    'incidents' => true,
+                    'dashboard' => true,
+                    'notifications' => true,
+                    'profile' => true
+                ];
+                break;
+                
+            default:
+                $features = ['home' => true, 'profile' => true];
+        }
+        
+        return $features;
     }
     
     /**
      * Get user permissions
      */
     private function getUserPermissions($roleId) {
-        $result = $this->db->query("
-            SELECT permissions_json FROM roles WHERE id = $roleId
-        ");
+        $result = $this->db->query("SELECT permissions_json FROM roles WHERE id = $roleId");
         $row = $result->fetch_assoc();
         if ($row && $row['permissions_json']) {
             return json_decode($row['permissions_json'], true);
@@ -273,18 +340,14 @@ class Auth {
      * Increment login attempts
      */
     private function incrementLoginAttempts($userId) {
-        $this->db->query("
-            UPDATE users SET login_attempts = login_attempts + 1 WHERE id = $userId
-        ");
+        $this->db->query("UPDATE users SET login_attempts = login_attempts + 1 WHERE id = $userId");
     }
     
     /**
      * Reset login attempts
      */
     private function resetLoginAttempts($userId) {
-        $this->db->query("
-            UPDATE users SET login_attempts = 0, locked_until = NULL WHERE id = $userId
-        ");
+        $this->db->query("UPDATE users SET login_attempts = 0, locked_until = NULL WHERE id = $userId");
     }
     
     /**

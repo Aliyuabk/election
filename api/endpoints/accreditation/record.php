@@ -5,9 +5,10 @@
  */
 
 require_once dirname(__DIR__, 2) . '/config/database.php';
-require_once dirname(__DIR__, 2) . '/includes/auth.php';
-require_once dirname(__DIR__, 2) . '/includes/response.php';
-require_once dirname(__DIR__, 2) . '/includes/validation.php';
+require_once dirname(__DIR__, 2) . '/config/constants.php';
+require_once dirname(__DIR__, 2) . '/includes/Auth.php';
+require_once dirname(__DIR__, 2) . '/includes/Response.php';
+require_once dirname(__DIR__, 2) . '/includes/Validator.php';
 
 $auth = new Auth();
 $user = $auth->authenticate();
@@ -141,4 +142,3 @@ Response::success([
     'registered_voters' => $pu['registered_voters'],
     'turnout_percentage' => round(($accreditedVoters / $pu['registered_voters']) * 100, 2)
 ], 'Accreditation recorded successfully');
-?>

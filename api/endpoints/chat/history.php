@@ -5,8 +5,9 @@
  */
 
 require_once dirname(__DIR__, 2) . '/config/database.php';
-require_once dirname(__DIR__, 2) . '/includes/auth.php';
-require_once dirname(__DIR__, 2) . '/includes/response.php';
+require_once dirname(__DIR__, 2) . '/config/constants.php';
+require_once dirname(__DIR__, 2) . '/includes/Auth.php';
+require_once dirname(__DIR__, 2) . '/includes/Response.php';
 
 $auth = new Auth();
 $user = $auth->authenticate();
@@ -18,7 +19,6 @@ if (!$user) {
 $roomId = isset($_GET['room_id']) ? intval($_GET['room_id']) : 0;
 $limit = isset($_GET['limit']) ? intval($_GET['limit']) : 50;
 $offset = isset($_GET['offset']) ? intval($_GET['offset']) : 0;
-$before = isset($_GET['before']) ? intval($_GET['before']) : null;
 
 if ($roomId <= 0) {
     Response::error('Room ID is required', 400);
@@ -49,13 +49,8 @@ $sql = "
     FROM chat_messages cm
     LEFT JOIN users u ON cm.sender_id = u.id
     WHERE cm.room_id = $roomId
+    ORDER BY cm.created_at DESC LIMIT $limit OFFSET $offset
 ";
-
-if ($before) {
-    $sql .= " AND cm.id < $before";
-}
-
-$sql .= " ORDER BY cm.created_at DESC LIMIT $limit OFFSET $offset";
 
 $result = $db->query($sql);
 
@@ -87,4 +82,3 @@ Response::success([
         'offset' => $offset
     ]
 ]);
-?>
